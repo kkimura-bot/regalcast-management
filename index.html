@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>RegalCast Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div id="login-screen">
+  <!-- 通常ログインボックス -->
+  <div class="login-box" id="login-box-main">
+    <div class="login-logomark">RC</div>
+    <div class="login-logo">RegalCast</div>
+    <div class="login-sub">Management System</div>
+    <input class="login-input" id="login-email" type="email" placeholder="メールアドレス" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
+    <input class="login-input" id="login-pass" type="password" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" id="login-btn" onclick="doLogin()">ログイン</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-reset" onclick="doResetPassword()">パスワードを忘れた方はこちら</div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <button onclick="showAllianceLogin()"
+        style="width:100%;padding:11px 14px;background:transparent;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:13px;color:var(--ink3);cursor:pointer;font-family:inherit;font-weight:500;transition:all .15s;text-align:center"
+        onmouseover="this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">
+        アライアンスの方はこちら →
+      </button>
+    </div>
+  </div>
+
+  <!-- アライアンスログインボックス -->
+  <div class="login-box" id="login-box-alliance" style="display:none">
+    <div class="login-logomark" style="background:var(--accent2)">AL</div>
+    <div class="login-logo">RegalCast</div>
+    <div class="login-sub">Alliance Portal</div>
+    <div style="background:rgba(58,125,90,.08);border:1px solid rgba(58,125,90,.25);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--accent2);margin-bottom:16px;line-height:1.7">
+      出退勤記録ページです。<br>お名前をプルダウンから選択してください。
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace">お名前</div>
+      <select id="alliance-name-select" class="login-input" style="cursor:pointer">
+        <option value="">── 選択してください ──</option>
+      </select>
+    </div>
+    <button class="login-btn" onclick="doAllianceLogin()"
+      style="background:var(--accent2)" onmouseover="this.style.background='#2d6b4a'" onmouseout="this.style.background='var(--accent2)'">
+      入室する
+    </button>
+    <div class="login-error" id="alliance-error"></div>
+    <div class="login-reset" onclick="showNormalLogin()">← 通常ログインに戻る</div>
+  </div>
+</div>
+
+<!-- ===== ALLIANCE SCREEN（出退勤専用） ===== -->
+<div id="alliance-screen" style="display:none;flex-direction:column;min-height:100vh">
+  <div style="background:var(--ink);color:#f8fafc;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--accent2);flex-shrink:0;box-shadow:var(--shadow-sm)">
+    <div>
+      <div style="font-size:16px;font-weight:700;letter-spacing:-0.3px">RegalCast <span style="color:var(--accent2)">Alliance</span></div>
+      <div style="font-size:9px;opacity:.4;letter-spacing:2px;font-family:'DM Mono',monospace;margin-top:1px">ATTENDANCE PORTAL</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="text-align:right">
+        <div id="alliance-user-name" style="font-size:13px;font-weight:700"></div>
+        <div id="alliance-user-dept" style="font-size:10px;opacity:.5;font-family:'DM Mono',monospace;display:none"></div>
+      </div>
+      <button onclick="doAllianceLogout()" class="logout-btn">退出</button>
+    </div>
+  </div>
+  <div style="flex:1;padding:20px 16px;max-width:520px;width:100%;margin:0 auto">
+    <div id="alliance-att-content"></div>
+  </div>
+</div>
+
+<!-- ===== APP SCREEN ===== -->
+<div id="app-screen">
+
+  <!-- MOBILE HEADER -->
+  <div class="mobile-header">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:15px;font-weight:700;letter-spacing:-0.3px">RegalCast<span style="color:var(--blue)"> MGT</span></div>
+        <div id="m-page-title" style="font-size:10px;opacity:.5;font-family:'DM Mono',monospace;text-transform:uppercase">DASHBOARD</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;font-weight:700" id="user-name-display-m"></div>
+        <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:3px">
+          <button onclick="openErrorReport()" style="padding:4px 8px;background:transparent;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:10px;color:var(--ink3);cursor:pointer;font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'">🐛</button>
+          <button class="logout-btn" onclick="doLogout()" style="font-size:10px">ログアウト</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE CONTENT -->
+  <div class="mobile-content">
+
+    <!-- M: DASHBOARD -->
+    <div class="mobile-view active" id="m-view-dashboard">
+      <!-- Notification Banner (mobile) -->
+      <div id="notif-banner-m" style="margin-bottom:12px"></div>
+      <!-- 管理者向けアラートパネル（モバイル） -->
+      <div id="m-admin-alert-panel"></div>
+      <!-- 手動更新ボタン（モバイル） -->
+      <button onclick="loadDashboard()" id="m-dash-refresh-btn"
+        style="width:100%;padding:10px;border-radius:8px;border:1.5px solid var(--accent2);background:transparent;color:var(--accent2);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:12px">
+        🔄 ダッシュボードを更新
+      </button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+        <div class="kpi-card" style="border-left-color:var(--blue)"><div class="kpi-num" id="m-kpi-total" style="color:var(--blue)">—</div><div class="kpi-label">タスク総数</div></div>
+        <div class="kpi-card" style="border-left-color:var(--accent2)"><div class="kpi-num" id="m-kpi-done" style="color:var(--accent2)">—</div><div class="kpi-label">完了</div></div>
+        <div class="kpi-card" style="border-left-color:var(--warn)"><div class="kpi-num" id="m-kpi-active" style="color:var(--warn)">—</div><div class="kpi-label">進行中</div></div>
+        <div class="kpi-card" style="border-left-color:var(--accent)"><div class="kpi-num" id="m-kpi-overdue" style="color:var(--accent)">—</div><div class="kpi-label">期限超過</div></div>
+      </div>
+      <div class="section-title" id="m-dash-att-section" style="display:none">本日の出勤状況</div>
+      <div id="m-dash-attendance" style="display:none;margin-bottom:16px"></div>
+      <div class="section-title">直近のタスク</div>
+      <div id="m-dash-tasks"></div>
+    </div>
+
+    <!-- M: PROJECTS -->
+    <div class="mobile-view" id="m-view-projects">
+      <div id="m-pj-list"></div>
+    </div>
+
+    <!-- M: TASKS -->
+    <div class="mobile-view" id="m-view-tasks">
+      <div id="m-task-list"></div>
+    </div>
+
+    <!-- M: ATTENDANCE -->
+    <div class="mobile-view" id="m-view-attendance">
+      <!-- 面談リクエスト -->
+      <div id="m-meeting-request-area" style="margin-bottom:12px;display:none">
+        <button onclick="requestMeeting('attendance')"
+          style="width:100%;min-height:52px;padding:14px;border-radius:var(--r);border:2px solid var(--accent);background:transparent;color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
+          💬 面談をリクエストする
+        </button>
+      </div>
+
+      <!-- 打刻カード -->
+      <div class="m-att-card">
+        <div id="att-missed-banner-m"></div>
+        <div id="attendance-status-m" style="margin-bottom:14px"></div>
+
+        <!-- ── 出勤フォーム ── -->
+        <div id="m-clockin-form">
+          <!-- メンタル天気（必須） -->
+          <div class="m-mental-section">
+            <div class="m-mental-label">
+              🌤 今日のメンタル天気
+              <span class="required-badge">必須</span>
+            </div>
+            <div class="m-mental-grid" id="mental-picker-m">
+              <label class="mental-btn" data-val="快晴"><input type="radio" name="mental-m" value="快晴" style="display:none">☀️<div>快晴</div></label>
+              <label class="mental-btn" data-val="曇り"><input type="radio" name="mental-m" value="曇り" style="display:none">☁️<div>曇り</div></label>
+              <label class="mental-btn" data-val="雨"><input type="radio" name="mental-m" value="雨" style="display:none">🌧<div>雨</div></label>
+              <label class="mental-btn" data-val="豪雨"><input type="radio" name="mental-m" value="豪雨" style="display:none">⛈<div>豪雨</div></label>
+              <label class="mental-btn" data-val="雷"><input type="radio" name="mental-m" value="雷" style="display:none">🌩<div>雷</div></label>
+              <label class="mental-btn" data-val="嵐"><input type="radio" name="mental-m" value="嵐" style="display:none">🌀<div>嵐</div></label>
+              <label class="mental-btn" data-val="天災"><input type="radio" name="mental-m" value="天災" style="display:none">🔥<div>天災</div></label>
+            </div>
+          </div>
+
+          <!-- 出勤ボタン（大） -->
+          <button class="att-btn att-btn-in m-att-btn-big" onclick="clockIn()">
+            🟢 出勤を記録する
+          </button>
+
+          <!-- アコーディオン：交通費・詳細 -->
+          <details class="m-accordion">
+            <summary>
+              <span>🚃 交通費・詳細を入力する</span>
+              <span class="m-accordion-chevron">▼</span>
+            </summary>
+            <div class="m-accordion-body">
+              <div style="font-size:12px;color:var(--accent2);background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:14px;line-height:1.6">
+                🎫 <strong>定期購入者の方へ</strong><br>
+                定期券購入時に<strong>金額を1回だけ</strong>入力。通常日は¥0のままでOK。
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                <div>
+                  <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">🚃 乗車駅</label>
+                  <input class="form-input" id="att-station-from" placeholder="例：渋谷">
+                </div>
+                <div>
+                  <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">🏢 降車駅</label>
+                  <input class="form-input" id="att-station-to" placeholder="例：新宿">
+                </div>
+              </div>
+              <div style="margin-bottom:12px">
+                <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">💴 出勤交通費（自宅→勤務先）</label>
+                <input type="number" class="form-input" id="att-fare-in" placeholder="例：380" min="0" inputmode="numeric">
+              </div>
+              <div style="margin-bottom:14px">
+                <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">💴 その他交通費（ラウンド・途中移動等）</label>
+                <input type="number" class="form-input" id="att-fare-other" placeholder="例：200" min="0" inputmode="numeric">
+              </div>
+              <div style="padding:14px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:12px">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:15px;font-weight:500;min-height:28px">
+                  <input type="checkbox" id="att-late" onchange="document.getElementById('m-late-reason').style.display=this.checked?'block':'none'" style="width:20px;height:20px;accent-color:var(--warn);flex-shrink:0">
+                  ⏰ 遅刻あり
+                </label>
+                <div id="m-late-reason" style="display:none;margin-top:10px">
+                  <input class="form-input" id="att-late-reason" placeholder="理由（例：電車遅延）">
+                </div>
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">メモ（任意）</label>
+                <textarea class="form-input" id="attendance-note" rows="2" placeholder="メモ（任意）" style="resize:none"></textarea>
+              </div>
+            </div>
+          </details>
+        </div><!-- /m-clockin-form -->
+
+        <!-- ── 退勤フォーム ── -->
+        <div id="m-clockout-form">
+          <!-- 退勤ボタン（大） -->
+          <button class="att-btn att-btn-out m-att-btn-big" onclick="clockOut()">
+            🔵 退勤を記録する
+          </button>
+
+          <!-- アコーディオン：交通費・詳細 -->
+          <details class="m-accordion">
+            <summary>
+              <span>🚃 交通費・詳細を入力する</span>
+              <span class="m-accordion-chevron">▼</span>
+            </summary>
+            <div class="m-accordion-body">
+              <div style="margin-bottom:12px">
+                <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">💴 退勤交通費（勤務先→自宅）</label>
+                <input type="number" class="form-input" id="att-fare-out" placeholder="例：380" min="0" inputmode="numeric">
+              </div>
+              <div style="margin-bottom:12px">
+                <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">💴 その他交通費（ラウンド・途中移動等）</label>
+                <input type="number" class="form-input" id="att-fare-other-out" placeholder="例：0" min="0" inputmode="numeric">
+              </div>
+              <div style="margin-bottom:14px">
+                <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">☕ 休憩時間（分）※基本60分</label>
+                <input type="number" class="form-input" id="att-break" placeholder="60" min="0" value="60" inputmode="numeric">
+              </div>
+              <div style="padding:14px;background:var(--surface2);border-radius:var(--r-sm)">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:15px;font-weight:500;min-height:28px">
+                  <input type="checkbox" id="att-early" onchange="document.getElementById('m-early-reason').style.display=this.checked?'block':'none'" style="width:20px;height:20px;accent-color:var(--warn);flex-shrink:0">
+                  🏃 早退あり
+                </label>
+                <div id="m-early-reason" style="display:none;margin-top:10px">
+                  <input class="form-input" id="att-early-reason" placeholder="理由（例：体調不良）">
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <!-- 残業申請 -->
+          <div id="m-ot-request-area" style="display:none;margin-top:14px">
+            <button onclick="openOvertimeModal()"
+              style="width:100%;min-height:56px;padding:14px;border-radius:var(--r-sm);border:2px solid var(--warn);background:transparent;color:var(--warn);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
+              ⏰ 残業申請
+            </button>
+          </div>
+        </div><!-- /m-clockout-form -->
+      </div><!-- /m-att-card -->
+    </div>
+
+    <!-- M: SHIFTS -->
+    <div class="mobile-view" id="m-view-shifts">
+      <!-- 週ナビ（モバイル） -->
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:10px;padding:8px 12px;margin-bottom:12px">
+        <button onclick="shiftWeekNav(-1)" style="background:none;border:none;cursor:pointer;font-size:20px;padding:0 4px;color:var(--ink2)">◀</button>
+        <div style="text-align:center">
+          <div id="shift-week-label-m" style="font-size:12px;font-weight:700;color:var(--ink1)"></div>
+          <button onclick="_shiftWeekOffset=0;loadShifts()" style="font-size:10px;padding:2px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface);cursor:pointer;color:var(--ink3);margin-top:4px">今週に戻る</button>
+        </div>
+        <button onclick="shiftWeekNav(1)" style="background:none;border:none;cursor:pointer;font-size:20px;padding:0 4px;color:var(--ink2)">▶</button>
+      </div>
+      <!-- リーダー用フィルター（postLoginSetupで表示制御） -->
+      <div id="m-shift-leader-filter-row" style="display:none;margin-bottom:10px">
+        <select class="form-input" id="shift-leader-filter-m" style="width:100%;font-size:12px" onchange="loadShifts()">
+          <option value="self">自分のシフト</option>
+          <option value="dept">部署全体</option>
+          <option value="all">全員</option>
+        </select>
+      </div>
+      <div id="m-shift-btns" style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
+      <div id="shift-calendar-m"></div>
+    </div>
+
+    <!-- M: MONTHLY -->
+    <div class="mobile-view" id="m-view-monthly">
+      <!-- コントロール -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <input type="month" class="form-input" id="att-month-m" value="" style="flex:1;min-width:130px" onchange="loadMonthlyAttendance(true)">
+        <button class="mini-btn" id="att-reload-btn-m" onclick="loadMonthlyAttendance(true)" style="padding:6px 12px;background:var(--accent2);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;min-width:80px">🔄 更新</button>
+        <button onclick="exportCSV()" style="padding:6px 12px;background:var(--accent2);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇ CSV</button>
+        <button id="m-att-add-btn" onclick="openAddAttendanceModal()" style="display:none;padding:6px 12px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">＋ 追加</button>
+      </div>
+      <!-- 管理者：メンバーフィルター -->
+      <div id="m-att-member-row" style="display:none;margin-bottom:10px">
+        <select class="form-input" id="att-member-filter-m" style="width:100%" onchange="(function(){var sel=document.getElementById('att-member-filter');if(sel)sel.value=this.value;loadMonthlyAttendance(true);}).call(this)">
+          <option value="">全員</option>
+        </select>
+      </div>
+      <!-- サマリーカード -->
+      <div id="att-summary-m" style="margin-bottom:14px"></div>
+      <!-- 勤怠詳細カード一覧 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="section-title" style="font-size:12px;margin-bottom:0">勤怠詳細</div>
+        <div id="att-detail-filter-btns-m" style="display:none;gap:4px">
+          <button class="mini-btn att-detail-filter-m active" data-filter="missed" onclick="setAttDetailFilter('missed')" style="font-size:10px">🚨 漏れのみ</button>
+          <button class="mini-btn att-detail-filter-m" data-filter="all" onclick="setAttDetailFilter('all')" style="font-size:10px">全件</button>
+        </div>
+      </div>
+      <div id="m-att-cards"></div>
+    </div>
+
+
+    <!-- M: USERS (admin only) -->
+    <div class="mobile-view" id="m-view-alert">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">📣 アラート報告</div>
+        <button class="add-btn" style="background:var(--accent);font-size:12px;padding:6px 14px" onclick="openAlertReportModal()">＋ 報告</button>
+      </div>
+      <!-- カテゴリタブ（横スクロール） -->
+      <div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;border-bottom:1.5px solid var(--border)">
+        <button class="alert-cat-tab active" data-cat="all" onclick="filterAlertList('all',this)" style="padding:5px 12px;border:none;background:var(--ink);color:#f5f3ef;border-radius:20px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">すべて</button>
+        <button class="alert-cat-tab" data-cat="motivation" onclick="filterAlertList('motivation',this)" style="padding:5px 12px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">😞 モチベーション</button>
+        <button class="alert-cat-tab" data-cat="irregular" onclick="filterAlertList('irregular',this)" style="padding:5px 12px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">⚡ イレギュラー</button>
+        <button class="alert-cat-tab" data-cat="bug" onclick="filterAlertList('bug',this)" style="padding:5px 12px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">🐛 不具合</button>
+        <button class="alert-cat-tab" data-cat="other" onclick="filterAlertList('other',this)" style="padding:5px 12px;border:1px solid var(--border);background:var(--surface);color:var(--ink3);border-radius:20px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">📝 その他</button>
+      </div>
+      <div id="alert-list-body-m"></div>
+    </div>
+
+    <div class="mobile-view" id="m-view-myshift">
+      <div style="font-weight:700;font-size:14px;margin-bottom:10px">📝 シフト報告</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+        <input type="month" class="form-input" id="myshift-month-m" style="flex:1">
+        <button class="mini-btn" onclick="loadMyShiftReport()">表示</button>
+      </div>
+      <!-- 凡例 -->
+      <div style="display:flex;gap:10px;font-size:10px;margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:6px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">🟢</span>稼働日</div>
+        <div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px">🔴</span>公休日</div>
+        <div style="display:flex;align-items:center;gap:4px"><span style="font-size:12px;color:var(--ink3)">—</span>未選択</div>
+        <div style="color:var(--ink3);font-size:9px">日付タップで切り替え</div>
+      </div>
+      <!-- 時間 -->
+      <div style="padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;margin-bottom:7px">⏰ 稼働時間</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+          <div>
+            <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:3px">開始</label>
+            <input type="time" class="form-input" id="myshift-start-m" value="10:00" style="font-size:12px;padding:7px">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:3px">終了</label>
+            <input type="time" class="form-input" id="myshift-end-m" value="19:00" style="font-size:12px;padding:7px">
+          </div>
+        </div>
+        <input class="form-input" id="myshift-location-m" placeholder="勤務地（例：新宿店）" style="font-size:12px;padding:7px;margin-bottom:6px">
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <button class="pj-filter-btn" style="font-size:10px;padding:4px 8px" onclick="setMyShiftPreset('09:00','18:00')">9〜18</button>
+          <button class="pj-filter-btn" style="font-size:10px;padding:4px 8px" onclick="setMyShiftPreset('10:00','19:00')">10〜19</button>
+          <button class="pj-filter-btn" style="font-size:10px;padding:4px 8px" onclick="setMyShiftPreset('11:00','20:00')">11〜20</button>
+          <button class="pj-filter-btn" style="font-size:10px;padding:4px 8px" onclick="setMyShiftPreset('13:00','22:00')">13〜22</button>
+        </div>
+      </div>
+      <!-- カレンダー -->
+      <!-- 無効時の警告 -->
+      <div id="myshift-disabled-notice-m" style="display:none;padding:16px;background:#fff3cd;border:1.5px solid #f0ad4e;border-radius:10px;margin-bottom:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">⚠️</div>
+        <div style="font-size:13px;font-weight:700;color:#7b5800;margin-bottom:4px">シフト自己報告の対象外です</div>
+        <div style="font-size:11px;color:#856404;line-height:1.6">
+          あなたのシフトは管理者が入力します。<br>このページからの報告は不要です。
+        </div>
+      </div>
+      <!-- 有効時のフォーム -->
+      <div id="myshift-form-wrap-m">
+      <div style="font-size:11px;color:var(--ink3);padding:6px 10px;background:var(--surface2);border-radius:6px;margin-bottom:8px">
+        💡 出勤予定日をタップして選択。公休・休日は入力不要。
+      </div>
+      <div id="myshift-calendar-m" style="margin-bottom:12px"></div>
+      <!-- サマリー -->
+      <div id="myshift-summary-m" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;padding-bottom:16px">
+        <button class="att-btn att-btn-in" style="flex:1;font-size:13px" onclick="submitMyShift()">✅ シフトを報告</button>
+        <button class="mini-btn" onclick="clearMyShiftSelection()">🔄 リセット</button>
+      </div>
+      </div><!-- /myshift-form-wrap-m -->
+    </div>
+
+    <div class="mobile-view" id="m-view-mental">
+      <div style="font-weight:700;font-size:14px;margin-bottom:12px">🌤 メンタル天気確認</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
+        <input type="month" class="form-input" id="mental-month-m" style="flex:1">
+        <button class="mini-btn" onclick="loadMentalData()">表示</button>
+      </div>
+      <div id="mental-summary-m" style="margin-bottom:10px"></div>
+      <!-- 検索・フィルター（モバイル） -->
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;padding:10px;background:var(--surface2);border-radius:8px">
+        <div style="position:relative">
+          <input class="form-input" id="mental-search-m" placeholder="🔍 名前で検索" style="width:100%;padding-right:24px;font-size:12px" oninput="renderMentalFiltered()">
+          <button onclick="document.getElementById('mental-search-m').value='';renderMentalFiltered()" style="position:absolute;right:7px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink3);font-size:11px;padding:0">✕</button>
+        </div>
+        <div style="display:flex;gap:6px">
+          <select class="form-input" id="mental-sort-m" style="flex:1;font-size:12px" onchange="renderMentalFiltered()">
+            <option value="risk">⚠ リスク高い順</option>
+            <option value="name">🔤 名前順</option>
+            <option value="count">📊 件数順</option>
+            <option value="recent">🕐 直近順</option>
+          </select>
+          <select class="form-input" id="mental-alert-filter-m" style="flex:1;font-size:12px" onchange="renderMentalFiltered()">
+            <option value="all">すべて</option>
+            <option value="danger">⚠ 要注意</option>
+            <option value="warn">△ 注視以上</option>
+            <option value="caution">○ 経過観察以上</option>
+            <option value="ok">✓ 良好</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:8px" id="mental-count-label-m"></div>
+      <div id="mental-member-list-m"></div>
+    </div>
+    <div class="mobile-view" id="m-view-mysalary">
+      <div style="font-weight:700;font-size:14px;margin-bottom:12px">💰 給与テーブル確認</div>
+      <div id="mysalary-content-m"></div>
+    </div>
+    <div class="mobile-view" id="m-view-salary">
+      <div style="font-weight:700;font-size:14px;margin-bottom:12px">💰 給与管理</div>
+      <div id="salary-list-m"></div>
+    </div>
+    <div class="mobile-view" id="m-view-users">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700">👥 メンバー管理</div>
+        <button class="add-btn" style="font-size:11px" onclick="openBulkAddMembersModal()">＋ 登録</button>
+      </div>
+      <div id="m-users-list"></div>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" id="fab-btn" onclick="openAddTaskModal()">＋</button>
+
+    <!-- M: ADMIN SHIFTS (admin only) -->
+    <div class="mobile-view" id="m-view-adminshifts">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">📅 シフト管理</div>
+        <span id="m-shift-off-badge" class="notif-badge" style="display:none;background:var(--accent)"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <input type="month" class="form-input" id="shift-month-admin-m" style="flex:1;min-width:130px" onchange="loadAdminShiftsM()">
+        <select class="form-input" id="shift-member-filter-m" style="flex:1;min-width:100px" onchange="loadAdminShiftsM()">
+          <option value="">全員</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="m-admin-shift-btns">
+        <button class="add-btn" style="font-size:11px" onclick="openAddShiftModal()">＋ シフト登録</button>
+        <button class="add-btn" style="font-size:11px;background:var(--blue)" onclick="openShiftImportModal()">📋 個人インポート</button>
+        <button class="add-btn" style="font-size:11px;background:#7c5cbf" onclick="openBulkShiftImportModal()">👥 一括インポート</button>
+        <button class="add-btn" style="font-size:11px;background:var(--accent)" onclick="openRequestOffModal()">🙏 希望休を登録</button>
+        <button class="add-btn" style="font-size:11px;background:var(--accent);opacity:.85" onclick="openDeleteMemberShiftModal()">🗑 メンバー別削除</button>
+      </div>
+      <!-- 希望休承認待ちバナー -->
+      <div id="m-off-pending-banner" style="display:none;margin-bottom:10px;padding:10px 12px;background:rgba(200,71,42,.08);border-left:3px solid var(--accent);border-radius:6px;font-size:12px"></div>
+      <div style="display:flex;gap:5px;font-size:10px;color:var(--ink3);margin-bottom:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:3px"><div style="width:9px;height:9px;background:rgba(42,82,152,.18);border-radius:2px"></div>シフト</div>
+        <div style="display:flex;align-items:center;gap:3px"><div style="width:9px;height:9px;background:rgba(200,71,42,.14);border-radius:2px"></div>希望休</div>
+      </div>
+      <div id="shift-calendar-admin-m" style="overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
+    </div>
+
+    <!-- M: DAILY CHECK (admin only) -->
+    <div class="mobile-view" id="m-view-daily">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-weight:700;font-size:14px">📍 当日出退勤確認</div>
+        <button class="mini-btn" id="daily-reload-btn-m" onclick="loadDailyCheckM(true)" style="min-width:70px">🔄 更新</button>
+      </div>
+      <div style="margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;font-size:12px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="m-daily-show-all" onchange="loadDailyCheckM(true)" style="width:15px;height:15px;accent-color:var(--blue)">
+          全メンバー表示（シフトなし・打刻なし含む）
+        </label>
+      </div>
+      <div id="m-daily-check-body">
+        <div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">読み込み中...</div>
+      </div>
+    </div>
+
+    <!-- M: REPORTS (admin only) -->
+    <div class="mobile-view" id="m-view-reports">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">📨 報告確認</div>
+        <button class="mini-btn" onclick="loadReportsM()">🔄 更新</button>
+      </div>
+      <div style="display:flex;gap:5px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;border-bottom:1.5px solid var(--border)">
+        <button class="m-report-tab active" data-cat="all"        onclick="filterReportsMobile('all',this)"        style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:5px 12px;border:none;border-bottom:2px solid var(--ink);background:none;cursor:pointer;font-weight:700;color:var(--ink)">すべて</button>
+        <button class="m-report-tab"        data-cat="meeting"    onclick="filterReportsMobile('meeting',this)"    style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:5px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">🤝 面談</button>
+        <button class="m-report-tab"        data-cat="motivation" onclick="filterReportsMobile('motivation',this)" style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:5px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">😞 モチベ</button>
+        <button class="m-report-tab"        data-cat="irregular"  onclick="filterReportsMobile('irregular',this)"  style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:5px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">⚡ イレギュラー</button>
+        <button class="m-report-tab"        data-cat="bug"        onclick="filterReportsMobile('bug',this)"        style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:5px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">🐛 不具合</button>
+        <button class="m-report-tab"        data-cat="other"      onclick="filterReportsMobile('other',this)"      style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:5px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">📝 その他</button>
+      </div>
+      <div id="m-reports-body"></div>
+    </div>
+
+
+    <!-- M: MY PAGE -->
+    <div class="mobile-view" id="m-view-mypage">
+      <div style="font-weight:700;font-size:15px;margin-bottom:16px">👤 マイページ</div>
+
+      <!-- プロフィール情報 -->
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">プロフィール</div>
+        <div id="mypage-profile-info" style="font-size:13px;line-height:1.8"></div>
+      </div>
+
+      <!-- 通勤設定 -->
+      <div style="background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink3);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">🚃 通勤設定</div>
+
+        <!-- 自宅最寄駅 -->
+        <div style="margin-bottom:14px">
+          <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">🏠 自宅最寄駅</label>
+          <input class="form-input" id="mypage-nearest-station" placeholder="例：新宿駅" style="font-size:13px;padding:9px">
+        </div>
+
+        <!-- 店舗別テンプレ -->
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">📍 店舗別テンプレ</div>
+        <div id="mypage-fare-templates"></div>
+        <button class="mini-btn" onclick="addFareTemplate()" style="margin-top:8px;width:100%;padding:9px;font-size:12px">＋ 店舗を追加</button>
+      </div>
+
+      <button class="btn" onclick="saveMyPage()" style="width:100%;padding:12px;font-size:14px;font-weight:700">💾 保存する</button>
+    </div>
+
+  <!-- MOBILE NAV -->
+  <nav class="mobile-nav">
+    <div class="mobile-nav-inner">
+      <div class="mnav-item active" onclick="switchMobile('dashboard',this)" data-roles="admin,leader,member">
+        <div class="mnav-icon"><i data-lucide="home"></i></div><div class="mnav-label">ホーム</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('projects',this)" data-roles="" style="display:none">
+        <div class="mnav-icon"><i data-lucide="folder"></i></div><div class="mnav-label">PJ</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('tasks',this)" data-roles="" style="display:none">
+        <div class="mnav-icon"><i data-lucide="check-square-2"></i></div><div class="mnav-label">タスク</div>
+      </div>
+      <div class="mnav-item mnav-attendance" onclick="switchMobile('attendance',this)" data-roles="admin,leader,member">
+        <div class="mnav-icon"><i data-lucide="clock"></i></div><div class="mnav-label">出退勤</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('mysalary',this)" data-roles="member,leader">
+        <div class="mnav-icon"><i data-lucide="banknote"></i></div><div class="mnav-label">給与</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('monthly',this)" data-roles="admin,leader,member">
+        <div class="mnav-icon"><i data-lucide="calendar-days"></i></div><div class="mnav-label">勤怠表</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('shifts',this)" data-roles="member,leader">
+        <div class="mnav-icon"><i data-lucide="calendar-range"></i></div><div class="mnav-label">シフト</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('myshift',this)" data-roles="member,leader">
+        <div class="mnav-icon"><i data-lucide="clipboard-list"></i></div><div class="mnav-label">シフト報告</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('alert',this)" data-roles="leader">
+        <div class="mnav-icon"><i data-lucide="bell"></i></div><div class="mnav-label">報告</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('mental',this)" data-roles="admin,leader">
+        <div class="mnav-icon"><i data-lucide="cloud-sun"></i></div><div class="mnav-label">メンタル</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('users',this)" data-roles="admin">
+        <div class="mnav-icon"><i data-lucide="users"></i></div><div class="mnav-label">管理</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('salary',this)" data-roles="admin">
+        <div class="mnav-icon"><i data-lucide="wallet"></i></div><div class="mnav-label">給与</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('adminshifts',this)" data-roles="admin">
+        <div class="mnav-icon"><i data-lucide="layout-list"></i></div><div class="mnav-label">シフト</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('daily',this)" data-roles="admin">
+        <div class="mnav-icon"><i data-lucide="map-pin"></i></div><div class="mnav-label">当日確認</div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('reports',this)" data-roles="admin">
+        <div class="mnav-icon"><i data-lucide="inbox"></i></div>
+        <div class="mnav-label">報告確認 <span id="m-report-badge" class="notif-badge" style="display:none;background:var(--accent);font-size:9px;padding:1px 4px"></span></div>
+      </div>
+      <div class="mnav-item" onclick="switchMobile('mypage',this)" data-roles="admin,leader,member">
+        <div class="mnav-icon"><i data-lucide="user-round"></i></div><div class="mnav-label">マイページ</div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- PC TOP BAR -->
+  <div class="top-bar">
+    <div class="brand">RegalCast<span> Management</span><sub>2026 OPERATION SYSTEM</sub></div>
+    <div class="top-right">
+      <button onclick="openErrorReport()" style="padding:5px 12px;background:transparent;border:1.5px solid var(--border);border-radius:var(--r-sm);font-size:11px;color:var(--ink3);cursor:pointer;font-family:inherit;margin-right:8px;font-weight:500;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--ink3)'" title="不具合・エラーを報告する">🐛 報告</button>
+      <div class="user-info">
+        <div class="uname" id="user-name-display">—</div>
+        <div class="urole" id="user-role-display">—</div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+
+  <!-- PC NAV -->
+  <div class="nav-tabs">
+    <!-- ホーム -->
+    <div class="tab active" data-tab="dashboard" data-roles="admin,leader,member">📊 ダッシュボード <span id="notif-badge" class="notif-badge" style="display:inline-flex"></span></div>
+
+    <!-- 非表示タブ（将来用） -->
+    <div class="tab" data-tab="projects" data-roles="" style="display:none">🗂 PJ管理</div>
+    <div class="tab" data-tab="tasks" data-roles="" style="display:none">✅ タスク管理</div>
+
+    <!-- 勤怠グループ -->
+    <div class="tab-group" id="tabgroup-kintai">
+      <div class="tab-group-header">🕐 勤怠 <span class="tab-group-arrow">▾</span></div>
+      <div class="tab-group-dropdown">
+        <div class="tab tab-dropdown-item" data-tab="attendance" data-roles="admin,leader,member">🕐 出退勤</div>
+        <div class="tab tab-dropdown-item" data-tab="shifts" data-roles="admin,leader,member">📅 シフト確認</div>
+        <div class="tab tab-dropdown-item" data-tab="myshift" data-roles="member,leader">📝 シフト報告</div>
+        <div class="tab tab-dropdown-item" data-tab="monthly" data-roles="admin,leader,member">📋 勤怠表</div>
+        <div class="tab tab-dropdown-item" data-tab="daily" data-roles="admin">📍 当日確認</div>
+      </div>
+    </div>
+
+    <!-- 給与グループ -->
+    <div class="tab-group" id="tabgroup-kyuyo">
+      <div class="tab-group-header">💰 給与 <span class="tab-group-arrow">▾</span></div>
+      <div class="tab-group-dropdown">
+        <div class="tab tab-dropdown-item" data-tab="mysalary" data-roles="member,leader">💰 給与明細</div>
+        <div class="tab tab-dropdown-item" data-tab="salary" data-roles="admin">💰 給与管理</div>
+      </div>
+    </div>
+
+    <!-- 管理グループ -->
+    <div class="tab-group" id="tabgroup-kanri">
+      <div class="tab-group-header">⚙ 管理 <span class="tab-group-arrow">▾</span></div>
+      <div class="tab-group-dropdown">
+        <div class="tab tab-dropdown-item" data-tab="reports" data-roles="admin">📨 報告確認 <span id="report-badge" class="notif-badge" style="display:none;background:var(--accent)"></span></div>
+        <div class="tab tab-dropdown-item" data-tab="alert" data-roles="leader">📣 報告 <span id="alert-badge" class="notif-badge" style="display:none;background:var(--accent)"></span></div>
+        <div class="tab tab-dropdown-item" data-tab="mental" data-roles="admin,leader">🌤 メンタル</div>
+        <div class="tab tab-dropdown-item" data-tab="users" data-roles="admin">👥 メンバー管理</div>
+        <div class="tab tab-dropdown-item" data-tab="shops" data-roles="admin">🏪 店舗設定</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PC CONTENT -->
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="view-dashboard" class="view active">
+      <!-- Notification Banner（タスク期限アラート） -->
+      <div id="notif-banner"></div>
+      <!-- 管理者向けアラートパネル -->
+      <div id="admin-alert-panel"></div>
+      <!-- 手動更新ボタン -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="mini-btn" onclick="loadDashboard()" id="dash-refresh-btn"
+          style="font-size:12px;padding:6px 14px;display:flex;align-items:center;gap:6px">
+          🔄 ダッシュボードを更新
+        </button>
+      </div>
+      <div id="dash-empty-hint" style="text-align:center;padding:30px;color:var(--ink3);font-size:12px">
+        「🔄 ダッシュボードを更新」を押してください
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-card kpi-clickable" style="border-left-color:var(--blue)" onclick="showKpiTasks('total')"><div class="kpi-num" style="color:var(--blue)" id="kpi-total">—</div><div class="kpi-label">タスク総数</div><div class="kpi-hint">クリックで一覧</div></div>
+        <div class="kpi-card kpi-clickable" style="border-left-color:var(--accent2)" onclick="showKpiTasks('done')"><div class="kpi-num" style="color:var(--accent2)" id="kpi-done">—</div><div class="kpi-label">完了</div><div class="kpi-hint">クリックで一覧</div></div>
+        <div class="kpi-card kpi-clickable" style="border-left-color:var(--warn)" onclick="showKpiTasks('active')"><div class="kpi-num" style="color:var(--warn)" id="kpi-active">—</div><div class="kpi-label">進行中</div><div class="kpi-hint">クリックで一覧</div></div>
+        <div class="kpi-card kpi-clickable" style="border-left-color:var(--accent)" onclick="showKpiTasks('overdue')"><div class="kpi-num" style="color:var(--accent)" id="kpi-overdue">—</div><div class="kpi-label">期限超過</div><div class="kpi-hint">クリックで一覧</div></div>
+      </div>
+      <div class="section-title">進行中タスク（直近）</div>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>タスク名</th><th>担当者</th><th>期限</th><th>進捗</th></tr></thead>
+        <tbody id="dash-tasks"></tbody></table>
+      </div>
+      <div class="section-title" id="dash-att-section" style="display:none">本日の出勤状況</div>
+      <div class="tbl-wrap" id="dash-att-wrap" style="display:none">
+        <table><thead><tr><th>メンバー</th><th>出勤</th><th>退勤</th></tr></thead>
+        <tbody id="dash-attendance"></tbody></table>
+      </div>
+    </div>
+
+    <!-- PROJECTS (admin only) -->
+    <div id="view-projects" class="view">
+      <!-- Status filter row -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">STATUS</span>
+          <button class="pj-filter-btn pj-status-btn active" data-status="all" onclick="filterPJStatus('all')">すべて</button>
+          <button class="pj-filter-btn pj-status-btn" data-status="進行中" onclick="filterPJStatus('進行中')">進行中</button>
+          <button class="pj-filter-btn pj-status-btn" data-status="完了" onclick="filterPJStatus('完了')">完了</button>
+          <button class="pj-filter-btn pj-status-btn" data-status="未着手" onclick="filterPJStatus('未着手')">未着手</button>
+          <button class="pj-filter-btn pj-status-btn" data-status="期限超過" onclick="filterPJStatus('期限超過')">⚠ 期限超過</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="pj-filter-btn active" id="pj-view-list-btn" onclick="setPJView('list',this)">📋 リスト</button>
+          <button class="pj-filter-btn" id="pj-view-gantt-btn" onclick="setPJView('gantt',this)">📅 ガント</button>
+          <button class="add-btn" onclick="openAddProjectModal()">＋ PJ追加</button>
+        </div>
+      </div>
+      <!-- Member filter row -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
+        <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">担当者</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="pj-member-filters">
+          <button class="pj-filter-btn pj-member-btn active" data-member="all" onclick="filterPJMember('all')">全員</button>
+        </div>
+      </div>
+      <!-- Dept filter row -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;align-items:center" id="pj-dept-filter-row">
+        <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">部門</span>
+        <button class="pj-filter-btn pj-dept-btn active" data-dept="all" onclick="filterPJDept('all')">すべて</button>
+        <button class="pj-filter-btn pj-dept-btn" data-dept="モバイルセールス・ソリューション部" onclick="filterPJDept('モバイルセールス・ソリューション部')">MS</button>
+        <button class="pj-filter-btn pj-dept-btn" data-dept="デジタルライフ・コンサルティング部" onclick="filterPJDept('デジタルライフ・コンサルティング部')">DL</button>
+        <button class="pj-filter-btn pj-dept-btn" data-dept="クリエイティブ・エンターテイメント部" onclick="filterPJDept('クリエイティブ・エンターテイメント部')">CE</button>
+        <button class="pj-filter-btn pj-dept-btn" data-dept="経営戦略室" onclick="filterPJDept('経営戦略室')">経営</button>
+      </div>
+
+      <!-- List view -->
+      <div id="pj-list-view">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>プロジェクト名</th><th>担当者</th><th>開始</th><th>終了予定</th>
+              <th>進捗</th><th>目標</th><th>部門</th><th>ステータス</th><th></th>
+            </tr></thead>
+            <tbody id="pj-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Gantt view -->
+      <div id="pj-gantt-view" style="display:none">
+        <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px">
+          <button class="pj-filter-btn" onclick="ganttShift(-1)">◀ 前月</button>
+          <button class="pj-filter-btn" onclick="ganttShift(0)" style="font-weight:700">今月</button>
+          <button class="pj-filter-btn" onclick="ganttShift(1)">次月 ▶</button>
+        </div>
+        <div class="tbl-wrap">
+          <div id="gantt-container" style="min-height:100px"></div>
+          <div class="gantt-legend">
+            <div class="gantt-legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#2a5298"></div>進行中</div>
+            <div class="gantt-legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#3a7d5a"></div>完了</div>
+            <div class="gantt-legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#c8472a"></div>期限超過</div>
+            <div class="gantt-legend-item"><div style="width:2px;height:12px;background:var(--accent)"></div>今日</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TASKS -->
+    <div id="view-tasks" class="view">
+      <!-- Status filter row -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">STATUS</span>
+          <button class="pj-filter-btn task-status-btn active" data-status="all" onclick="filterTaskStatus('all')">すべて</button>
+          <button class="pj-filter-btn task-status-btn" data-status="進行中" onclick="filterTaskStatus('進行中')">進行中</button>
+          <button class="pj-filter-btn task-status-btn" data-status="完了" onclick="filterTaskStatus('完了')">完了</button>
+          <button class="pj-filter-btn task-status-btn" data-status="未着手" onclick="filterTaskStatus('未着手')">未着手</button>
+          <button class="pj-filter-btn task-status-btn" data-status="期限超過" onclick="filterTaskStatus('期限超過')">⚠ 期限超過</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="pj-filter-btn active" id="task-view-list-btn" onclick="setTaskView('list',this)">📋 リスト</button>
+          <button class="pj-filter-btn" id="task-view-gantt-btn" onclick="setTaskView('gantt',this)">📅 ガント</button>
+          <button class="add-btn" onclick="openAddTaskModal()">＋ タスク追加</button>
+        </div>
+      </div>
+      <!-- Member filter row -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
+        <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">担当者</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="task-member-filters">
+          <button class="pj-filter-btn task-member-btn active" data-member="all" onclick="filterTaskMember('all')">全員</button>
+        </div>
+      </div>
+      <!-- Dept filter row -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;align-items:center" id="task-dept-filter-row">
+        <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">部門</span>
+        <button class="pj-filter-btn task-dept-btn active" data-dept="all" onclick="filterTaskDept('all')">すべて</button>
+        <button class="pj-filter-btn task-dept-btn" data-dept="モバイルセールス・ソリューション部" onclick="filterTaskDept('モバイルセールス・ソリューション部')">MS</button>
+        <button class="pj-filter-btn task-dept-btn" data-dept="デジタルライフ・コンサルティング部" onclick="filterTaskDept('デジタルライフ・コンサルティング部')">DL</button>
+        <button class="pj-filter-btn task-dept-btn" data-dept="クリエイティブ・エンターテイメント部" onclick="filterTaskDept('クリエイティブ・エンターテイメント部')">CE</button>
+        <button class="pj-filter-btn task-dept-btn" data-dept="経営戦略室" onclick="filterTaskDept('経営戦略室')">経営</button>
+      </div>
+
+      <!-- List view -->
+      <div id="task-list-view">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>タスク名</th><th>担当者</th><th>開始</th><th>期限</th><th>進捗</th><th>目標</th><th>ネクストアクション</th><th></th></tr></thead>
+            <tbody id="task-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Gantt view -->
+      <div id="task-gantt-view" style="display:none">
+        <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px">
+          <button class="pj-filter-btn" onclick="taskGanttShift(-1)">◀ 前月</button>
+          <button class="pj-filter-btn" onclick="taskGanttShift(0)" style="font-weight:700">今月</button>
+          <button class="pj-filter-btn" onclick="taskGanttShift(1)">次月 ▶</button>
+        </div>
+        <div class="tbl-wrap">
+          <div id="task-gantt-container" style="min-height:100px"></div>
+          <div class="gantt-legend">
+            <div class="gantt-legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#d4720a"></div>タスク</div>
+            <div class="gantt-legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#3a7d5a"></div>完了</div>
+            <div class="gantt-legend-item"><div style="width:12px;height:12px;border-radius:2px;background:#c8472a"></div>期限超過</div>
+            <div class="gantt-legend-item"><div style="width:2px;height:12px;background:var(--accent)"></div>今日</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ATTENDANCE -->
+    <div id="view-attendance" class="view">
+      <!-- 面談リクエストボタン（メンバー・リーダーのみ） -->
+      <div id="pc-meeting-request-area" style="margin-bottom:14px;display:none">
+        <button onclick="requestMeeting('attendance')"
+          style="padding:10px 20px;border-radius:8px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
+          💬 面談をリクエストする
+        </button>
+      </div>
+      <div class="att-grid">
+        <div class="att-action-card">
+          <div class="att-action-title">📍 本日の出退勤記録</div>
+          <div id="att-missed-banner"></div>
+          <div id="attendance-status" style="margin-bottom:14px"></div>
+
+          <!-- 出勤フォーム -->
+          <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🟢 出勤時の入力</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">🚃 乗車駅</label>
+              <input class="form-input" id="att-station-from-pc" placeholder="例：渋谷">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">🏢 降車駅</label>
+              <input class="form-input" id="att-station-to-pc" placeholder="例：新宿">
+            </div>
+          </div>
+          <div style="margin-bottom:10px;font-size:11px;color:var(--accent2);background:rgba(58,125,90,.08);border:1px solid rgba(58,125,90,.2);border-radius:6px;padding:8px 12px;line-height:1.6">
+            🎫 <strong>定期購入者の方へ</strong>：定期券の<strong>購入時に1回だけ</strong>購入金額を入力してください。通常の出勤日は¥0のままでOKです。
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">💴 出勤交通費（自宅→勤務先）</label>
+              <input type="number" class="form-input" id="att-fare-in-pc" placeholder="例：380" min="0">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">💴 その他交通費（営業・途中移動等）</label>
+              <input type="number" class="form-input" id="att-fare-other-pc" placeholder="例：200" min="0">
+            </div>
+          </div>
+          <!-- メンタル天気 -->
+          <div style="margin-bottom:12px;padding:12px 14px;background:linear-gradient(135deg,rgba(42,82,152,.06),rgba(58,125,90,.06));border:1px solid rgba(42,82,152,.15);border-radius:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:9px">🌤 今日のメンタル天気 <span style="background:var(--accent);color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700">必須</span></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap" id="mental-picker-pc">
+              <label class="mental-btn" data-val="快晴"><input type="radio" name="mental-pc" value="快晴" style="display:none">☀️<div>快晴</div></label>
+              <label class="mental-btn" data-val="曇り"><input type="radio" name="mental-pc" value="曇り" style="display:none">☁️<div>曇り</div></label>
+              <label class="mental-btn" data-val="雨"><input type="radio" name="mental-pc" value="雨" style="display:none">🌧<div>雨</div></label>
+              <label class="mental-btn" data-val="豪雨"><input type="radio" name="mental-pc" value="豪雨" style="display:none">⛈<div>豪雨</div></label>
+              <label class="mental-btn" data-val="雷"><input type="radio" name="mental-pc" value="雷" style="display:none">🌩<div>雷</div></label>
+              <label class="mental-btn" data-val="嵐"><input type="radio" name="mental-pc" value="嵐" style="display:none">🌀<div>嵐</div></label>
+              <label class="mental-btn" data-val="天災"><input type="radio" name="mental-pc" value="天災" style="display:none">🔥<div>天災</div></label>
+            </div>
+          </div>
+          <div style="margin-bottom:10px;padding:10px;background:var(--surface2);border-radius:6px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700">
+              <input type="checkbox" id="att-late-pc" onchange="document.getElementById('pc-late-reason').style.display=this.checked?'block':'none'" style="width:15px;height:15px;accent-color:var(--warn)">
+              ⏰ 遅刻あり
+            </label>
+            <div id="pc-late-reason" style="display:none;margin-top:8px">
+              <input class="form-input" id="att-late-reason-pc" placeholder="理由（例：電車遅延）">
+            </div>
+          </div>
+          <button class="att-btn att-btn-in" style="margin-bottom:16px" onclick="clockIn()">🟢 出勤を記録する</button>
+
+          <!-- 退勤フォーム -->
+          <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🔵 退勤時の入力</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div>
+              <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">💴 退勤交通費（勤務先→自宅）</label>
+              <input type="number" class="form-input" id="att-fare-out-pc" placeholder="例：380" min="0">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">💴 その他交通費（営業・途中移動等）</label>
+              <input type="number" class="form-input" id="att-fare-other-out-pc" placeholder="例：0" min="0">
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">☕ 休憩時間（分）※基本60分</label>
+            <input type="number" class="form-input" id="att-break-pc" placeholder="60" value="60" min="0">
+          </div>
+          <div style="margin-bottom:10px;padding:10px;background:var(--surface2);border-radius:6px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700">
+              <input type="checkbox" id="att-early-pc" onchange="document.getElementById('pc-early-reason').style.display=this.checked?'block':'none'" style="width:15px;height:15px;accent-color:var(--warn)">
+              🏃 早退あり
+            </label>
+            <div id="pc-early-reason" style="display:none;margin-top:8px">
+              <input class="form-input" id="att-early-reason-pc" placeholder="理由（例：体調不良）">
+            </div>
+          </div>
+          <input class="form-input" id="attendance-note-pc" placeholder="メモ（任意）" style="margin-bottom:12px">
+          <button class="att-btn att-btn-out" onclick="clockOut()">🔵 退勤を記録する</button>
+          <!-- 残業申請ボタン（退勤済みの場合に表示） -->
+          <div id="pc-ot-request-area" style="display:none;margin-top:10px">
+            <button onclick="openOvertimeModal()" style="width:100%;padding:10px;border-radius:8px;border:1.5px solid var(--warn);background:transparent;color:var(--warn);font-size:13px;font-weight:700;cursor:pointer">
+              ⏰ 残業申請
+            </button>
+          </div>
+        </div>
+        <div class="att-action-card" id="att-team-card" style="display:none">
+          <div class="att-action-title">👥 本日のチーム出勤状況</div>
+          <div id="att-team-status"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHIFTS -->
+    <div id="view-shifts" class="view">
+      <div class="shift-controls">
+        <div style="font-size:13px;font-weight:700">
+          シフト確認
+          <span id="shift-off-badge" class="notif-badge" style="display:none;background:var(--accent);margin-left:6px"></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <!-- 週ナビ -->
+          <div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:8px;padding:4px 8px">
+            <button onclick="shiftWeekNav(-1)" style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;color:var(--ink2)">◀</button>
+            <span id="shift-week-label" style="font-size:12px;font-weight:700;white-space:nowrap;min-width:160px;text-align:center"></span>
+            <button onclick="shiftWeekNav(1)" style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;color:var(--ink2)">▶</button>
+            <button onclick="_shiftWeekOffset=0;loadShifts()" style="font-size:10px;padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;color:var(--ink2)">今週</button>
+          </div>
+          <!-- 管理者：メンバーフィルター -->
+          <select class="form-input" id="shift-member-filter" style="display:none;width:auto" onchange="loadShifts()">
+            <option value="">全員</option>
+          </select>
+          <!-- リーダー：表示範囲フィルター -->
+          <select class="form-input" id="shift-leader-filter" style="display:none;width:auto" onchange="loadShifts()">
+            <option value="self">自分のシフト</option>
+            <option value="dept">部署メンバー</option>
+            <option value="all">全員</option>
+          </select>
+          <div style="position:relative;display:none" id="shift-search-wrap">
+            <input class="form-input" id="shift-search" placeholder="🔍 名前で検索" style="width:160px;padding-right:24px" oninput="filterShiftBySearch(this.value)">
+            <button onclick="document.getElementById('shift-search').value='';filterShiftBySearch('')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink3);font-size:11px;padding:0;line-height:1" title="クリア">✕</button>
+          </div>
+          <button class="add-btn" id="request-off-btn" onclick="openRequestOffModal()" style="display:none;background:var(--accent)">🙏 希望休を申請</button>
+          <button class="add-btn" id="admin-off-btn" onclick="openRequestOffModal()" style="display:none;background:var(--accent)">🙏 希望休を登録</button>
+          <button class="add-btn" id="add-shift-btn" onclick="openAddShiftModal()" style="display:none">＋ シフト登録</button>
+          <button class="add-btn" id="import-shift-btn" onclick="openShiftImportModal()" style="display:none;background:var(--blue)">📋 個人インポート</button>
+          <button class="add-btn" id="bulk-shift-btn" onclick="openBulkShiftImportModal()" style="display:none;background:#7c5cbf">👥 全員一括インポート</button>
+          <button class="add-btn" id="delete-member-shift-btn" onclick="openDeleteMemberShiftModal()" style="display:none;background:var(--accent)">🗑 メンバー別削除</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;font-size:11px;color:var(--ink3);flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:rgba(42,82,152,.15);border-radius:2px"></div>シフト</div>
+        <div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;background:rgba(200,71,42,.12);border-radius:2px"></div>希望休</div>
+      </div>
+      <div id="shift-calendar"></div>
+    </div>
+
+    <!-- MONTHLY ATTENDANCE -->
+    <div id="view-monthly" class="view">
+      <!-- Controls -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div id="att-member-filter-wrap" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="month-row" style="margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <label>対象月</label>
+            <input type="month" class="form-input" id="att-month" style="width:auto" onchange="loadMonthlyAttendance(true)">
+            <button class="add-btn" id="att-reload-btn" onclick="loadMonthlyAttendance(true)" style="background:var(--accent2);min-width:80px">🔄 更新</button>
+            <span id="att-last-loaded-label" style="font-size:11px;color:var(--ink3)"></span>
+          </div>
+          <label id="att-member-label" style="display:none;font-size:11px;color:var(--ink3);white-space:nowrap">メンバー</label>
+          <select class="form-input" id="att-member-filter" style="display:none;width:auto" onchange="(function(){var btn=document.getElementById('att-reset-btn');if(btn)btn.style.display=this.value?'inline-block':'none';loadMonthlyAttendance(true);}).call(this)">
+            <option value="">全員</option>
+          </select>
+          <!-- リーダー：表示範囲フィルター -->
+          <select class="form-input" id="att-leader-filter" style="display:none;width:auto" onchange="onAttLeaderFilterChange()">
+            <option value="self">自分の勤怠</option>
+            <option value="dept">部署メンバー</option>
+            <option value="all">全員</option>
+          </select>
+          <button id="att-reset-btn" onclick="resetAttFilter()" style="display:none;padding:4px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap;font-weight:700">↩ 全員に戻す</button>
+          <div style="position:relative;display:none" id="att-search-wrap">
+            <input class="form-input" id="att-name-search" placeholder="🔍 名前で検索" style="width:160px;padding-right:24px" oninput="filterAttBySearch(this.value)">
+            <button onclick="document.getElementById('att-name-search').value='';filterAttBySearch('')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink3);font-size:11px;padding:0;line-height:1" title="クリア">✕</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="add-btn" onclick="exportCSV()" style="background:var(--accent2);display:flex;align-items:center;gap:6px">
+            ⬇ Excelエクスポート
+          </button>
+          <button id="att-bulk-gen-btn" class="add-btn" onclick="openBulkGenAttendanceModal()" style="display:none;background:var(--blue)">
+            📋 シフトから一括生成
+          </button>
+          <button id="att-add-btn" class="add-btn" onclick="openAddAttendanceModal()" style="display:none">
+            ＋ 勤怠を追加
+          </button>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div id="att-summary"></div>
+
+      <!-- Table -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="section-title" style="margin-bottom:0">勤怠詳細</div>
+        <div id="att-detail-filter-btns" style="display:none;gap:4px">
+          <button class="mini-btn att-detail-filter active" data-filter="missed" onclick="setAttDetailFilter('missed')" style="font-size:11px">🚨 報告漏れのみ</button>
+          <button class="mini-btn att-detail-filter" data-filter="all" onclick="setAttDetailFilter('all')" style="font-size:11px">全件表示</button>
+        </div>
+      </div>
+      <div class="tbl-wrap" style="overflow-x:auto">
+        <table style="table-layout:fixed;width:100%;min-width:960px">
+          <colgroup>
+            <col style="width:130px"><!-- 日付 -->
+            <col id="att-col-member" style="width:90px"><!-- メンバー -->
+            <col style="width:66px"><!-- 出勤 -->
+            <col style="width:66px"><!-- 退勤 -->
+            <col style="width:50px"><!-- 休憩 -->
+            <col style="width:76px"><!-- 勤務時間 -->
+            <col style="width:56px"><!-- 残業 -->
+            <col style="width:140px"><!-- 最寄駅→降車駅 -->
+            <col style="width:66px"><!-- 交通費 -->
+            <col style="width:68px"><!-- メンタル -->
+            <col style="width:100px"><!-- メモ -->
+            <col style="width:64px"><!-- 位置情報 -->
+            <col style="width:80px"><!-- 修正 -->
+          </colgroup>
+          <thead><tr>
+            <th>日付</th>
+            <th id="att-th-member">メンバー</th>
+            <th>出勤</th><th>退勤</th><th>休憩</th><th>勤務時間</th><th>残業</th>
+            <th>最寄駅 → 降車駅</th>
+            <th>交通費</th>
+            <th>🌤 メンタル</th>
+            <th>メモ</th>
+            <th>位置情報</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="attendance-table-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- BUDGET (admin only) -->
+    <!-- DAILY ATTENDANCE CHECK (admin) -->
+    <div id="view-daily" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:700">📍 当日出退勤確認</div>
+      </div>
+      <div id="daily-check-body">
+        <div style="color:var(--ink3);font-size:12px;padding:20px;text-align:center">タブをクリックするとデータを読み込みます</div>
+      </div>
+    </div>
+
+    <!-- REPORTS (admin) -->
+    <div id="view-reports" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:700">📨 報告確認</div>
+        <button class="mini-btn" onclick="loadReports()">🔄 更新</button>
+      </div>
+      <!-- カテゴリタブ -->
+      <div style="display:flex;gap:0;margin-bottom:14px;border-bottom:2px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <button class="report-admin-tab active" data-cat="all"        onclick="filterAdminReports('all',this)">すべて</button>
+        <button class="report-admin-tab"        data-cat="meeting"    onclick="filterAdminReports('meeting',this)">🤝 面談リクエスト</button>
+        <button class="report-admin-tab"        data-cat="motivation" onclick="filterAdminReports('motivation',this)">😞 モチベーション</button>
+        <button class="report-admin-tab"        data-cat="irregular"  onclick="filterAdminReports('irregular',this)">⚡ イレギュラー</button>
+        <button class="report-admin-tab"        data-cat="bug"        onclick="filterAdminReports('bug',this)">🐛 不具合</button>
+        <button class="report-admin-tab"        data-cat="other"      onclick="filterAdminReports('other',this)">📝 その他</button>
+      </div>
+      <div id="reports-body"></div>
+    </div>
+
+
+    <!-- ALERT REPORT (leader only) -->
+    <div id="view-alert" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="section-title" style="margin:0">📣 メンバーアラート・報告</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">所属部署のメンバーのイレギュラーやモチベーション低下を報告します</div>
+        </div>
+        <button class="add-btn" style="background:var(--accent)" onclick="openAlertReportModal()">＋ 新規報告</button>
+      </div>
+
+      <!-- カテゴリタブ -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0">
+        <button class="alert-cat-tab active" data-cat="all" onclick="filterAlertList('all',this)" style="padding:7px 14px;border:none;border-bottom:2.5px solid transparent;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink3);transition:all .2s;margin-bottom:-2px">すべて</button>
+        <button class="alert-cat-tab" data-cat="motivation" onclick="filterAlertList('motivation',this)" style="padding:7px 14px;border:none;border-bottom:2.5px solid transparent;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink3);transition:all .2s;margin-bottom:-2px">😞 モチベーション</button>
+        <button class="alert-cat-tab" data-cat="irregular" onclick="filterAlertList('irregular',this)" style="padding:7px 14px;border:none;border-bottom:2.5px solid transparent;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink3);transition:all .2s;margin-bottom:-2px">⚡ イレギュラー</button>
+        <button class="alert-cat-tab" data-cat="bug" onclick="filterAlertList('bug',this)" style="padding:7px 14px;border:none;border-bottom:2.5px solid transparent;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink3);transition:all .2s;margin-bottom:-2px">🐛 不具合</button>
+        <button class="alert-cat-tab" data-cat="other" onclick="filterAlertList('other',this)" style="padding:7px 14px;border:none;border-bottom:2.5px solid transparent;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink3);transition:all .2s;margin-bottom:-2px">📝 その他</button>
+      </div>
+
+      <div id="alert-list-body"></div>
+    </div>
+
+    <!-- MY SHIFT REPORT (member/leader) -->
+    <div id="view-myshift" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="section-title" style="margin:0">📝 シフト報告</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">カレンダーから稼働日・公休日を選択して報告できます</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="month" class="form-input" id="myshift-month" style="width:auto">
+          <button class="add-btn" onclick="loadMyShiftReport()">表示</button>
+        </div>
+      </div>
+
+      <!-- 凡例＋操作説明 -->
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:11px;margin-bottom:14px;padding:10px 14px;background:var(--surface2);border-radius:8px">
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:28px;height:28px;border-radius:6px;background:rgba(42,82,152,.15);border:1.5px solid var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px">🟢</div><span>稼働日</span></div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:28px;height:28px;border-radius:6px;background:rgba(200,71,42,.1);border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px">🔴</div><span>公休日</span></div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:28px;height:28px;border-radius:6px;background:var(--surface);border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink3)">—</div><span>未選択</span></div>
+        <div style="color:var(--ink3);font-size:10px;margin-left:auto">※ 日付をクリックして切り替え</div>
+      </div>
+
+      <!-- 時間帯プリセット -->
+      <div style="margin-bottom:14px;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:8px">⏰ 稼働時間（稼働日に一括適用）</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:6px">
+            <label style="font-size:11px;color:var(--ink3);white-space:nowrap">開始</label>
+            <input type="time" class="form-input" id="myshift-start" value="10:00" style="width:auto">
+          </div>
+          <span style="color:var(--ink3)">〜</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <label style="font-size:11px;color:var(--ink3);white-space:nowrap">終了</label>
+            <input type="time" class="form-input" id="myshift-end" value="19:00" style="width:auto">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <label style="font-size:11px;color:var(--ink3);white-space:nowrap">勤務地</label>
+            <input class="form-input" id="myshift-location" placeholder="例：新宿店" style="width:120px">
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="myshift-presets">
+            <button class="pj-filter-btn" onclick="setMyShiftPreset('09:00','18:00')">9〜18時</button>
+            <button class="pj-filter-btn" onclick="setMyShiftPreset('10:00','19:00')">10〜19時</button>
+            <button class="pj-filter-btn" onclick="setMyShiftPreset('11:00','20:00')">11〜20時</button>
+            <button class="pj-filter-btn" onclick="setMyShiftPreset('13:00','22:00')">13〜22時</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- カレンダー -->
+      <!-- 無効時の警告 -->
+      <div id="myshift-disabled-notice" style="display:none;padding:20px;background:#fff3cd;border:1.5px solid #f0ad4e;border-radius:10px;margin-bottom:16px;text-align:center">
+        <div style="font-size:22px;margin-bottom:8px">⚠️</div>
+        <div style="font-size:14px;font-weight:700;color:#7b5800;margin-bottom:6px">このメンバーはシフト自己報告の対象外です</div>
+        <div style="font-size:12px;color:#856404;line-height:1.6">
+          あなたのシフトは管理者が入力します。<br>
+          このページからシフトを報告する必要はありません。<br>
+          <span style="font-size:11px;color:#999;margin-top:4px;display:block">※詳細は管理者にお問い合わせください</span>
+        </div>
+      </div>
+      <!-- 有効時のフォーム -->
+      <div id="myshift-form-wrap">
+      <div style="font-size:11px;color:var(--ink3);padding:6px 10px;background:var(--surface2);border-radius:6px;margin-bottom:10px">
+        💡 <strong>出勤予定日をタップして選択</strong>してください。もう一度タップで解除。公休・休日は入力不要です。
+      </div>
+      <div id="myshift-calendar" style="margin-bottom:16px"></div>
+
+      <!-- サマリー＆提出 -->
+      <div id="myshift-summary" style="margin-bottom:14px"></div>
+      </div><!-- /myshift-form-wrap -->
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="add-btn" style="background:var(--accent2);font-size:13px;padding:10px 24px" onclick="submitMyShift()">✅ シフトを報告する</button>
+        <button class="pj-filter-btn" onclick="clearMyShiftSelection()">🔄 リセット</button>
+      </div>
+    </div>
+
+    <!-- MENTAL WEATHER (admin/leader) -->
+    <div id="view-mental" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="section-title" style="margin:0">🌤 メンタル天気 確認</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">出勤時に記録されたメンタル状態を確認できます</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="month" class="form-input" id="mental-month" style="width:auto">
+          <button class="add-btn" onclick="loadMentalData()">表示</button>
+        </div>
+      </div>
+      <!-- サマリーカード -->
+      <div id="mental-summary" style="margin-bottom:16px"></div>
+      <!-- 個人別トレンド：検索・フィルター -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:8px">
+        <div style="position:relative;flex:1;min-width:140px">
+          <input class="form-input" id="mental-search" placeholder="🔍 名前で検索" style="width:100%;padding-right:24px" oninput="renderMentalFiltered()">
+          <button onclick="document.getElementById('mental-search').value='';renderMentalFiltered()" style="position:absolute;right:7px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink3);font-size:11px;padding:0">✕</button>
+        </div>
+        <select class="form-input" id="mental-sort" style="width:auto" onchange="renderMentalFiltered()">
+          <option value="risk">⚠ リスク高い順</option>
+          <option value="name">🔤 名前順</option>
+          <option value="count">📊 記録件数順</option>
+          <option value="recent">🕐 直近天気順</option>
+        </select>
+        <select class="form-input" id="mental-alert-filter" style="width:auto" onchange="renderMentalFiltered()">
+          <option value="all">すべて</option>
+          <option value="danger">⚠ 要注意のみ</option>
+          <option value="warn">△ 注視以上</option>
+          <option value="caution">○ 経過観察以上</option>
+          <option value="ok">✓ 良好のみ</option>
+        </select>
+      </div>
+      <div class="section-title" style="margin-bottom:8px">個人別トレンド <span id="mental-count-label" style="font-size:11px;font-weight:400;color:var(--ink3)"></span></div>
+      <div id="mental-member-list"></div>
+    </div>
+
+    <!-- MY SALARY (member/leader) -->
+    <div id="view-mysalary" class="view">
+      <div class="section-title">💰 給与テーブル確認</div>
+      <div id="mysalary-content"></div>
+    </div>
+
+    <!-- SALARY (admin only) -->
+    <div id="view-salary" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="section-title" style="margin:0">💰 給与管理</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">管理者専用 — メンバーには現在の給与テーブルのみ表示されます</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div style="position:relative">
+            <input class="form-input" id="salary-search" placeholder="🔍 名前で検索" style="width:160px;padding-right:24px" oninput="filterSalaryBySearch(this.value)">
+            <button onclick="document.getElementById('salary-search').value='';filterSalaryBySearch('')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink3);font-size:11px;padding:0;line-height:1" title="クリア">✕</button>
+          </div>
+          <button class="add-btn" onclick="openAddSalaryModal()">＋ 給与情報を追加</button>
+          <button class="add-btn" style="background:var(--accent2)" onclick="openSalaryTableModal()">📋 基本給与テーブル</button>
+          <button class="add-btn" style="background:#7c5cbf" onclick="bulkImportSalaryData()">📥 初期データ一括投入</button>
+        </div>
+      </div>
+      <div id="salary-list"></div>
+    </div>
+
+    <!-- USERS (admin) -->
+    <div id="view-users" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:700">メンバー管理</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div style="position:relative">
+            <input class="form-input" id="users-search" placeholder="🔍 名前で検索" style="width:160px;padding-right:24px" oninput="filterUsersBySearch(this.value)">
+            <button onclick="document.getElementById('users-search').value='';filterUsersBySearch('')" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--ink3);font-size:11px;padding:0;line-height:1" title="クリア">✕</button>
+          </div>
+          <button class="add-btn" style="background:var(--blue)" onclick="openBulkAddMembersModal()">👥 名前のみ一括登録</button>
+          <button class="add-btn" style="background:var(--accent2)" onclick="openAddAllianceModal()">🤝 アライアンス追加</button>
+          <button class="add-btn" style="background:var(--accent2);opacity:.85" onclick="openAddAllianceBulkModal()">🤝 アライアンス一括追加</button>
+          <button class="add-btn" onclick="openAddUserModal()">＋ メンバー追加</button>
+        </div>
+      </div>
+      <!-- 一括削除バー -->
+      <div id="bulk-delete-bar" style="display:none;align-items:center;gap:10px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 14px;margin-bottom:12px">
+        <span id="bulk-delete-count" style="font-size:12px;font-weight:700;color:var(--accent);flex:1"></span>
+        <button class="btn" style="background:var(--accent);color:#fff;border:none;padding:5px 14px;font-size:12px" onclick="bulkDeleteUsers()">🗑 一括削除</button>
+        <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px" onclick="document.querySelectorAll('.user-check').forEach(c=>c.checked=false);updateBulkDeleteBar()">選択解除</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:32px;text-align:center">
+              <input type="checkbox" id="check-all-users" onchange="selectAllUsers(this)"
+                style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)">
+            </th>
+            <th>名前</th><th>メールアドレス</th><th>権限</th><th>部門</th><th></th>
+          </tr></thead>
+          <tbody id="users-table-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px;padding:12px 16px;background:var(--surface2);border-radius:6px;font-size:11px;color:var(--ink3)">
+        ⚠️ メンバーを削除するとFirebase Authenticationのログイン情報は残ります。完全に削除する場合は<a href="https://console.firebase.google.com" target="_blank" style="color:var(--blue)">Firebaseコンソール</a>からも削除してください。
+      </div>
+    </div>
+
+    <!-- LOGIN LOG VIEW -->
+    <div id="view-shops" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div style="font-size:13px;font-weight:700">🏪 店舗設定</div>
+        <div style="display:flex;gap:8px">
+          <button class="mini-btn" id="shops-delete-btn" style="display:none;color:var(--accent);border-color:var(--accent)" onclick="deleteCheckedShops()">🗑 選択した店舗を削除</button>
+          <button class="btn btn-primary" style="font-size:12px;padding:7px 16px" onclick="openAddShopModal()">＋ 店舗を手動追加</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:14px;background:var(--surface2);padding:10px 14px;border-radius:8px;line-height:1.7">
+        📋 シフトに登録されている店舗が自動的に一覧表示されます。<br>
+        各店舗の<strong>デフォルト出勤・退勤時間</strong>を設定しておくと、GASからシフトを取り込む際に自動適用されます。<br>
+        個別に時間が異なる場合は、シフト編集で修正してください。
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:36px"><input type="checkbox" id="shops-check-all" onchange="toggleAllShopChecks(this.checked)" title="全選択"></th>
+            <th>店舗名</th>
+            <th>デフォルト出勤</th>
+            <th>デフォルト退勤</th>
+            <th style="width:120px"></th>
+          </tr></thead>
+          <tbody id="shops-table-body">
+            <tr><td colspan="5" class="empty">読み込み中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app-screen -->
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOuter(event)">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-title-text">追加</span>
+      <span class="modal-close" onclick="closeModal()">✕</span>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+
+<script type="module" src="js/main.js"></script>
+<script>
+  // Initialize lucide icons after DOM is ready
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  });
+</script>
+</body>
+</html>
