@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "deploy": "npx netlify deploy --prod --skip-functions-cache"
+  },
   "dependencies": {
     "firebase-tools": "^15.13.0",
     "playwright": "^1.59.1"
