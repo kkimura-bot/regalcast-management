@@ -76,7 +76,9 @@ export function switchTab(name) {
   if (name === 'alert')      window.loadAlertReports?.();
   if (name === 'salary')     window.loadSalary?.();
   if (name === 'users')      window.loadUsers?.();
-  if (name === 'shops')      window.loadShops?.();
+  if (name === 'onboarding')  window.loadOnboarding?.();
+  if (name === 'offboarding') window.loadOffboarding?.();
+  if (name === 'shops')       window.loadShops?.();
   if (name === 'mental')     window.loadMentalData?.();
   if (name === 'myshift')    window.loadMyShiftReport?.();
   if (name === 'mysalary')   window.loadMySalaryPage?.();

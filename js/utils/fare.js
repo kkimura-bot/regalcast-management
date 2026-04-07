@@ -180,6 +180,9 @@ export async function loadMyPage() {
   // Keep window reference in sync so oninput handlers can access the array
   window._fareTemplates = _fareTemplates;
   renderFareTemplates();
+
+  // 管理者からの面談依頼を読み込む（メンバー・リーダー向け）
+  window.loadMeetingRequestsForMember?.();
 }
 
 export async function saveMyPage() {

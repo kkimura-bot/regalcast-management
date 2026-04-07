@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>入社手続きフォーム — RegalCast</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: #F0F2F5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e8eaf0;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-logo {
+      font-size: 18px;
+      font-weight: 800;
+      color: #1a3a6e;
+      letter-spacing: -0.5px;
+    }
+    .header-logo span { color: #2a5298; }
+    .header-sub {
+      font-size: 11px;
+      color: #8a93a6;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 32px auto;
+      padding: 0 16px 64px;
+    }
+
+    /* Step indicator */
+    .steps {
+      display: flex;
+      align-items: center;
+      margin-bottom: 32px;
+      gap: 0;
+    }
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      position: relative;
+    }
+    .step-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background: #e8eaf0;
+      z-index: 0;
+    }
+    .step-item.done:not(:last-child)::after { background: #2a5298; }
+    .step-num {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #e8eaf0;
+      color: #8a93a6;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; z-index: 1;
+      transition: all 0.2s;
+    }
+    .step-item.active .step-num { background: #2a5298; color: #fff; }
+    .step-item.done .step-num { background: #3a7d5a; color: #fff; }
+    .step-label {
+      font-size: 10px;
+      color: #8a93a6;
+      margin-top: 4px;
+      font-weight: 600;
+      text-align: center;
+    }
+    .step-item.active .step-label { color: #2a5298; }
+    .step-item.done .step-label { color: #3a7d5a; }
+
+    /* Card */
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+      padding: 28px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: #EEF2FF;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+
+    /* Form */
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 6px;
+    }
+    .form-label .required {
+      color: #e53e3e;
+      margin-left: 4px;
+      font-size: 10px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #e8eaf0;
+      border-radius: 10px;
+      font-size: 14px;
+      color: #1a1a1a;
+      background: #fafbfc;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+      -webkit-appearance: none;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: #2a5298;
+      box-shadow: 0 0 0 3px rgba(42,82,152,0.12);
+      background: #fff;
+    }
+    .form-input::placeholder { color: #b0b8c8; }
+    select.form-input { cursor: pointer; }
+    textarea.form-input { resize: vertical; min-height: 80px; }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media(max-width:480px) { .row-2 { grid-template-columns: 1fr; } }
+
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 1px solid #f0f2f5;
+      margin: 20px 0;
+    }
+
+    /* Section label */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #8a93a6;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 14px;
+    }
+
+    /* 誓約書 */
+    .pledge-box {
+      background: #f8faff;
+      border: 1.5px solid #dce3f5;
+      border-radius: 12px;
+      padding: 20px;
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.8;
+      color: #2d3748;
+      margin-bottom: 16px;
+    }
+    .pledge-box h3 {
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 16px;
+      color: #1a1a1a;
+    }
+    .pledge-box p { margin-bottom: 10px; }
+    .pledge-box ol { padding-left: 20px; }
+    .pledge-box ol li { margin-bottom: 8px; }
+
+    .pledge-agree {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #f0fdf4;
+      border: 1.5px solid #bbf7d0;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+    .pledge-agree input[type="checkbox"] {
+      width: 20px; height: 20px;
+      accent-color: #3a7d5a;
+      margin-top: 1px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .pledge-agree span {
+      font-size: 13px;
+      font-weight: 600;
+      color: #276749;
+      line-height: 1.5;
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .btn {
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: #2a5298;
+      color: #fff;
+      flex: 1;
+    }
+    .btn-primary:hover { background: #1e3d7a; }
+    .btn-primary:disabled { background: #9aaed0; cursor: not-allowed; }
+    .btn-secondary {
+      background: #f0f2f5;
+      color: #4a5568;
+    }
+    .btn-secondary:hover { background: #e2e6ef; }
+
+    /* Error / status */
+    .error-msg {
+      color: #e53e3e;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    .info-box {
+      background: #EEF2FF;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: #3d5fa8;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    /* Complete screen */
+    .complete-screen {
+      text-align: center;
+      padding: 48px 24px;
+    }
+    .complete-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    .complete-title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+    }
+    .complete-sub {
+      font-size: 14px;
+      color: #8a93a6;
+      line-height: 1.7;
+    }
+
+    /* Loading / error screen */
+    .screen-msg {
+      text-align: center;
+      padding: 80px 24px;
+    }
+    .screen-msg .icon { font-size: 48px; margin-bottom: 16px; }
+    .screen-msg h2 { font-size: 18px; font-weight: 700; color: #1a1a1a; margin-bottom: 8px; }
+    .screen-msg p { font-size: 13px; color: #8a93a6; line-height: 1.7; }
+
+    /* Hide/show utilities */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-logo">Regal<span>Cast</span></div>
+    <div class="header-sub">入社手続きフォーム</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Loading -->
+  <div id="screen-loading" class="card screen-msg">
+    <div class="icon">⏳</div>
+    <h2>読み込み中...</h2>
+    <p>フォームを準備しています。しばらくお待ちください。</p>
+  </div>
+
+  <!-- Error -->
+  <div id="screen-error" class="card screen-msg hidden">
+    <div class="icon">⚠️</div>
+    <h2>フォームが見つかりません</h2>
+    <p>URLが正しいかご確認ください。<br>問題が続く場合は担当者にお問い合わせください。</p>
+  </div>
+
+  <!-- Already submitted -->
+  <div id="screen-submitted" class="card screen-msg hidden">
+    <div class="icon">✅</div>
+    <h2>提出済みです</h2>
+    <p>このフォームはすでに提出されています。<br>内容の変更は担当者にご連絡ください。</p>
+  </div>
+
+  <!-- Main form -->
+  <div id="screen-form" class="hidden">
+
+    <!-- Greeting -->
+    <div class="card">
+      <div style="font-size:20px;font-weight:800;color:#1a1a1a;margin-bottom:8px">
+        ようこそ、<span id="greeting-name">—</span> さん！
+      </div>
+      <div style="font-size:13px;color:#8a93a6;line-height:1.7">
+        RegalCastへご入社いただきありがとうございます。<br>
+        以下のフォームに必要事項を入力してください。すべての情報は安全に管理されます。
+      </div>
+    </div>
+
+    <!-- Step indicator -->
+    <div class="steps" id="step-indicator">
+      <div class="step-item active" data-step="1">
+        <div class="step-num">1</div>
+        <div class="step-label">基本情報</div>
+      </div>
+      <div class="step-item" data-step="2">
+        <div class="step-num">2</div>
+        <div class="step-label">緊急連絡先</div>
+      </div>
+      <div class="step-item" data-step="3">
+        <div class="step-num">3</div>
+        <div class="step-label">口座情報</div>
+      </div>
+      <div class="step-item" data-step="4">
+        <div class="step-num">4</div>
+        <div class="step-label">前職情報</div>
+      </div>
+      <div class="step-item" data-step="5">
+        <div class="step-num">5</div>
+        <div class="step-label">誓約書</div>
+      </div>
+    </div>
+
+    <!-- STEP 1: 基本情報 -->
+    <div class="card" id="step-1">
+      <div class="card-title">
+        <div class="card-title-icon">👤</div>
+        基本情報
+      </div>
+      <div class="info-box">※ マイナンバーは厳重に管理し、法定用途（社会保険・税務）のみに使用します。</div>
+
+      <div class="section-label">氏名・生年月日</div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">氏名（漢字）<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-name" placeholder="山田 太郎">
+        </div>
+        <div class="form-group">
+          <label class="form-label">氏名（ふりがな）<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-name-kana" placeholder="やまだ たろう">
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">生年月日<span class="required">必須</span></label>
+          <input type="date" class="form-input" id="f-birthdate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">性別</label>
+          <select class="form-input" id="f-gender">
+            <option value="">選択してください</option>
+            <option value="男性">男性</option>
+            <option value="女性">女性</option>
+            <option value="回答しない">回答しない</option>
+          </select>
+        </div>
+      </div>
+
+      <hr class="divider">
+      <div class="section-label">連絡先</div>
+      <div class="form-group">
+        <label class="form-label">住所<span class="required">必須</span></label>
+        <input type="text" class="form-input" id="f-address" placeholder="東京都渋谷区〇〇1-2-3">
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">電話番号<span class="required">必須</span></label>
+          <input type="tel" class="form-input" id="f-phone" placeholder="090-1234-5678">
+        </div>
+        <div class="form-group">
+          <label class="form-label">メールアドレス<span class="required">必須</span></label>
+          <input type="email" class="form-input" id="f-email" placeholder="example@email.com">
+        </div>
+      </div>
+
+      <hr class="divider">
+      <div class="section-label">マイナンバー</div>
+      <div class="form-group">
+        <label class="form-label">マイナンバー（12桁）<span class="required">必須</span></label>
+        <input type="text" class="form-input" id="f-mynumber" placeholder="000000000000" maxlength="12" inputmode="numeric">
+      </div>
+
+      <div id="err-step1" class="error-msg"></div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="nextStep(2)">次へ → 緊急連絡先</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: 緊急連絡先 + 身元保証人 -->
+    <div class="card hidden" id="step-2">
+      <div class="card-title">
+        <div class="card-title-icon">📞</div>
+        緊急連絡先・身元保証人
+      </div>
+
+      <div class="section-label">緊急連絡先</div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">氏名<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-emg-name" placeholder="山田 花子">
+        </div>
+        <div class="form-group">
+          <label class="form-label">続柄<span class="required">必須</span></label>
+          <select class="form-input" id="f-emg-relation">
+            <option value="">選択してください</option>
+            <option value="父">父</option>
+            <option value="母">母</option>
+            <option value="配偶者">配偶者</option>
+            <option value="兄">兄</option>
+            <option value="姉">姉</option>
+            <option value="弟">弟</option>
+            <option value="妹">妹</option>
+            <option value="祖父">祖父</option>
+            <option value="祖母">祖母</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">電話番号<span class="required">必須</span></label>
+        <input type="tel" class="form-input" id="f-emg-phone" placeholder="090-1234-5678">
+      </div>
+
+      <hr class="divider">
+      <div class="section-label">身元保証人（親権者・保護者）</div>
+      <div class="info-box">身元保証人は通常、親権者または親族の方にお願いしています。</div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">保証人氏名<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-guarantor-name" placeholder="山田 一郎">
+        </div>
+        <div class="form-group">
+          <label class="form-label">続柄<span class="required">必須</span></label>
+          <select class="form-input" id="f-guarantor-relation">
+            <option value="">選択してください</option>
+            <option value="父">父</option>
+            <option value="母">母</option>
+            <option value="配偶者">配偶者</option>
+            <option value="兄">兄</option>
+            <option value="姉">姉</option>
+            <option value="祖父">祖父</option>
+            <option value="祖母">祖母</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">電話番号<span class="required">必須</span></label>
+        <input type="tel" class="form-input" id="f-guarantor-phone" placeholder="090-1234-5678">
+      </div>
+      <div class="form-group">
+        <label class="form-label">住所<span class="required">必須</span></label>
+        <input type="text" class="form-input" id="f-guarantor-address" placeholder="東京都渋谷区〇〇1-2-3">
+      </div>
+
+      <div id="err-step2" class="error-msg"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(1)">← 戻る</button>
+        <button class="btn btn-primary" onclick="nextStep(3)">次へ → 口座情報</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: 銀行口座 -->
+    <div class="card hidden" id="step-3">
+      <div class="card-title">
+        <div class="card-title-icon">🏦</div>
+        銀行口座情報
+      </div>
+      <div class="info-box">給与振込先の銀行口座をご入力ください。</div>
+
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">銀行名<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-bank-name" placeholder="〇〇銀行">
+        </div>
+        <div class="form-group">
+          <label class="form-label">支店名<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-bank-branch" placeholder="〇〇支店">
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">口座種別<span class="required">必須</span></label>
+          <select class="form-input" id="f-bank-type">
+            <option value="">選択してください</option>
+            <option value="普通">普通</option>
+            <option value="当座">当座</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">口座番号<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-bank-number" placeholder="1234567" maxlength="8" inputmode="numeric">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">口座名義（カタカナ）<span class="required">必須</span></label>
+        <input type="text" class="form-input" id="f-bank-holder" placeholder="ヤマダ タロウ">
+      </div>
+
+      <div id="err-step3" class="error-msg"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(2)">← 戻る</button>
+        <button class="btn btn-primary" onclick="nextStep(4)">次へ → 前職情報</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: 前職情報 -->
+    <div class="card hidden" id="step-4">
+      <div class="card-title">
+        <div class="card-title-icon">💼</div>
+        前職情報
+      </div>
+      <div class="info-box">年末調整・源泉徴収に使用します。新卒・初めてのお仕事の方は「なし」と入力してください。</div>
+
+      <div class="form-group">
+        <label class="form-label">前職の会社名</label>
+        <input type="text" class="form-input" id="f-prev-company" placeholder="株式会社〇〇（なし可）">
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="form-label">在籍開始年月</label>
+          <input type="month" class="form-input" id="f-prev-start">
+        </div>
+        <div class="form-group">
+          <label class="form-label">退職年月</label>
+          <input type="month" class="form-input" id="f-prev-end">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">退職理由（任意）</label>
+        <select class="form-input" id="f-prev-reason">
+          <option value="">選択してください</option>
+          <option value="自己都合">自己都合</option>
+          <option value="会社都合">会社都合</option>
+          <option value="契約満了">契約満了</option>
+          <option value="新卒・初就職">新卒・初就職</option>
+        </select>
+      </div>
+
+      <div id="err-step4" class="error-msg"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(3)">← 戻る</button>
+        <button class="btn btn-primary" onclick="nextStep(5)">次へ → 誓約書</button>
+      </div>
+    </div>
+
+    <!-- STEP 5: 誓約書 -->
+    <div class="card hidden" id="step-5">
+      <div class="card-title">
+        <div class="card-title-icon">📜</div>
+        誓約書
+      </div>
+      <div class="info-box">以下の誓約書をお読みいただき、内容にご同意の上、署名をお願いします。</div>
+
+      <div class="pledge-box">
+        <h3>誓 約 書</h3>
+        <p>私は、株式会社RegalCast（以下「会社」という）に入社するにあたり、下記の各事項を誠実に遵守することを誓約いたします。</p>
+
+        <ol>
+          <li><strong>服務規律の遵守</strong><br>
+          会社の就業規則、その他諸規程を遵守し、上司の指示に従い誠実に職務を遂行します。</li>
+
+          <li><strong>機密情報の保持</strong><br>
+          在職中および退職後においても、業務上知り得た会社の営業上・技術上の秘密、ならびに顧客・取引先に関する情報を第三者に漏洩しません。</li>
+
+          <li><strong>個人情報の適切な管理</strong><br>
+          業務において取り扱う個人情報を適切に管理し、目的外使用および不正開示を行いません。</li>
+
+          <li><strong>競業避止義務</strong><br>
+          在職中は、会社の事前承認なく、競合する他の事業を営み、または競合他社に従事しません。退職後1年間についても、会社が認める場合を除き競業行為を行いません。</li>
+
+          <li><strong>副業・兼業の事前申告</strong><br>
+          副業・兼業を行う場合は、事前に会社に申告し、許可を得ます。</li>
+
+          <li><strong>ハラスメントの禁止</strong><br>
+          職場においてパワーハラスメント、セクシャルハラスメント、その他いかなるハラスメント行為も行いません。</li>
+
+          <li><strong>SNS・情報発信に関するルール</strong><br>
+          SNS等において会社、同僚、顧客を誹謗中傷する投稿を行わず、機密情報や業務上の情報を無断で発信しません。</li>
+
+          <li><strong>備品・情報システムの適正利用</strong><br>
+          会社の備品・システムを目的外に使用せず、適切に取り扱います。</li>
+
+          <li><strong>法令の遵守</strong><br>
+          業務に関連する法令・規制を遵守し、コンプライアンスを徹底します。</li>
+
+          <li><strong>違反時の責任</strong><br>
+          上記各事項に違反した場合、会社に生じた損害を賠償する義務を負うことを承認します。</li>
+        </ol>
+      </div>
+
+      <label class="pledge-agree" id="pledge-check-label">
+        <input type="checkbox" id="f-pledge-agree" onchange="onPledgeCheck()">
+        <span>上記の誓約書の内容をすべて読み、内容を理解した上で同意します。</span>
+      </label>
+
+      <div id="pledge-sign-area" class="hidden">
+        <div class="form-group">
+          <label class="form-label">署名（氏名を入力してください）<span class="required">必須</span></label>
+          <input type="text" class="form-input" id="f-pledge-signature" placeholder="山田 太郎">
+        </div>
+        <div class="form-group">
+          <label class="form-label">署名日</label>
+          <input type="date" class="form-input" id="f-pledge-date" readonly style="background:#f0f2f5;cursor:not-allowed">
+        </div>
+      </div>
+
+      <div id="err-step5" class="error-msg"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="goStep(4)">← 戻る</button>
+        <button class="btn btn-primary" id="submit-btn" onclick="submitForm()" disabled>提出する</button>
+      </div>
+    </div>
+
+  </div><!-- /screen-form -->
+
+  <!-- Complete -->
+  <div id="screen-complete" class="card complete-screen hidden">
+    <div class="complete-icon">🎉</div>
+    <div class="complete-title">提出が完了しました！</div>
+    <div class="complete-sub">
+      入社手続きフォームの提出ありがとうございます。<br>
+      内容を確認後、担当者よりご連絡いたします。<br><br>
+      入社初日にお会いできることを楽しみにしております。
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import {
+  getAuth, signInAnonymously
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCzzyVqRLG_G9kU2qjQ3yx0aznQBKuK4Vg",
+  authDomain: "regalcast-app.firebaseapp.com",
+  projectId: "regalcast-app",
+  storageBucket: "regalcast-app.firebasestorage.app",
+  messagingSenderId: "937984277929",
+  appId: "1:937984277929:web:e923791a191d1ffe8718b8"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ── Load form by token ─────────────────────────────────────
+
+let _token = null;
+let _uid = null;
+
+async function loadForm() {
+  await signInAnonymously(auth);
+  _token = new URLSearchParams(location.search).get('token');
+  if (!_token) { showScreen('error'); return; }
+
+  try {
+    // form_submissions/{token} を直接読む（IDがトークン）
+    const snap = await getDoc(doc(db, 'form_submissions', _token));
+    if (!snap.exists()) { showScreen('error'); return; }
+
+    const data = snap.data();
+    if (data.submittedAt) { showScreen('submitted'); return; }
+
+    _uid = data.uid || null;
+    document.getElementById('greeting-name').textContent = data.name || '';
+
+    const today = new Date().toLocaleDateString('sv-SE');
+    const pledgeDateEl = document.getElementById('f-pledge-date');
+    if (pledgeDateEl) pledgeDateEl.value = today;
+
+    showScreen('form');
+  } catch(e) {
+    console.error(e);
+    showScreen('error');
+  }
+}
+
+function showScreen(name) {
+  ['loading','error','submitted','form','complete'].forEach(s => {
+    const el = document.getElementById('screen-' + s);
+    if (el) el.classList.add('hidden');
+  });
+  const target = document.getElementById('screen-' + name);
+  if (target) target.classList.remove('hidden');
+}
+
+// ── Step navigation ────────────────────────────────────────
+
+window.currentStep = 1;
+
+window.goStep = function(n) {
+  document.getElementById('step-' + window.currentStep).classList.add('hidden');
+  document.getElementById('step-' + n).classList.remove('hidden');
+  window.currentStep = n;
+  updateStepIndicator(n);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.nextStep = function(n) {
+  if (!validateStep(window.currentStep)) return;
+  window.goStep(n);
+};
+
+function updateStepIndicator(n) {
+  document.querySelectorAll('.step-item').forEach(el => {
+    const s = parseInt(el.dataset.step);
+    el.classList.remove('active','done');
+    if (s < n) el.classList.add('done');
+    else if (s === n) el.classList.add('active');
+  });
+}
+
+function validateStep(step) {
+  const errEl = document.getElementById('err-step' + step);
+  if (errEl) errEl.textContent = '';
+
+  if (step === 1) {
+    if (!val('f-name')) return err(1, '氏名を入力してください');
+    if (!val('f-name-kana')) return err(1, 'ふりがなを入力してください');
+    if (!val('f-birthdate')) return err(1, '生年月日を入力してください');
+    if (!val('f-address')) return err(1, '住所を入力してください');
+    if (!val('f-phone')) return err(1, '電話番号を入力してください');
+    if (!val('f-email')) return err(1, 'メールアドレスを入力してください');
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRe.test(val('f-email'))) return err(1, '正しいメールアドレスを入力してください');
+    const mn = val('f-mynumber').replace(/\D/g,'');
+    if (mn.length !== 12) return err(1, 'マイナンバーは12桁で入力してください');
+  }
+  if (step === 2) {
+    if (!val('f-emg-name')) return err(2, '緊急連絡先の氏名を入力してください');
+    if (!val('f-emg-relation')) return err(2, '緊急連絡先の続柄を選択してください');
+    if (!val('f-emg-phone')) return err(2, '緊急連絡先の電話番号を入力してください');
+    if (!val('f-guarantor-name')) return err(2, '身元保証人の氏名を入力してください');
+    if (!val('f-guarantor-relation')) return err(2, '身元保証人の続柄を選択してください');
+    if (!val('f-guarantor-phone')) return err(2, '身元保証人の電話番号を入力してください');
+    if (!val('f-guarantor-address')) return err(2, '身元保証人の住所を入力してください');
+  }
+  if (step === 3) {
+    if (!val('f-bank-name')) return err(3, '銀行名を入力してください');
+    if (!val('f-bank-branch')) return err(3, '支店名を入力してください');
+    if (!val('f-bank-type')) return err(3, '口座種別を選択してください');
+    if (!val('f-bank-number')) return err(3, '口座番号を入力してください');
+    if (!val('f-bank-holder')) return err(3, '口座名義を入力してください');
+  }
+  if (step === 5) {
+    if (!document.getElementById('f-pledge-agree').checked) return err(5, '誓約書への同意が必要です');
+    if (!val('f-pledge-signature')) return err(5, '署名を入力してください');
+  }
+  return true;
+}
+
+function val(id) { return (document.getElementById(id)?.value || '').trim(); }
+function err(step, msg) {
+  const el = document.getElementById('err-step' + step);
+  if (el) el.textContent = msg;
+  return false;
+}
+
+// ── Pledge checkbox ────────────────────────────────────────
+
+window.onPledgeCheck = function() {
+  const checked = document.getElementById('f-pledge-agree').checked;
+  const signArea = document.getElementById('pledge-sign-area');
+  const submitBtn = document.getElementById('submit-btn');
+  signArea.classList.toggle('hidden', !checked);
+  submitBtn.disabled = !checked;
+};
+
+// ── Submit ────────────────────────────────────────────────
+
+window.submitForm = async function() {
+  if (!validateStep(5)) return;
+  if (!_token) return;
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  const formData = {
+    // 基本情報
+    fullName:       val('f-name'),
+    fullNameKana:   val('f-name-kana'),
+    birthDate:      val('f-birthdate'),
+    gender:         val('f-gender'),
+    address:        val('f-address'),
+    phone:          val('f-phone'),
+    email:          val('f-email'),
+    myNumber:       val('f-mynumber').replace(/\D/g,''),
+    // 緊急連絡先
+    emergencyName:     val('f-emg-name'),
+    emergencyRelation: val('f-emg-relation'),
+    emergencyPhone:    val('f-emg-phone'),
+    // 身元保証人
+    guarantorName:     val('f-guarantor-name'),
+    guarantorRelation: val('f-guarantor-relation'),
+    guarantorPhone:    val('f-guarantor-phone'),
+    guarantorAddress:  val('f-guarantor-address'),
+    // 銀行口座
+    bankName:     val('f-bank-name'),
+    bankBranch:   val('f-bank-branch'),
+    bankType:     val('f-bank-type'),
+    bankNumber:   val('f-bank-number'),
+    bankHolder:   val('f-bank-holder'),
+    // 前職
+    prevCompany: val('f-prev-company'),
+    prevStart:   val('f-prev-start'),
+    prevEnd:     val('f-prev-end'),
+    prevReason:  val('f-prev-reason'),
+    // 誓約書
+    pledgeAgree:     true,
+    pledgeSignature: val('f-pledge-signature'),
+    pledgeDate:      val('f-pledge-date'),
+  };
+
+  try {
+    const submittedAt = new Date().toISOString();
+    // form_submissions コレクションに書き込む（匿名ユーザーで書き込み可能）
+    await setDoc(doc(db, 'form_submissions', _token), {
+      token: _token,
+      uid: _uid,
+      formData,
+      submittedAt,
+    });
+    showScreen('complete');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch(e) {
+    document.getElementById('err-step5').textContent = '送信に失敗しました: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '提出する';
+  }
+};
+
+// ── Boot ──────────────────────────────────────────────────
+loadForm();
+</script>
+</body>
+</html>

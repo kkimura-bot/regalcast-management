@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>プロフィール登録 — RegalCast</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: #F0F2F5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e8eaf0;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-logo { font-size: 18px; font-weight: 800; color: #1a3a6e; letter-spacing: -0.5px; }
+    .header-logo span { color: #2a5298; }
+    .header-sub { font-size: 11px; color: #8a93a6; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+    .container { max-width: 560px; margin: 32px auto; padding: 0 16px 64px; }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px 24px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.06);
+      margin-bottom: 16px;
+    }
+    .greeting {
+      text-align: center;
+      padding: 32px 24px;
+      margin-bottom: 0;
+    }
+    .greeting-avatar {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2a5298, #3a7d5a);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      margin: 0 auto 16px;
+    }
+    .greeting-name { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .greeting-sub { font-size: 13px; color: #8a93a6; line-height: 1.7; }
+    .section-title {
+      font-size: 11px; font-weight: 700; color: #8a93a6;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      margin-bottom: 16px; padding-bottom: 8px;
+      border-bottom: 1px solid #f0f2f5;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block; font-size: 12px; font-weight: 700;
+      color: #4a5568; margin-bottom: 6px; letter-spacing: 0.3px;
+    }
+    .form-input {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid #e2e6ef;
+      border-radius: 10px; font-size: 14px;
+      font-family: inherit; color: #1a1a1a;
+      background: #fafbfc;
+      transition: border-color .2s, box-shadow .2s;
+      outline: none;
+    }
+    .form-input:focus { border-color: #2a5298; box-shadow: 0 0 0 3px rgba(42,82,152,.1); background: #fff; }
+    textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.6; }
+    .photo-area {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 20px; border: 2px dashed #e2e6ef;
+      border-radius: 12px; cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .photo-area:hover { border-color: #2a5298; background: rgba(42,82,152,.02); }
+    .photo-preview {
+      width: 96px; height: 96px; border-radius: 50%;
+      overflow: hidden; background: #f0f2f5;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px; margin-bottom: 12px;
+      border: 3px solid #e8eaf0;
+    }
+    .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-hint { font-size: 12px; color: #8a93a6; }
+    .skill-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 28px; }
+    .skill-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 12px; padding: 4px 12px; border-radius: 20px;
+      background: rgba(42,82,152,.08); color: #2a5298; font-weight: 500;
+    }
+    .skill-tag-remove {
+      background: none; border: none; cursor: pointer;
+      color: #2a5298; font-size: 14px; padding: 0; line-height: 1;
+    }
+    .skill-input-row { display: flex; gap: 8px; }
+    .btn-add {
+      padding: 10px 16px; background: #f0f2f5;
+      border: 1.5px solid #e2e6ef; border-radius: 10px;
+      font-size: 13px; font-weight: 600; color: #4a5568;
+      cursor: pointer; white-space: nowrap; font-family: inherit;
+      transition: all .15s;
+    }
+    .btn-add:hover { background: #e2e6ef; }
+    .submit-btn {
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, #2a5298, #1a3a6e);
+      color: #fff; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: opacity .2s;
+      margin-top: 8px;
+    }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .hidden { display: none !important; }
+    .error-msg { font-size: 12px; color: #e53e3e; margin-top: 6px; min-height: 16px; }
+    /* Screens */
+    #screen-loading {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 60vh;
+    }
+    .spinner {
+      width: 40px; height: 40px; border: 3px solid #e2e6ef;
+      border-top-color: #2a5298; border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #screen-complete .complete-icon { font-size: 56px; margin-bottom: 16px; }
+    #screen-complete .complete-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    #screen-complete .complete-sub { font-size: 14px; color: #8a93a6; line-height: 1.7; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-logo">Regal<span>Cast</span></div>
+    <div class="header-sub">Staff Profile</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ローディング -->
+  <div id="screen-loading">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- エラー -->
+  <div id="screen-error" class="hidden">
+    <div class="card" style="text-align:center;padding:48px 24px">
+      <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px">リンクが無効です</div>
+      <div style="font-size:13px;color:#8a93a6">このURLは無効または期限切れです。管理者に新しいURLを発行してもらってください。</div>
+    </div>
+  </div>
+
+  <!-- フォーム -->
+  <div id="screen-form" class="hidden">
+    <!-- あいさつ -->
+    <div class="card greeting">
+      <div class="greeting-avatar">👤</div>
+      <div class="greeting-name" id="greeting-name">—</div>
+      <div class="greeting-sub">
+        プロフィール情報を入力してください。<br>
+        入力した内容は社員紹介ページに表示されます。
+      </div>
+    </div>
+
+    <!-- 写真 -->
+    <div class="card">
+      <div class="section-title">📷 プロフィール写真</div>
+      <label class="photo-area" for="f-photo-input">
+        <div class="photo-preview" id="photo-preview">
+          <span>👤</span>
+        </div>
+        <div class="photo-hint">タップして写真を選択（任意）</div>
+      </label>
+      <input type="file" id="f-photo-input" accept="image/*" style="display:none" onchange="previewPhoto(this)">
+    </div>
+
+    <!-- 自己紹介 -->
+    <div class="card">
+      <div class="section-title">✍️ 自己紹介</div>
+      <div class="form-group">
+        <label class="form-label">自己紹介文（任意）</label>
+        <textarea class="form-input" id="f-bio" rows="4" placeholder="簡単な自己紹介を書いてください。趣味・経歴・人柄など何でもOKです。"></textarea>
+      </div>
+    </div>
+
+    <!-- スキル -->
+    <div class="card">
+      <div class="section-title">💡 スキル・得意なこと</div>
+      <div class="form-group">
+        <label class="form-label">スキル・得意なこと（任意）</label>
+        <div class="skill-tags" id="skill-tags"></div>
+        <div class="skill-input-row">
+          <input class="form-input" id="f-skill-input" placeholder="例：営業、企画、Excel"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();addSkill()}">
+          <button type="button" class="btn-add" onclick="addSkill()">追加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 担当業務・趣味 -->
+    <div class="card">
+      <div class="section-title">📋 担当業務・趣味</div>
+      <div class="form-group">
+        <label class="form-label">担当業務（任意）</label>
+        <textarea class="form-input" id="f-work" rows="3" placeholder="現在担当している仕事の内容"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">趣味・一言（任意）</label>
+        <input class="form-input" id="f-hobbies" placeholder="例：映画鑑賞、料理、サッカー">
+      </div>
+    </div>
+
+    <div class="error-msg" id="submit-error"></div>
+    <button class="submit-btn" id="submit-btn" onclick="submitProfile()">💾 プロフィールを登録する</button>
+  </div>
+
+  <!-- 完了 -->
+  <div id="screen-complete" class="hidden">
+    <div class="card" style="text-align:center;padding:48px 24px">
+      <div class="complete-icon">🎉</div>
+      <div class="complete-title">登録完了！</div>
+      <div class="complete-sub">
+        プロフィールを登録しました。<br>
+        社員紹介ページに反映されます。<br><br>
+        このページは閉じて大丈夫です。
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import {
+  getFirestore, doc, getDoc, setDoc
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import {
+  getStorage, ref, uploadBytes, getDownloadURL
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCzzyVqRLG_G9kU2qjQ3yx0aznQBKuK4Vg",
+  authDomain: "regalcast-app.firebaseapp.com",
+  projectId: "regalcast-app",
+  storageBucket: "regalcast-app.firebasestorage.app",
+};
+
+const app     = initializeApp(firebaseConfig);
+const auth    = getAuth(app);
+const db      = getFirestore(app);
+const storage = getStorage(app);
+
+let _token = null;
+let _uid   = null;
+let _skills = [];
+
+// ── Load ──────────────────────────────────────────────────
+
+async function loadProfile() {
+  await signInAnonymously(auth);
+  _token = new URLSearchParams(location.search).get('token');
+  if (!_token) { showScreen('error'); return; }
+
+  try {
+    const snap = await getDoc(doc(db, 'profile_tokens', _token));
+    if (!snap.exists()) { showScreen('error'); return; }
+
+    const data = snap.data();
+    _uid = data.uid;
+    document.getElementById('greeting-name').textContent = data.name || '';
+
+    // 既存プロフィールがあれば読み込んでプリセット
+    const profSnap = await getDoc(doc(db, 'profiles', _uid));
+    if (profSnap.exists()) {
+      const p = profSnap.data();
+      if (p.selfIntroduction) document.getElementById('f-bio').value = p.selfIntroduction;
+      if (p.currentWork)      document.getElementById('f-work').value = p.currentWork;
+      if (p.hobbies)          document.getElementById('f-hobbies').value = p.hobbies;
+      if (p.skills?.length)   { _skills = [...p.skills]; renderSkillTags(); }
+      if (p.photoURL) {
+        const preview = document.getElementById('photo-preview');
+        preview.innerHTML = `<img src="${p.photoURL}">`;
+      }
+    }
+
+    showScreen('form');
+  } catch(e) {
+    console.error(e);
+    showScreen('error');
+  }
+}
+
+function showScreen(name) {
+  ['loading','error','form','complete'].forEach(s => {
+    document.getElementById('screen-' + s)?.classList.add('hidden');
+  });
+  document.getElementById('screen-' + name)?.classList.remove('hidden');
+}
+
+// ── Skill tags ────────────────────────────────────────────
+
+function renderSkillTags() {
+  const wrap = document.getElementById('skill-tags');
+  if (!wrap) return;
+  wrap.innerHTML = _skills.map((s, i) => `
+    <span class="skill-tag">
+      ${s}
+      <button type="button" class="skill-tag-remove" onclick="removeSkill(${i})">×</button>
+    </span>`).join('');
+}
+
+window.addSkill = function() {
+  const input = document.getElementById('f-skill-input');
+  const val = input?.value.trim();
+  if (!val || _skills.includes(val)) { if (input) input.value = ''; return; }
+  _skills.push(val);
+  input.value = '';
+  renderSkillTags();
+};
+
+window.removeSkill = function(i) {
+  _skills.splice(i, 1);
+  renderSkillTags();
+};
+
+// ── Photo preview ─────────────────────────────────────────
+
+window.previewPhoto = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('photo-preview');
+    if (preview) preview.innerHTML = `<img src="${e.target.result}">`;
+  };
+  reader.readAsDataURL(file);
+};
+
+// ── Submit ────────────────────────────────────────────────
+
+window.submitProfile = async function() {
+  if (!_token || !_uid) return;
+  const btn    = document.getElementById('submit-btn');
+  const errEl  = document.getElementById('submit-error');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  errEl.textContent = '';
+
+  try {
+    let photoURL = null;
+
+    // 写真アップロード
+    const photoInput = document.getElementById('f-photo-input');
+    if (photoInput?.files[0]) {
+      const file = photoInput.files[0];
+      const storageRef = ref(storage, `users/${_uid}/profile_pictures/profile_image.jpg`);
+      await uploadBytes(storageRef, file);
+      photoURL = await getDownloadURL(storageRef);
+    }
+
+    const data = {
+      uid: _uid,
+      selfIntroduction: document.getElementById('f-bio').value.trim(),
+      skills: _skills,
+      currentWork: document.getElementById('f-work').value.trim(),
+      hobbies: document.getElementById('f-hobbies').value.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (photoURL) data.photoURL = photoURL;
+
+    await setDoc(doc(db, 'profiles', _uid), data, { merge: true });
+    showScreen('complete');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch(e) {
+    errEl.textContent = '保存に失敗しました: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '💾 プロフィールを登録する';
+  }
+};
+
+// ── Boot ──────────────────────────────────────────────────
+loadProfile();
+</script>
+</body>
+</html>

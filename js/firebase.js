@@ -3,8 +3,16 @@
 // ============================================================
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+import {
   getAuth,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   updatePassword,
@@ -40,12 +48,15 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db   = getFirestore(app);
+export const auth    = getAuth(app);
+export const db      = getFirestore(app);
+export const storage = getStorage(app);
+export { firebaseConfig };
 
 // Re-export Firebase functions so modules import from here, not CDN
 export {
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
   updatePassword,
@@ -64,5 +75,9 @@ export {
   limit,
   onSnapshot,
   serverTimestamp,
-  writeBatch
+  writeBatch,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
 };

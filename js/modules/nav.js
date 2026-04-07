@@ -9,6 +9,10 @@ export function adjustMobileNavPadding() {
   if (!nav || !content) return;
   const navH = nav.offsetHeight;
   content.style.paddingBottom = navH + 'px';
+  // mobile-view.active のスクロール領域にも同じ padding を適用
+  document.querySelectorAll('.mobile-view').forEach(v => {
+    v.style.paddingBottom = (navH + 16) + 'px';
+  });
 }
 
 export function switchMobile(name, el) {
@@ -40,6 +44,8 @@ export function switchMobile(name, el) {
   if (name === 'alert')       window.loadAlertReports?.();
   if (name === 'salary')      window.loadSalary?.();
   if (name === 'users')       window.loadUsers?.();
+  if (name === 'onboarding')  window.loadOnboarding?.();
+  if (name === 'offboarding') window.loadOffboarding?.();
   if (name === 'mental')      window.loadMentalData?.();
   if (name === 'myshift')     window.loadMyShiftReport?.();
   if (name === 'mysalary')    window.loadMySalaryPage?.();

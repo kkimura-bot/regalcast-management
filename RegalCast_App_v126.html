@@ -10,7 +10,7 @@
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail }
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, sendPasswordResetEmail, signInAnonymously }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch }
   from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -49,6 +49,8 @@ const roleLabel = (r) => r==='admin'?'管理者':r==='leader'?'リーダー':'�
 // ============================================================
 onAuthStateChanged(auth, async (user) => {
   if (user) {
+    // 匿名ユーザー（アライアンスログイン用）は通常のセットアップをスキップ
+    if (user.isAnonymous) return;
     currentUser = user;
     // Firestoreからユーザー情報を取得
     const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -127,10 +129,23 @@ window.showAllianceLogin = async () => {
   select.innerHTML = '<option value="">── 名前を選択してください ──</option>';
 
   try {
-    const snap = await getDocs(collection(db, 'users'));
-    const targets = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .filter(u => u.name && u.attr === '委託')
+    // 今月の attendance から委託メンバーを取得（認証不要）
+    const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const snap = await getDocs(query(
+      collection(db, 'attendance'),
+      where('date', '>=', thisMonth + '-01')
+    ));
+
+    const seen = new Map(); // uid → name
+    snap.docs.forEach(d => {
+      const data = d.data();
+      if (data.uid && data.uid.startsWith('alliance_') && data.name) {
+        seen.set(data.uid, data.name);
+      }
+    });
+
+    const targets = Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
       .sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ja'));
 
     if (targets.length === 0) {

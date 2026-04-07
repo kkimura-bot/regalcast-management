@@ -18,38 +18,19 @@ import './modules/dashboard.js';
 import './modules/daily.js';
 import './modules/reports.js';
 import './modules/users.js';
-import './modules/shops.js';
 import './modules/salary.js';
 import './modules/mental.js';
 import './modules/mypage.js';
-import './modules/tasks.js';
-import './modules/projects.js';
+import './modules/profiles.js';
+import './modules/onboarding.js';
+import './modules/offboarding.js';
+import './modules/notifications.js';
 
 // ── postLoginSetup ────────────────────────────────────────
 
 export function postLoginSetup() {
-  const addShiftBtn = document.getElementById('add-shift-btn');
-  if (addShiftBtn) addShiftBtn.style.display = isAdmin() ? '' : 'none';
-  const importShiftBtn = document.getElementById('import-shift-btn');
-  if (importShiftBtn) importShiftBtn.style.display = isAdmin() ? '' : 'none';
-  const bulkShiftBtn = document.getElementById('bulk-shift-btn');
-  if (bulkShiftBtn) bulkShiftBtn.style.display = isAdmin() ? '' : 'none';
-  const deleteMemberShiftBtn = document.getElementById('delete-member-shift-btn');
-  if (deleteMemberShiftBtn) deleteMemberShiftBtn.style.display = isAdmin() ? '' : 'none';
-  const requestOffBtn = document.getElementById('request-off-btn');
-  if (requestOffBtn) requestOffBtn.style.display = !isAdmin() ? '' : 'none';
-  const adminOffBtn = document.getElementById('admin-off-btn');
-  if (adminOffBtn) adminOffBtn.style.display = isAdmin() ? '' : 'none';
 
   if (isLeaderOrAbove()) {
-    const dashAttSection = document.getElementById('dash-att-section');
-    if (dashAttSection) dashAttSection.style.display = '';
-    const dashAttWrap = document.getElementById('dash-att-wrap');
-    if (dashAttWrap) dashAttWrap.style.display = '';
-    const mDashAttSection = document.getElementById('m-dash-att-section');
-    if (mDashAttSection) mDashAttSection.style.display = '';
-    const mDashAttDiv = document.getElementById('m-dash-attendance');
-    if (mDashAttDiv) mDashAttDiv.style.display = '';
     const attTeamCard = document.getElementById('att-team-card');
     if (attTeamCard) attTeamCard.style.display = '';
     const attThMember = document.getElementById('att-th-member');
@@ -65,7 +46,7 @@ export function postLoginSetup() {
       filterSel.style.display = 'inline-block';
       if (RC._cachedMembers.length) {
         filterSel.innerHTML = '<option value="">全員</option>'
-          + RC._cachedMembers.map(u=>`<option value="${u.name}">${u.name}</option>`).join('');
+          + RC._cachedMembers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
       }
     }
     const mAttMemberRow = document.getElementById('m-att-member-row');
@@ -73,7 +54,7 @@ export function postLoginSetup() {
     const mFilterSel = document.getElementById('att-member-filter-m');
     if (mFilterSel && RC._cachedMembers.length) {
       mFilterSel.innerHTML = '<option value="">全員</option>'
-        + RC._cachedMembers.map(u=>`<option value="${u.name}">${u.name}</option>`).join('');
+        + RC._cachedMembers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
     }
     if (isAdmin()) {
       ['att-add-btn','m-att-add-btn','att-bulk-gen-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
@@ -190,7 +171,7 @@ function patchLoadProjects() {
 
 function initMonthInputs() {
   const nowMonth = new Date(new Date().toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})).toLocaleDateString('sv-SE').slice(0,7);
-  ['att-month','att-month-m','mental-month','mental-month-m','myshift-month','myshift-month-m'].forEach(id => {
+  ['att-month','att-month-m','mental-month','mental-month-m'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = nowMonth;
   });

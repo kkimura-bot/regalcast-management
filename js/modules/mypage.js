@@ -14,17 +14,6 @@ let _myShiftSelections = {};
 let _myShiftMonth      = '';
 
 export async function loadMyShiftReport() {
-  const selfEnabled = RC.currentUserData?.selfReportEnabled === true;
-  ['myshift-disabled-notice','myshift-disabled-notice-m'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = selfEnabled ? 'none' : '';
-  });
-  ['myshift-form-wrap','myshift-form-wrap-m'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = selfEnabled ? '' : 'none';
-  });
-  if (!selfEnabled) return;
-
   const month = document.getElementById('myshift-month')?.value
              || document.getElementById('myshift-month-m')?.value
              || new Date().toISOString().slice(0,7);

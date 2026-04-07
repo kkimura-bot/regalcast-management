@@ -65,15 +65,19 @@ export async function loadShifts() {
     q = query(collection(db,'shifts'), where('date','>=',weekStart), where('date','<=',weekEnd));
   } else if (isLeaderOrAbove()) {
     if (leaderFilterVal === 'self') {
-      q = query(collection(db,'shifts'), where('uid','==',RC.currentUser.uid), where('date','>=',weekStart), where('date','<=',weekEnd));
+      q = query(collection(db,'shifts'), where('uid','==',RC.currentUser.uid));
     } else {
       q = query(collection(db,'shifts'), where('date','>=',weekStart), where('date','<=',weekEnd));
     }
   } else {
-    q = query(collection(db,'shifts'), where('uid','==',RC.currentUser.uid), where('date','>=',weekStart), where('date','<=',weekEnd));
+    q = query(collection(db,'shifts'), where('uid','==',RC.currentUser.uid));
   }
   const snap = await getDocs(q);
-  let shifts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  let shifts = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(s => !['self',''].includes(isLeaderOrAbove() ? leaderFilterVal || '' : 'self') || (s.date >= weekStart && s.date <= weekEnd));
+  if (!isAdmin()) {
+    shifts = shifts.filter(s => s.date >= weekStart && s.date <= weekEnd);
+  }
 
   if (isAdmin() && shiftFilter && shiftFilter.value) {
     shifts = shifts.filter(s => s.uid === shiftFilter.value);
@@ -455,9 +459,10 @@ export async function saveShiftEdit(shiftId, month) {
   const note = document.getElementById('es-note').value.trim();
   const snap = await getDoc(doc(db, 'shifts', shiftId));
   const s = snap.exists() ? snap.data() : {};
+  const newMonth = date.slice(0,7);
   await updateDoc(doc(db, 'shifts', shiftId), {
     date, startTime: start, endTime: end,
-    month: date.slice(0,7),
+    month: newMonth,
     location: document.getElementById('es-location').value.trim(),
     note
   });
@@ -467,6 +472,9 @@ export async function saveShiftEdit(shiftId, month) {
     if (attSnap.exists()) {
       await updateDoc(doc(db, 'attendance', attDocId), { note }).catch(()=>{});
     }
+  }
+  if (isAdmin() && s.name) {
+    writeShiftNotification({ uid: s.uid, name: s.name, month: newMonth, type: 'update' }).catch(()=>{});
   }
   window.closeModal();
   loadShifts();
@@ -1391,6 +1399,7 @@ export async function writeShiftNotification(shiftData) {
     uid: member.id,
     name: member.name,
     month: shiftData.month,
+    type: shiftData.type || 'new',
     read: false,
     createdAt: new Date().toISOString(),
     createdBy: RC.currentUserData?.name || ''
@@ -1406,63 +1415,11 @@ export async function markShiftNotifRead() {
   window.checkNotifications?.(tasks);
 }
 
-export async function checkNotifications(tasks) {
-  if (!tasks) {
-    const snap = await getDocs(collection(db, 'tasks'));
-    tasks = snap.docs.map(d => d.data());
-  }
-  const today = new Date(); today.setHours(0,0,0,0);
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
-  const in3days  = new Date(today); in3days.setDate(in3days.getDate()+3);
-
-  const filterMine = arr => isLeaderOrAbove() ? arr : arr.filter(t => t.member === RC.currentUserData?.name);
-
-  const myOverdue  = filterMine(tasks.filter(t => t.progress < 1 && t.end && new Date(t.end) < today));
-  const myTomorrow = filterMine(tasks.filter(t => {
-    if (t.progress >= 1 || !t.end) return false;
-    const d = new Date(t.end); d.setHours(0,0,0,0);
-    return d.getTime() === tomorrow.getTime();
-  }));
-  const mySoon = filterMine(tasks.filter(t => {
-    if (t.progress >= 1 || !t.end) return false;
-    const d = new Date(t.end); d.setHours(0,0,0,0);
-    return d > tomorrow && d <= in3days;
-  }));
-
+export async function checkNotifications() {
   const banner  = document.getElementById('notif-banner');
   const bannerM = document.getElementById('notif-banner-m');
 
   let html = '';
-
-  if (myOverdue.length > 0) {
-    html += `<div class="notif-item notif-error">
-      <div class="notif-icon">🚨</div>
-      <div>
-        <div class="notif-title">期限超過 ${myOverdue.length}件</div>
-        <div class="notif-list">${myOverdue.slice(0,3).map(t=>`<span class="notif-chip">${t.name}${isLeaderOrAbove()?` (${t.member||'—'})`:''}</span>`).join('')}${myOverdue.length>3?`<span class="notif-chip">他${myOverdue.length-3}件</span>`:''}</div>
-      </div>
-    </div>`;
-  }
-
-  if (myTomorrow.length > 0) {
-    html += `<div class="notif-item" style="background:#fff0f6;border-left:3px solid #e91e8c">
-      <div class="notif-icon">📅</div>
-      <div>
-        <div class="notif-title" style="color:#c2185b">明日が期限！ ${myTomorrow.length}件</div>
-        <div class="notif-list">${myTomorrow.map(t=>`<span class="notif-chip" style="border-color:#e91e8c;color:#c2185b">${t.name}${isLeaderOrAbove()?` (${t.member||'—'})`:''}</span>`).join('')}</div>
-      </div>
-    </div>`;
-  }
-
-  if (mySoon.length > 0) {
-    html += `<div class="notif-item notif-warn">
-      <div class="notif-icon">⏰</div>
-      <div>
-        <div class="notif-title">3日以内に期限 ${mySoon.length}件</div>
-        <div class="notif-list">${mySoon.slice(0,3).map(t=>`<span class="notif-chip">${t.name}（${window.fmtDate?.(t.end)||t.end}）${isLeaderOrAbove()?` (${t.member||'—'})`:''}</span>`).join('')}${mySoon.length>3?`<span class="notif-chip">他${mySoon.length-3}件</span>`:''}</div>
-      </div>
-    </div>`;
-  }
 
   if (!isAdmin()) {
     const myUid = RC.currentUser?.uid;
@@ -1475,12 +1432,16 @@ export async function checkNotifications(tasks) {
         ));
         if (!shiftNotifSnap.empty) {
           const notifs = shiftNotifSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const latest = notifs.sort((a,b) => b.createdAt?.localeCompare(a.createdAt||'')||0)[0];
+          const sorted = notifs.sort((a,b) => b.createdAt?.localeCompare(a.createdAt||'')||0);
+          const latest = sorted[0];
+          const hasUpdate = notifs.some(n => n.type === 'update');
+          const hasNew    = notifs.some(n => n.type !== 'update');
+          const typeLabel = hasUpdate && hasNew ? '登録・更新' : hasUpdate ? '更新' : '登録';
           html += `<div class="notif-item" style="background:#e8f5e9;border-left:3px solid var(--accent2)">
             <div class="notif-icon">📋</div>
             <div style="flex:1">
-              <div class="notif-title" style="color:var(--accent2)">シフトが確定されました ${notifs.length > 1 ? notifs.length+'件' : ''}</div>
-              <div class="notif-list"><span class="notif-chip" style="border-color:var(--accent2)">${latest.month || ''} のシフトが登録・更新されました</span></div>
+              <div class="notif-title" style="color:var(--accent2)">シフトが${typeLabel}されました ${notifs.length > 1 ? notifs.length+'件' : ''}</div>
+              <div class="notif-list">${sorted.slice(0,3).map(n=>`<span class="notif-chip" style="border-color:var(--accent2)">${n.month||''} ${n.type==='update'?'🔄 更新':'✅ 新規'}</span>`).join('')}${notifs.length>3?`<span class="notif-chip">他${notifs.length-3}件</span>`:''}</div>
               <button class="mini-btn" style="margin-top:6px;color:var(--accent2);border-color:var(--accent2)" onclick="markShiftNotifRead()">確認済みにする</button>
             </div>
           </div>`;
@@ -1515,10 +1476,15 @@ export async function checkNotifications(tasks) {
   if (banner) { banner.style.display = html ? '' : 'none'; banner.innerHTML = html; }
   if (bannerM) { bannerM.style.display = html ? '' : 'none'; bannerM.innerHTML = html; }
 
-  const taskAlertCount = myOverdue.length + myTomorrow.length + mySoon.length;
-  if (!isAdmin()) {
-    const badge = document.getElementById('notif-badge');
-    if (badge) { badge.textContent = taskAlertCount; badge.style.display = taskAlertCount > 0 ? '' : 'none'; }
+  const badge  = document.getElementById('notif-badge');
+  const badgeM = document.getElementById('m-shift-notif-badge');
+  const shiftNotifCount = window._pendingShiftNotifIds?.length || 0;
+  if (shiftNotifCount > 0) {
+    if (badge)  { badge.textContent  = shiftNotifCount; badge.style.display  = ''; }
+    if (badgeM) { badgeM.textContent = shiftNotifCount; badgeM.style.display = ''; }
+  } else {
+    if (badge)  badge.style.display  = 'none';
+    if (badgeM) badgeM.style.display = 'none';
   }
 }
 

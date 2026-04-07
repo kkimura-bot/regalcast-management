@@ -1133,8 +1133,5 @@ optgroup option { font-weight: 400; color: var(--ink); }
     padding: 12px 14px;
   }
 
-  /* モバイルナビ高さ調整 */
-  .mobile-view.active {
-    padding-bottom: calc(70px + env(safe-area-inset-bottom));
-  }
+  /* モバイルナビ高さ調整: JSで動的に設定するためCSSでは指定しない */
 }

@@ -13,21 +13,59 @@ export const depts_options = [
 // ── Salary / Rank ──────────────────────────────────────────
 
 export const SALARY_TABLE = {
-  S:  { base: 350000, overtime: 2188 },
-  A:  { base: 300000, overtime: 1875 },
-  B:  { base: 270000, overtime: 1688 },
-  C:  { base: 250000, overtime: 1563 },
-  D:  { base: 230000, overtime: 1438 },
-  E:  { base: 210000, overtime: 1313 },
-  F:  { base: 190000, overtime: 1188 },
-  G:  { base: 170000, overtime: 1063 },
-  H:  { base: 150000, overtime: 938  },
+  'スターター1':  { rank:'スターター NOVICE',      grade:1, base:203000, duty:12000, fixedOT:8,  sales:0,     total:215000 },
+  'スターター2':  { rank:'スターター NOVICE',      grade:2, base:203000, duty:12000, fixedOT:8,  sales:2000,  total:217000 },
+  'スターター3':  { rank:'スターター NOVICE',      grade:3, base:203000, duty:12000, fixedOT:8,  sales:4000,  total:219000 },
+  'スターター4':  { rank:'スターター NOVICE',      grade:4, base:203000, duty:12000, fixedOT:8,  sales:6000,  total:221000 },
+  'スターター5':  { rank:'スターター NOVICE',      grade:5, base:203000, duty:12000, fixedOT:8,  sales:8000,  total:223000 },
+  'プロモーター1':{ rank:'プロモーター FIGHTER',   grade:1, base:203000, duty:22000, fixedOT:15, sales:0,     total:225000 },
+  'プロモーター2':{ rank:'プロモーター FIGHTER',   grade:2, base:203000, duty:22000, fixedOT:15, sales:2500,  total:227500 },
+  'プロモーター3':{ rank:'プロモーター FIGHTER',   grade:3, base:203000, duty:22000, fixedOT:15, sales:5000,  total:230000 },
+  'プロモーター4':{ rank:'プロモーター FIGHTER',   grade:4, base:203000, duty:22000, fixedOT:15, sales:7500,  total:232500 },
+  'プロモーター5':{ rank:'プロモーター FIGHTER',   grade:5, base:203000, duty:22000, fixedOT:15, sales:10000, total:235000 },
+  'キーパーソン1':{ rank:'キーパーソン SPECIALIST', grade:1, base:216000, duty:24000, fixedOT:15, sales:0,     total:240000 },
+  'キーパーソン2':{ rank:'キーパーソン SPECIALIST', grade:2, base:216000, duty:24000, fixedOT:15, sales:15000, total:255000 },
+  'キーパーソン3':{ rank:'キーパーソン SPECIALIST', grade:3, base:216000, duty:24000, fixedOT:15, sales:30000, total:270000 },
+  'キーパーソン4':{ rank:'キーパーソン SPECIALIST', grade:4, base:216000, duty:24000, fixedOT:15, sales:45000, total:285000 },
+  'キーパーソン5':{ rank:'キーパーソン SPECIALIST', grade:5, base:216000, duty:24000, fixedOT:15, sales:60000, total:300000 },
+  'メンター1':    { rank:'メンター LEADER',         grade:1, base:216000, duty:24000, fixedOT:15, sales:0,     total:240000 },
+  'メンター2':    { rank:'メンター LEADER',         grade:2, base:218000, duty:32000, fixedOT:20, sales:0,     total:250000 },
+  'メンター3':    { rank:'メンター LEADER',         grade:3, base:218000, duty:32000, fixedOT:20, sales:10000, total:260000 },
+  'メンター4':    { rank:'メンター LEADER',         grade:4, base:228000, duty:42000, fixedOT:25, sales:0,     total:270000 },
+  'メンター5':    { rank:'メンター LEADER',         grade:5, base:228000, duty:42000, fixedOT:25, sales:10000, total:280000 },
+  'リーダー1':    { rank:'リーダー LEADER',         grade:1, base:228000, duty:42000, fixedOT:25, sales:15000, total:285000 },
+  'リーダー2':    { rank:'リーダー LEADER',         grade:2, base:228000, duty:42000, fixedOT:25, sales:25000, total:295000 },
+  'リーダー3':    { rank:'リーダー LEADER',         grade:3, base:228000, duty:42000, fixedOT:25, sales:35000, total:305000 },
+  'リーダー4':    { rank:'リーダー LEADER',         grade:4, base:228000, duty:42000, fixedOT:25, sales:42500, total:312500 },
+  'リーダー5':    { rank:'リーダー LEADER',         grade:5, base:228000, duty:42000, fixedOT:25, sales:50000, total:320000 },
+  '管理職①1':    { rank:'管理職① HERO',            grade:1, base:263000, duty:57000, fixedOT:30, role:20000,  total:340000 },
+  '管理職①2':    { rank:'管理職① HERO',            grade:2, base:263000, duty:57000, fixedOT:30, role:40000,  total:360000 },
+  '管理職①3':    { rank:'管理職① HERO',            grade:3, base:263000, duty:57000, fixedOT:30, role:60000,  total:380000 },
+  '管理職②1':    { rank:'管理職② LEGEND',          grade:1, base:300000, role:100000, orgInc:15000, total:400000 },
+  '管理職②2':    { rank:'管理職② LEGEND',          grade:2, base:300000, role:100000, orgInc:15000, total:415000 },
+  '管理職②3':    { rank:'管理職② LEGEND',          grade:3, base:300000, role:100000, orgInc:30000, total:430000 },
+  '管理職②4':    { rank:'管理職② LEGEND',          grade:4, base:300000, role:100000, orgInc:45000, total:445000 },
+  '管理職②5':    { rank:'管理職② LEGEND',          grade:5, base:300000, role:100000, orgInc:60000, total:460000 },
 };
 
-export const RANK_ORDER  = ['S','A','B','C','D','E','F','G','H'];
+export const RANK_ORDER = [
+  'スターター1','スターター2','スターター3','スターター4','スターター5',
+  'プロモーター1','プロモーター2','プロモーター3','プロモーター4','プロモーター5',
+  'キーパーソン1','キーパーソン2','キーパーソン3','キーパーソン4','キーパーソン5',
+  'メンター1','メンター2','メンター3','メンター4','メンター5',
+  'リーダー1','リーダー2','リーダー3','リーダー4','リーダー5',
+  '管理職①1','管理職①2','管理職①3',
+  '管理職②1','管理職②2','管理職②3','管理職②4','管理職②5',
+];
+
 export const RANK_COLORS = {
-  S: '#b8860b', A: '#2a5298', B: '#3a7d5a', C: '#c8472a',
-  D: '#7c5cbf', E: '#d4720a', F: '#5b6ca8', G: '#8c867c', H: '#4a453e'
+  'スターター1':'#5b9bd5','スターター2':'#5b9bd5','スターター3':'#5b9bd5','スターター4':'#5b9bd5','スターター5':'#5b9bd5',
+  'プロモーター1':'#3a7d5a','プロモーター2':'#3a7d5a','プロモーター3':'#3a7d5a','プロモーター4':'#3a7d5a','プロモーター5':'#3a7d5a',
+  'キーパーソン1':'#d4720a','キーパーソン2':'#d4720a','キーパーソン3':'#d4720a','キーパーソン4':'#d4720a','キーパーソン5':'#d4720a',
+  'メンター1':'#7c5cbf','メンター2':'#7c5cbf','メンター3':'#7c5cbf','メンター4':'#7c5cbf','メンター5':'#7c5cbf',
+  'リーダー1':'#2a5298','リーダー2':'#2a5298','リーダー3':'#2a5298','リーダー4':'#2a5298','リーダー5':'#2a5298',
+  '管理職①1':'#c8472a','管理職①2':'#c8472a','管理職①3':'#c8472a',
+  '管理職②1':'#b8860b','管理職②2':'#b8860b','管理職②3':'#b8860b','管理職②4':'#b8860b','管理職②5':'#b8860b',
 };
 
 // ── Mental weather ─────────────────────────────────────────

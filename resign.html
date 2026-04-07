@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>退職届フォーム — RegalCast</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
+      background: #F0F2F5;
+      color: #1a1a1a;
+      min-height: 100vh;
+    }
+    .header {
+      background: #fff;
+      border-bottom: 1px solid #e8eaf0;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-logo { font-size: 18px; font-weight: 800; color: #1a3a6e; letter-spacing: -0.5px; }
+    .header-logo span { color: #2a5298; }
+    .header-sub { font-size: 11px; color: #8a93a6; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+    .container { max-width: 560px; margin: 32px auto; padding: 0 16px 64px; }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px 24px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.06);
+      margin-bottom: 16px;
+    }
+    .greeting { text-align: center; padding: 32px 24px; }
+    .greeting-avatar {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: linear-gradient(135deg, #dc2626, #991b1b);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; margin: 0 auto 16px;
+    }
+    .greeting-name { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    .greeting-sub { font-size: 13px; color: #8a93a6; line-height: 1.7; }
+    .section-title {
+      font-size: 11px; font-weight: 700; color: #8a93a6;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      margin-bottom: 16px; padding-bottom: 8px;
+      border-bottom: 1px solid #f0f2f5;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 700; color: #4a5568; margin-bottom: 6px; }
+    .form-label .req { color: #dc2626; margin-left: 4px; }
+    .form-input {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid #e2e6ef; border-radius: 10px;
+      font-size: 14px; font-family: inherit; color: #1a1a1a;
+      background: #fafbfc; transition: border-color .2s, box-shadow .2s; outline: none;
+    }
+    .form-input:focus { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.1); background: #fff; }
+    textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.6; }
+    .submit-btn {
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, #dc2626, #991b1b);
+      color: #fff; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: opacity .2s; margin-top: 8px;
+    }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .hidden { display: none !important; }
+    .error-msg { font-size: 12px; color: #dc2626; margin-top: 6px; min-height: 16px; }
+    .notice-box {
+      background: #fff7ed; border: 1px solid #fed7aa;
+      border-radius: 10px; padding: 14px 16px;
+      font-size: 13px; color: #92400e; line-height: 1.7; margin-bottom: 16px;
+    }
+    #screen-loading { display: flex; align-items: center; justify-content: center; min-height: 60vh; }
+    .spinner {
+      width: 40px; height: 40px; border: 3px solid #e2e6ef;
+      border-top-color: #dc2626; border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #screen-complete .complete-icon { font-size: 56px; margin-bottom: 16px; }
+    #screen-complete .complete-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+    #screen-complete .complete-sub { font-size: 14px; color: #8a93a6; line-height: 1.7; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-logo">Regal<span>Cast</span></div>
+    <div class="header-sub">Resignation Form</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ローディング -->
+  <div id="screen-loading">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- エラー -->
+  <div id="screen-error" class="hidden">
+    <div class="card" style="text-align:center;padding:48px 24px">
+      <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px">リンクが無効です</div>
+      <div style="font-size:13px;color:#8a93a6">このURLは無効または期限切れです。担当者にご連絡ください。</div>
+    </div>
+  </div>
+
+  <!-- 提出済み -->
+  <div id="screen-submitted" class="hidden">
+    <div class="card" style="text-align:center;padding:48px 24px">
+      <div style="font-size:48px;margin-bottom:16px">✅</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:8px">提出済みです</div>
+      <div style="font-size:13px;color:#8a93a6">退職届はすでに提出されています。<br>このページは閉じて大丈夫です。</div>
+    </div>
+  </div>
+
+  <!-- フォーム -->
+  <div id="screen-form" class="hidden">
+    <div class="card greeting">
+      <div class="greeting-avatar">🚪</div>
+      <div class="greeting-name" id="greeting-name">—</div>
+      <div class="greeting-sub">退職届を入力して提出してください。<br>内容は担当者が確認します。</div>
+    </div>
+
+    <div class="notice-box">
+      ⚠️ 提出後の取り消しはできません。内容をよく確認してから送信してください。
+    </div>
+
+    <div class="card">
+      <div class="section-title">📋 退職届</div>
+
+      <div class="form-group">
+        <label class="form-label">退職希望日<span class="req">*</span></label>
+        <input type="date" class="form-input" id="f-resign-date">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">退職理由（任意）</label>
+        <textarea class="form-input" id="f-reason" rows="4" placeholder="一身上の都合、など（任意）"></textarea>
+      </div>
+
+      <div class="error-msg" id="submit-error"></div>
+      <button class="submit-btn" id="submit-btn" onclick="submitResign()">📨 退職届を提出する</button>
+    </div>
+  </div>
+
+  <!-- 完了 -->
+  <div id="screen-complete" class="hidden">
+    <div class="card" style="text-align:center;padding:48px 24px">
+      <div class="complete-icon">✅</div>
+      <div class="complete-title">提出完了</div>
+      <div class="complete-sub">
+        退職届を受け付けました。<br>
+        担当者より連絡いたします。<br><br>
+        このページは閉じて大丈夫です。
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import {
+  getFirestore, doc, getDoc, updateDoc
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCzzyVqRLG_G9kU2qjQ3yx0aznQBKuK4Vg",
+  authDomain: "regalcast-app.firebaseapp.com",
+  projectId: "regalcast-app",
+  storageBucket: "regalcast-app.firebasestorage.app",
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+let _token = null;
+let _uid   = null;
+
+async function loadForm() {
+  await signInAnonymously(auth);
+  _token = new URLSearchParams(location.search).get('token');
+  if (!_token) { showScreen('error'); return; }
+
+  try {
+    const snap = await getDoc(doc(db, 'resignation_submissions', _token));
+    if (!snap.exists()) { showScreen('error'); return; }
+
+    const data = snap.data();
+    _uid = data.uid;
+
+    // すでに提出済み
+    if (data.resignDate) { showScreen('submitted'); return; }
+
+    document.getElementById('greeting-name').textContent = data.name || '';
+    showScreen('form');
+  } catch(e) {
+    console.error(e);
+    showScreen('error');
+  }
+}
+
+function showScreen(name) {
+  ['loading','error','submitted','form','complete'].forEach(s => {
+    document.getElementById('screen-' + s)?.classList.add('hidden');
+  });
+  document.getElementById('screen-' + name)?.classList.remove('hidden');
+}
+
+window.submitResign = async function() {
+  const resignDate = document.getElementById('f-resign-date').value;
+  const reason     = document.getElementById('f-reason').value.trim();
+  const errEl      = document.getElementById('submit-error');
+  const btn        = document.getElementById('submit-btn');
+
+  if (!resignDate) { errEl.textContent = '退職希望日を入力してください'; return; }
+
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  errEl.textContent = '';
+
+  try {
+    const submittedAt = new Date().toISOString();
+    await updateDoc(doc(db, 'resignation_submissions', _token), {
+      resignDate, reason, submittedAt
+    });
+    showScreen('complete');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch(e) {
+    errEl.textContent = '送信に失敗しました: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '📨 退職届を提出する';
+  }
+};
+
+loadForm();
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@ const ALERT_CATEGORIES = {
   motivation: { label:'モチベーション低下', icon:'😞', color:'var(--blue)' },
   irregular:  { label:'イレギュラー',       icon:'⚡', color:'var(--warn)' },
   bug:        { label:'不具合',             icon:'🐛', color:'var(--accent)' },
+  correction: { label:'修正申請',           icon:'🔧', color:'var(--blue)' },
   other:      { label:'その他',             icon:'📝', color:'var(--accent2)' },
 };
 
@@ -21,9 +22,10 @@ const ALERT_URGENCY = {
   low:    { label:'🟢 軽微',   color:'var(--accent2)' },
 };
 
-let _cachedAlerts        = [];
-let _alertCurrentCat     = 'all';
-let _cachedMeetingRequests = [];
+let _cachedAlerts           = [];
+let _alertCurrentCat        = 'all';
+let _cachedMeetingRequests  = [];
+let _cachedFormSubmissions  = [];
 
 // ── Alert reports ─────────────────────────────────────────
 
@@ -144,18 +146,31 @@ export function filterAlertList(cat) {
 
 export function filterAdminReports(cat) {
   document.querySelectorAll('.report-admin-tab').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  if (cat === 'onboarding') { renderFormSubmissions(); return; }
   renderAlertList(cat, true);
 }
 
 function renderAlertList(cat, adminMode = false) {
   let list = _cachedAlerts;
-  if (cat !== 'all' && cat !== 'meeting') list = list.filter(r => (r.category||'bug') === cat);
+  const getCategory = r => (r.type === 'missed_clock_in' || r.type === 'missed_clock_out') ? 'correction' : (r.category || 'bug');
+  if (cat === 'meeting') list = [];
+  else if (cat !== 'all') list = list.filter(r => getCategory(r) === cat);
 
   const urgencyInfo = u => ALERT_URGENCY[u] || { label:u||'—', color:'var(--ink3)' };
   const catInfo     = c => ALERT_CATEGORIES[c] || { label:c||'不明', icon:'📋', color:'var(--ink3)' };
 
+  const resolveReporter = (r) => {
+    if (r.reporter) return r.reporter;
+    if (r.reporterName) return r.reporterName;
+    if (r.reporterUid) {
+      const m = RC._cachedMembers?.find(m => m.id === r.reporterUid || m.uid === r.reporterUid);
+      if (m?.name) return m.name;
+    }
+    return '—';
+  };
+
   const renderCard = (r) => {
-    const dt = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    const dt = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'}) : (r.createdAt ? new Date(r.createdAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'}) : '—');
     const ci = catInfo(r.category);
     const ui = urgencyInfo(r.urgency);
     const statusColor  = r.status==='未対応'?'var(--accent)':r.status==='対応中'?'var(--warn)':'var(--accent2)';
@@ -175,11 +190,11 @@ function renderAlertList(cat, adminMode = false) {
         <div style="font-size:12px;color:var(--ink2);line-height:1.6">${r.adminNote}</div>
       </div>` : '');
 
-    return `<div class="alert-card" data-cat="${r.category||'bug'}" data-status="${r.status||'未対応'}" style="border-left:3px solid ${borderColor}">
+    return `<div class="alert-card" data-cat="${getCategory(r)}" data-status="${r.status||'未対応'}" style="border-left:3px solid ${borderColor}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <span style="font-size:16px">${ci.icon}</span>
-          <span style="font-size:12px;font-weight:700">${r.title||r.detail||'—'}</span>
+          <span style="font-size:12px;font-weight:700">${r.title||r.label||r.detail||'—'}</span>
         </div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
           <span style="font-size:10px;font-weight:700;color:${ui.color};background:${ui.color}18;padding:2px 7px;border-radius:4px;white-space:nowrap">${ui.label}</span>
@@ -188,10 +203,10 @@ function renderAlertList(cat, adminMode = false) {
       </div>
       <div style="font-size:11px;color:var(--ink3);margin-bottom:6px;display:flex;gap:10px;flex-wrap:wrap">
         <span>📅 ${dt}</span>
-        <span>👤 報告者: ${r.reporter||'—'}</span>
+        <span>👤 報告者: ${resolveReporter(r)}</span>
         ${r.targetMember ? `<span>🎯 対象: ${r.targetMember}</span>` : ''}
       </div>
-      ${r.detail ? `<div style="font-size:12px;color:var(--ink2);margin-bottom:6px;line-height:1.6;background:var(--surface2);padding:8px 10px;border-radius:6px">${r.detail}</div>` : ''}
+      ${(r.detail||r.reason) ? `<div style="font-size:12px;color:var(--ink2);margin-bottom:6px;line-height:1.6;background:var(--surface2);padding:8px 10px;border-radius:6px">${r.detail||r.reason}</div>` : ''}
       ${r.actionRequest ? `<div style="font-size:11px;color:var(--blue);margin-bottom:6px">💬 対応希望: ${r.actionRequest}</div>` : ''}
       ${isAdmin() ? `
       <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
@@ -212,7 +227,7 @@ function renderAlertList(cat, adminMode = false) {
   const meetList   = showMeetings ? meetings : [];
 
   const renderMeetCard = (m) => {
-    const dt = m.requestedAt ? new Date(m.requestedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    const dt = m.requestedAt ? new Date(m.requestedAt).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'}) : '—';
     const sc = m.status==='confirmed'?'var(--accent2)':'var(--accent)';
     const sl = m.status==='confirmed'?'✅ 確認済':'⏳ 未確認';
     return `<div class="alert-card" style="border-left:3px solid ${sc}">
@@ -242,11 +257,18 @@ function renderAlertList(cat, adminMode = false) {
     </div>`;
   };
 
-  const meetHtml   = meetList.map(renderMeetCard).join('');
-  const alertHtml  = list.length ? list.map(renderCard).join('') : '';
-  const countTxt   = `<div style="font-size:11px;color:var(--ink3);margin-bottom:8px">${meetList.length+list.length}件</div>`;
-  const html_content = (meetList.length || list.length)
-    ? countTxt + meetHtml + alertHtml
+  const getTime = item => {
+    if (item._type === 'meeting') return item.requestedAt ? new Date(item.requestedAt).getTime() : 0;
+    return item.createdAt?.toDate ? item.createdAt.toDate().getTime() : (item.createdAt ? new Date(item.createdAt).getTime() : 0);
+  };
+  const allItems = [
+    ...meetList.map(m => ({ ...m, _type: 'meeting' })),
+    ...list.map(r => ({ ...r, _type: 'alert' }))
+  ].sort((a, b) => getTime(b) - getTime(a));
+
+  const html_content = allItems.length
+    ? `<div style="font-size:11px;color:var(--ink3);margin-bottom:8px">${allItems.length}件</div>` +
+      allItems.map(item => item._type === 'meeting' ? renderMeetCard(item) : renderCard(item)).join('')
     : '<div class="empty">報告はありません</div>';
 
   ['alert-list-body','reports-body'].forEach(id => {
@@ -313,7 +335,7 @@ function renderAdminAlertPanel(alerts) {
             return `<div style="display:flex;align-items:center;gap:8px;font-size:11px">
               <span>${ci.icon}</span>
               <span style="font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.title||r.detail||'—'}</span>
-              <span style="color:var(--ink3);white-space:nowrap">${r.reporter||'—'}</span>
+              <span style="color:var(--ink3);white-space:nowrap">${r.reporter||r.reporterName||(RC._cachedMembers?.find(m=>m.id===r.reporterUid||m.uid===r.reporterUid)?.name)||'—'}</span>
             </div>`;
           }).join('')}
           ${alerts.length > 3 ? `<div style="font-size:10px;color:var(--ink3);text-align:right">他 ${alerts.length-3}件</div>` : ''}
@@ -324,21 +346,87 @@ function renderAdminAlertPanel(alerts) {
 
 export async function loadReports() {
   if (isAdmin()) {
-    // Load both meeting requests and error reports
-    const meetSnap = await getDocs(query(collection(db,'meetingRequests'), orderBy('requestedAt','desc')));
+    const [meetSnap, subSnap] = await Promise.all([
+      getDocs(query(collection(db,'meetingRequests'), orderBy('requestedAt','desc'))),
+      getDocs(collection(db,'form_submissions')),
+    ]);
     _cachedMeetingRequests = meetSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _cachedFormSubmissions = subSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(s => s.submittedAt)
+      .sort((a,b) => b.submittedAt.localeCompare(a.submittedAt));
   }
   await loadAlertReports();
   window.updateReportBadge?.();
 }
 
 export async function updateReportBadge() {
-  const snap  = await getDocs(query(collection(db,'error_reports'), where('status','==','未対応')));
-  const count = snap.size;
+  const [errSnap, subSnap] = await Promise.all([
+    getDocs(query(collection(db,'error_reports'), where('status','==','未対応'))),
+    isAdmin() ? getDocs(collection(db,'form_submissions')) : Promise.resolve({ docs: [] }),
+  ]);
+  const unreadForms = subSnap.docs.filter(d => d.data().submittedAt && !d.data().readAt).length;
+  const count = errSnap.size + unreadForms;
   ['report-badge','m-report-badge'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.textContent = count||''; el.style.display = count ? 'inline-flex' : 'none'; }
   });
+}
+
+function renderFormSubmissions() {
+  const body = document.getElementById('reports-body');
+  const mBody = document.getElementById('m-reports-body');
+
+  if (!_cachedFormSubmissions.length) {
+    const empty = '<div style="text-align:center;padding:40px 0;color:var(--ink3);font-size:13px">提出されたフォームはありません</div>';
+    if (body) body.innerHTML = empty;
+    if (mBody) mBody.innerHTML = empty;
+    return;
+  }
+
+  const cards = _cachedFormSubmissions.map(s => {
+    const fd = s.formData || {};
+    const memberName = RC._cachedMembers?.find(m => m.id === s.uid)?.name || fd.fullName || s.uid || '—';
+    const submittedDate = s.submittedAt ? s.submittedAt.slice(0,10) : '—';
+    const isNew = !s.readAt;
+
+    return `<div class="alert-card" style="border-left:3px solid ${isNew ? 'var(--accent2)' : 'var(--border)'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">📋</span>
+          <div>
+            <div style="font-size:13px;font-weight:700">${memberName} さんの入社手続きフォーム</div>
+            <div style="font-size:11px;color:var(--ink3);margin-top:2px">提出日: ${submittedDate}</div>
+          </div>
+        </div>
+        ${isNew ? '<span style="font-size:10px;font-weight:700;color:var(--accent2);background:rgba(58,125,90,.1);padding:2px 8px;border-radius:4px;white-space:nowrap">🆕 未確認</span>' : '<span style="font-size:10px;color:var(--ink3)">確認済み</span>'}
+      </div>
+      ${fd.fullName ? `
+      <div style="font-size:12px;color:var(--ink2);background:var(--surface2);padding:10px 12px;border-radius:6px;line-height:1.9;margin-bottom:10px">
+        <div><strong>氏名：</strong>${fd.fullName}（${fd.fullNameKana||'—'}）　<strong>生年月日：</strong>${fd.birthDate||'—'}</div>
+        <div><strong>住所：</strong>${fd.address||'—'}　<strong>電話：</strong>${fd.phone||'—'}</div>
+        <div><strong>身元保証人：</strong>${fd.guarantorName||'—'}（${fd.guarantorRelation||'—'}） ${fd.guarantorPhone||''}</div>
+        <div><strong>銀行：</strong>${fd.bankName||'—'} ${fd.bankBranch||''} ${fd.bankType||''} ${fd.bankNumber||''} ${fd.bankHolder||''}</div>
+        <div><strong>誓約書署名：</strong>${fd.pledgeSignature||'—'}（${fd.pledgeDate||'—'}）</div>
+      </div>` : ''}
+      ${isNew ? `<button class="mini-btn" style="color:var(--accent2);border-color:var(--accent2)" onclick="markFormSubmissionRead('${s.id}')">✅ 確認済みにする</button>` : ''}
+      ${s.pending || !s.uid
+        ? `<button class="mini-btn" style="margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="approveAndCreateAccount('${s.id}')">✅ 承認 & アカウント作成</button>`
+        : `<button class="mini-btn" style="margin-left:8px" onclick="switchTab('onboarding');openOnboardingModal('${s.uid}')">入社手続き管理へ →</button>`
+      }
+    </div>`;
+  }).join('');
+
+  if (body) body.innerHTML = cards;
+  if (mBody) mBody.innerHTML = cards;
+}
+
+export async function markFormSubmissionRead(docId) {
+  await updateDoc(doc(db, 'form_submissions', docId), { readAt: new Date().toISOString() });
+  const s = _cachedFormSubmissions.find(x => x.id === docId);
+  if (s) s.readAt = new Date().toISOString();
+  renderFormSubmissions();
+  updateReportBadge();
 }
 
 export async function confirmMeetingRequest(id, name) {
@@ -404,6 +492,7 @@ export function filterReportsMobile(cat, btn) {
     b.style.fontWeight = isActive ? '700' : '600';
     b.style.color = isActive ? 'var(--ink)' : 'var(--ink3)';
   });
+  if (cat === 'onboarding') { renderFormSubmissions(); return; }
   renderAlertList(cat);
 }
 
@@ -411,6 +500,109 @@ export async function loadAdminAlerts() {
   const snap = await getDocs(query(collection(db,'meetingRequests'), orderBy('requestedAt','desc')));
   _cachedMeetingRequests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   await loadAlertReports();
+}
+
+// ── 管理者→メンバー 面談依頼 ──────────────────────────────
+
+export function openSendMeetingRequestModal(targetUid, targetName, dept) {
+  document.getElementById('modal-title-text').textContent = `🤝 ${targetName} に面談依頼を送る`;
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:14px">メンバーのマイページに面談依頼が届きます。</div>
+    <div class="form-row">
+      <label class="form-label">面談の目的・メッセージ</label>
+      <textarea class="form-input" id="smr-message" rows="4" placeholder="例：先月の業務について話し合いたい" style="resize:none"></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitAdminMeetingRequest('${targetUid}','${targetName}','${dept||''}')">送信</button>
+    </div>`;
+  openModal();
+}
+
+export async function submitAdminMeetingRequest(targetUid, targetName, dept) {
+  const message = document.getElementById('smr-message')?.value.trim() || '';
+  if (!message) { alert('メッセージを入力してください'); return; }
+
+  await addDoc(collection(db, 'meetingRequests'), {
+    initiator:    'admin',
+    targetUid,
+    name:         targetName,
+    dept:         dept || '',
+    adminName:    RC.currentUserData?.name || '管理者',
+    message,
+    status:       'pending',
+    requestedAt:  new Date().toISOString(),
+    memberReadAt: null,
+  });
+
+  closeModal();
+  alert(`✅ ${targetName} に面談依頼を送信しました`);
+}
+
+// メンバー側：自分宛の管理者面談依頼を取得・表示
+export async function loadMeetingRequestsForMember() {
+  const el = document.getElementById('m-meeting-from-admin');
+  if (!el) return;
+
+  const uid = RC.currentUser?.uid;
+  if (!uid) return;
+
+  const snap = await getDocs(query(
+    collection(db, 'meetingRequests'),
+    where('targetUid', '==', uid)
+  ));
+  const requests = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(r => r.initiator === 'admin')
+    .sort((a, b) => (b.requestedAt || '') > (a.requestedAt || '') ? 1 : -1);
+
+  if (!requests.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--ink3)">面談依頼はありません</div>';
+    return;
+  }
+
+  el.innerHTML = requests.map(r => {
+    const dt = r.requestedAt
+      ? new Date(r.requestedAt).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })
+      : '—';
+    const isRead = !!r.memberReadAt;
+    const statusColor = isRead ? 'var(--accent2)' : 'var(--accent)';
+    const statusLabel = isRead ? '✅ 確認済' : '🔔 未確認';
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid ${statusColor};border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px">
+          <div style="font-size:13px;font-weight:700">🤝 ${r.adminName || '管理者'} から面談依頼</div>
+          <span style="font-size:10px;font-weight:700;color:${statusColor};background:${statusColor}18;padding:2px 8px;border-radius:4px">${statusLabel}</span>
+        </div>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">📅 ${dt}</div>
+        ${r.message ? `<div style="font-size:12px;background:var(--surface2);padding:8px 10px;border-radius:6px;margin-bottom:8px;line-height:1.6">${r.message}</div>` : ''}
+        ${!isRead ? `<button class="mini-btn" style="color:var(--accent2);border-color:var(--accent2)" onclick="confirmMemberMeetingRequest('${r.id}', this)">✅ 確認しました</button>` : ''}
+      </div>`;
+  }).join('');
+
+  // 未読バッジ更新
+  updateMeetingBadgeForMember(requests);
+}
+
+export async function confirmMemberMeetingRequest(id, btn) {
+  await updateDoc(doc(db, 'meetingRequests', id), { memberReadAt: new Date().toISOString() });
+  // ボタンを確認済みに差し替え
+  const card = btn.closest('div[style*="border-left"]');
+  if (card) {
+    btn.remove();
+    card.querySelector('span[style*="border-radius:4px"]').textContent = '✅ 確認済';
+    card.querySelector('span[style*="border-radius:4px"]').style.color = 'var(--accent2)';
+    card.style.borderLeftColor = 'var(--accent2)';
+  }
+  updateMeetingBadgeForMember([]);
+}
+
+function updateMeetingBadgeForMember(requests) {
+  const unread = requests.filter(r => !r.memberReadAt).length;
+  ['mypage-meeting-badge', 'm-mypage-meeting-badge'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = unread || ''; el.style.display = unread ? 'inline-flex' : 'none'; }
+  });
 }
 
 // ── Window exports ────────────────────────────────────────
@@ -426,10 +618,15 @@ window.updateAlertStatus     = updateAlertStatus;
 window.updateAlertBadge      = updateAlertBadge;
 window.loadReports           = loadReports;
 window.updateReportBadge     = updateReportBadge;
+window.markFormSubmissionRead = markFormSubmissionRead;
 window.confirmMeetingRequest = confirmMeetingRequest;
 window.openErrorReport       = openErrorReport;
 window.submitErrorReport     = submitErrorReport;
 window.loadReportsM          = loadReportsM;
 window.filterReportsMobile   = filterReportsMobile;
-window.loadAdminAlerts       = loadAdminAlerts;
-window._cachedMeetingRequests = _cachedMeetingRequests;
+window.loadAdminAlerts              = loadAdminAlerts;
+window._cachedMeetingRequests       = _cachedMeetingRequests;
+window.openSendMeetingRequestModal  = openSendMeetingRequestModal;
+window.submitAdminMeetingRequest    = submitAdminMeetingRequest;
+window.loadMeetingRequestsForMember = loadMeetingRequestsForMember;
+window.confirmMemberMeetingRequest  = confirmMemberMeetingRequest;

@@ -155,25 +155,74 @@ export async function showAllianceLogin() {
   if (mainBox)     mainBox.style.display     = 'none';
   if (allianceBox) allianceBox.style.display = '';
 
-  // Populate name dropdown from Firestore (alliance users)
   const sel = document.getElementById('alliance-name-select');
   if (!sel) return;
-  sel.innerHTML = '<option value="">── 選択してください ──</option>';
+  sel.innerHTML = '<option value="">読み込み中...</option>';
 
-  const snap = await getDocs(query(
-    collection(db, 'users'),
-    where('isAlliance', '==', true),
-    orderBy('name')
-  ));
-  snap.docs.forEach(d => {
-    const u = d.data();
-    const opt = document.createElement('option');
-    opt.value = d.id;
-    opt.textContent = u.name;
-    opt.dataset.name = u.name;
-    opt.dataset.dept = u.dept || '';
-    sel.appendChild(opt);
-  });
+  try {
+    // 当月（JST）を取得
+    const nowJST = new Date(new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }));
+    const currentMonth = `${nowJST.getFullYear()}-${String(nowJST.getMonth()+1).padStart(2,'0')}`;
+
+    let allianceUsers = [];
+
+    try {
+      // 当月シフトがあるUIDを取得（Firestoreルール上読める場合）
+      const shiftSnap = await getDocs(query(
+        collection(db, 'shifts'),
+        where('month', '==', currentMonth)
+      ));
+      const activeUids = [...new Set(shiftSnap.docs.map(d => d.data().uid).filter(Boolean))];
+
+      if (activeUids.length) {
+        const userDocs = await Promise.all(activeUids.map(uid => getDoc(doc(db, 'users', uid))));
+        allianceUsers = userDocs
+          .filter(d => {
+            if (!d.exists()) return false;
+            const u = d.data();
+            return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
+          })
+          .map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch(_) {
+      // shiftsが読めない場合はフォールバック
+    }
+
+    // シフトから取得できなかった場合は複数クエリで取得してマージ
+    if (!allianceUsers.length) {
+      const [snap1, snap2] = await Promise.all([
+        getDocs(query(collection(db, 'users'), where('isAlliance', '==', true))),
+        getDocs(query(collection(db, 'users'), where('noAuth', '==', true))),
+      ]);
+      const seen = new Set();
+      const merged = [];
+      [...snap1.docs, ...snap2.docs].forEach(d => {
+        if (!seen.has(d.id)) { seen.add(d.id); merged.push(d); }
+      });
+      allianceUsers = merged.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    // 名前順でソート
+    allianceUsers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+
+    if (!allianceUsers.length) {
+      sel.innerHTML = '<option value="">アライアンスメンバーが登録されていません</option>';
+      return;
+    }
+
+    sel.innerHTML = '<option value="">── 選択してください ──</option>';
+    allianceUsers.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.id;
+      opt.textContent = u.name;
+      opt.dataset.name = u.name;
+      opt.dataset.dept = u.dept || '';
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    console.error('Alliance login error:', e);
+    sel.innerHTML = '<option value="">読み込みに失敗しました</option>';
+  }
 }
 
 export async function doAllianceLogin() {

@@ -15,6 +15,8 @@ let _cachedAttendance = [];
 let _attDetailFilter  = 'all';
 let _clockInCooldown  = false;
 let _clockOutCooldown = false;
+let _lastAttLoad      = 0;
+const ATT_COOLDOWN_MS = 5 * 60 * 1000; // 5分
 
 // ── GPS helper ────────────────────────────────────────────
 
@@ -244,6 +246,13 @@ export async function checkMissedClockIn() {
 // ── Monthly attendance ────────────────────────────────────
 
 export async function loadMonthlyAttendance(force = false) {
+  const now = Date.now();
+  if (!force && now - _lastAttLoad < ATT_COOLDOWN_MS) {
+    const remaining = Math.ceil((ATT_COOLDOWN_MS - (now - _lastAttLoad)) / 1000 / 60);
+    alert(`更新は5分に1回です。あと約${remaining}分お待ちください。`);
+    return;
+  }
+
   const month = document.getElementById('att-month')?.value
              || document.getElementById('att-month-m')?.value
              || new Date().toISOString().slice(0,7);
@@ -257,8 +266,8 @@ export async function loadMonthlyAttendance(force = false) {
     const memberFilter = document.getElementById('att-member-filter')?.value;
     if (memberFilter) {
       attQuery = query(collection(db,'attendance'),
-        where('date','>=',start), where('date','<=',end),
-        where('name','==',memberFilter), orderBy('date'));
+        where('uid','==',memberFilter),
+        where('date','>=',start), where('date','<=',end), orderBy('date'));
     } else {
       attQuery = query(collection(db,'attendance'),
         where('date','>=',start), where('date','<=',end), orderBy('date'));
@@ -293,6 +302,8 @@ export async function loadMonthlyAttendance(force = false) {
     console.error('勤怠データの取得に失敗しました:', e);
     const tbody = document.getElementById('attendance-table-body');
     if (tbody) tbody.innerHTML = `<tr><td colspan="13" class="empty">データ取得エラー: ${e.message}</td></tr>`;
+    const mCards = document.getElementById('m-att-cards');
+    if (mCards) mCards.innerHTML = `<div class="empty" style="color:var(--accent)">データ取得エラー: ${e.message}</div>`;
     return;
   }
 
@@ -333,8 +344,9 @@ export async function loadMonthlyAttendance(force = false) {
   renderAttendanceSummary(_cachedAttendance, month);
   renderAttMobileCards(_cachedAttendance);
 
+  _lastAttLoad = Date.now();
   const lastLabel = document.getElementById('att-last-loaded-label');
-  if (lastLabel) lastLabel.textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}`;
+  if (lastLabel) lastLabel.textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'})}`;
 }
 
 function calcHours(r) {
@@ -380,6 +392,22 @@ function formatTimeFromISO(iso) {
   return new Date(iso).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' });
 }
 
+// 出勤：15分切り上げ表示
+function formatClockIn(iso) {
+  if (!iso) return '—';
+  const ms = new Date(iso).getTime();
+  const rounded = new Date(Math.ceil(ms / (15*60*1000)) * (15*60*1000));
+  return rounded.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' });
+}
+
+// 退勤：15分切り捨て表示
+function formatClockOut(iso) {
+  if (!iso) return '—';
+  const ms = new Date(iso).getTime();
+  const rounded = new Date(Math.floor(ms / (15*60*1000)) * (15*60*1000));
+  return rounded.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' });
+}
+
 export function renderAttendanceTable(records) {
   const tbody = document.getElementById('attendance-table-body');
   if (!tbody) return;
@@ -397,9 +425,9 @@ export function renderAttendanceTable(records) {
     return `<tr style="${rowStyle}">
       <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}</td>
       <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2)">${formatTimeFromISO(r.clockIn)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠ 漏れ':formatTimeFromISO(r.clockOut)}</td>
-      <td style="font-size:11px;color:var(--ink3)">${r.breakMinutes||60}分</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2)">${formatClockIn(r.clockIn)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠ 漏れ':formatClockOut(r.clockOut)}</td>
+      <td style="font-size:11px;color:var(--ink3)">${r.breakMinutes ?? 60}分</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px">${hours!==null&&hours>0?hours.toFixed(1)+'h':r.absent?'欠勤':'—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${overtime>0?'var(--warn)':'var(--ink3)'}">${overtime>0?overtime.toFixed(1)+'h':'—'}</td>
       <td style="font-size:11px;color:var(--ink3)">${r.stationFrom&&r.stationTo?r.stationFrom+'→'+r.stationTo:r.stationFrom||r.stationTo||'—'}</td>
@@ -461,8 +489,8 @@ function renderAttMobileCards(records) {
         ${mw ? `<span style="font-size:13px">${mw.icon}</span>` : ''}
       </div>
       <div style="display:flex;gap:10px;font-size:12px;font-family:'DM Mono',monospace">
-        <span style="color:var(--accent2)">${formatTimeFromISO(r.clockIn)}</span>
-        <span style="color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠漏れ':formatTimeFromISO(r.clockOut)}</span>
+        <span style="color:var(--accent2)">${formatClockIn(r.clockIn)}</span>
+        <span style="color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠漏れ':formatClockOut(r.clockOut)}</span>
         ${hours!==null&&hours>0?`<span style="color:var(--ink3)">${hours.toFixed(1)}h</span>`:r.absent?`<span style="color:var(--accent)">欠勤</span>`:''}
         ${r.fare?`<span style="color:var(--ink3)">¥${r.fare.toLocaleString()}</span>`:''}
       </div>
@@ -482,6 +510,7 @@ export function setAttDetailFilter(filter) {
     ? _cachedAttendance.filter(r => r.clockIn && !r.clockOut)
     : _cachedAttendance;
   renderAttendanceTable(filtered);
+  renderAttMobileCards(filtered);
 }
 
 export function filterAttByMember(val) {
@@ -509,6 +538,66 @@ export function filterAttBySearch(q) {
   renderAttendanceSummary(filtered, month);
 }
 
+// ── Excel export（メンバー別シート） ───────────────────────
+
+export function exportExcel() {
+  const records = _cachedAttendance;
+  if (!records.length) { alert('出力するデータがありません'); return; }
+
+  const XLSX = window.XLSX;
+  if (!XLSX) { alert('Excelライブラリが読み込まれていません'); return; }
+
+  const headers = ['日付', '名前', '出勤', '退勤', '休憩(分)', '勤務時間(h)', '残業(h)', '交通費(円)', 'メンタル', 'メモ'];
+
+  const wb = XLSX.utils.book_new();
+
+  // メンバーごとにグループ化
+  const memberMap = {};
+  records.forEach(r => {
+    const name = r.name || '不明';
+    if (!memberMap[name]) memberMap[name] = [];
+    memberMap[name].push(r);
+  });
+
+  // メンバー名でソート
+  const sortedNames = Object.keys(memberMap).sort((a, b) => a.localeCompare(b, 'ja'));
+
+  sortedNames.forEach(name => {
+    const rows = memberMap[name].map(r => {
+      const hours = calcHours(r);
+      const ot    = calcOvertime(r);
+      return [
+        r.date,
+        r.name || '',
+        formatClockIn(r.clockIn),
+        formatClockOut(r.clockOut),
+        r.breakMinutes ?? 60,
+        hours != null ? parseFloat(hours.toFixed(2)) : '',
+        ot != null ? parseFloat(ot.toFixed(2)) : '',
+        r.fare || 0,
+        r.mentalWeather || '',
+        r.note || ''
+      ];
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+    // 列幅設定
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 },
+      { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 },
+      { wch: 8 }, { wch: 20 }
+    ];
+
+    // シート名は31文字以内（Excelの制限）
+    const sheetName = name.slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  const month = document.getElementById('att-month')?.value || new Date().toISOString().slice(0, 7);
+  XLSX.writeFile(wb, `勤怠表_${month}.xlsx`);
+}
+
 // ── CSV export ────────────────────────────────────────────
 
 export function exportCSV() {
@@ -521,11 +610,11 @@ export function exportCSV() {
     return [
       r.date,
       ...(showMember ? [r.name||''] : []),
-      formatTimeFromISO(r.clockIn),
-      formatTimeFromISO(r.clockOut),
-      r.breakMinutes||60,
-      hours.toFixed(2),
-      ot.toFixed(2),
+      formatClockIn(r.clockIn),
+      formatClockOut(r.clockOut),
+      r.breakMinutes ?? 60,
+      hours != null ? hours.toFixed(2) : '',
+      ot != null ? ot.toFixed(2) : '',
       r.fare||0,
       r.mentalWeather||'',
       r.note||''
@@ -539,7 +628,9 @@ export function exportCSV() {
   const a    = document.createElement('a');
   a.href     = url;
   a.download = `attendance_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
@@ -549,27 +640,30 @@ export function openEditAttendanceModal(id) {
   const r = _cachedAttendance.find(x => x.id === id);
   if (!r) return;
 
-  const toDatetimeLocal = (iso) => {
+  const toDatetimeLocal = (iso, round) => {
     if (!iso) return '';
-    const d = new Date(iso);
-    const pad = n => String(n).padStart(2,'0');
-    // Convert to JST for datetime-local input
-    const jst = new Date(d.getTime() + 9*60*60*1000);
-    return `${jst.getFullYear()}-${pad(jst.getMonth()+1)}-${pad(jst.getDate())}T${pad(jst.getHours())}:${pad(jst.getMinutes())}`;
+    const ms = new Date(iso).getTime();
+    const rounded = round === 'ceil'
+      ? new Date(Math.ceil(ms / (15*60*1000)) * (15*60*1000))
+      : round === 'floor'
+        ? new Date(Math.floor(ms / (15*60*1000)) * (15*60*1000))
+        : new Date(ms);
+    // sv-SE locale with JST timezone gives "YYYY-MM-DD HH:MM:SS" format
+    return rounded.toLocaleString('sv-SE', { timeZone: 'Asia/Tokyo' }).slice(0, 16).replace(' ', 'T');
   };
 
   document.getElementById('modal-title-text').textContent = '勤怠を修正';
   document.getElementById('modal-body').innerHTML = `
     <div style="font-size:11px;color:var(--ink3);margin-bottom:10px">📅 ${r.date} / ${r.name||'—'}</div>
     <div class="form-row-2">
-      <div class="form-row"><label class="form-label">出勤時刻</label>
-        <input type="datetime-local" class="form-input" id="ea-clockin" value="${toDatetimeLocal(r.clockIn)}"></div>
-      <div class="form-row"><label class="form-label">退勤時刻</label>
-        <input type="datetime-local" class="form-input" id="ea-clockout" value="${toDatetimeLocal(r.clockOut)}"></div>
+      <div class="form-row"><label class="form-label">出勤時刻（15分切り上げ）</label>
+        <input type="datetime-local" class="form-input" id="ea-clockin" value="${toDatetimeLocal(r.clockIn, 'ceil')}"></div>
+      <div class="form-row"><label class="form-label">退勤時刻（15分切り捨て）</label>
+        <input type="datetime-local" class="form-input" id="ea-clockout" value="${toDatetimeLocal(r.clockOut, 'floor')}"></div>
     </div>
     <div class="form-row-2">
       <div class="form-row"><label class="form-label">休憩時間（分）</label>
-        <input type="number" class="form-input" id="ea-break" value="${r.breakMinutes||60}" min="0"></div>
+        <input type="number" class="form-input" id="ea-break" value="${r.breakMinutes ?? 60}" min="0"></div>
       <div class="form-row"><label class="form-label">交通費合計（円）</label>
         <input type="number" class="form-input" id="ea-fare" value="${r.fare||0}" min="0"></div>
     </div>
@@ -586,16 +680,14 @@ export function openEditAttendanceModal(id) {
 export async function saveAttendanceEdit(id) {
   const clockInVal  = document.getElementById('ea-clockin').value;
   const clockOutVal = document.getElementById('ea-clockout').value;
-  const breakMin    = parseInt(document.getElementById('ea-break').value) || 60;
+  const breakMin    = (() => { const v = parseInt(document.getElementById('ea-break').value); return isNaN(v) ? 60 : v; })();
   const fare        = parseInt(document.getElementById('ea-fare').value) || 0;
   const note        = document.getElementById('ea-note').value.trim();
 
-  // Convert datetime-local (JST) to ISO
+  // datetime-local value is already local time (JST) — new Date() handles conversion to UTC
   const toISO = (val) => {
     if (!val) return null;
-    const d = new Date(val + ':00');
-    // val is in JST, subtract 9h for UTC
-    return new Date(d.getTime() - 9*60*60*1000).toISOString();
+    return new Date(val).toISOString();
   };
 
   await updateDoc(doc(db,'attendance',id), {
@@ -658,7 +750,7 @@ export async function saveAddAttendance() {
   const date      = document.getElementById('aa-date').value;
   const clockInT  = document.getElementById('aa-clockin').value;
   const clockOutT = document.getElementById('aa-clockout').value;
-  const breakMin  = parseInt(document.getElementById('aa-break').value) || 60;
+  const breakMin  = (() => { const v = parseInt(document.getElementById('aa-break').value); return isNaN(v) ? 60 : v; })();
   const fare      = parseInt(document.getElementById('aa-fare').value) || 0;
   const note      = document.getElementById('aa-note').value.trim();
 
@@ -707,7 +799,7 @@ export function openMissedCorrectionForm(docId, dateStr) {
 
 export async function submitMissedCorrection(docId, dateStr) {
   const clockOutT = document.getElementById('mc-clockout').value;
-  const breakMin  = parseInt(document.getElementById('mc-break').value) || 60;
+  const breakMin  = (() => { const v = parseInt(document.getElementById('mc-break').value); return isNaN(v) ? 60 : v; })();
   const note      = document.getElementById('mc-note').value.trim();
 
   const clockOutISO = new Date(`${dateStr}T${clockOutT}:00+09:00`).toISOString();
@@ -819,46 +911,9 @@ export async function execBulkGenAttendance() {
 // ── Notifications ─────────────────────────────────────────
 
 export async function checkNotifications() {
-  const today    = todayJST();
-  const tasks    = RC._cachedTasks || [];
-  const overdue  = tasks.filter(t => t.end && t.end < today && (t.progress||0) < 1 && (t.member === RC.currentUserData?.name || isLeaderOrAbove()));
-  const dueSoon  = tasks.filter(t => {
-    if (!t.end || (t.progress||0)>=1) return false;
-    const diff = (new Date(t.end) - new Date(today)) / (1000*60*60*24);
-    return diff >= 0 && diff <= 3;
-  }).filter(t => t.member === RC.currentUserData?.name || isLeaderOrAbove());
-
-  const banner = document.getElementById('notif-banner');
-  const bannerM = document.getElementById('notif-banner-m');
-  if (!banner && !bannerM) return;
-
-  let html = '';
-  if (overdue.length) {
-    html += `<div class="notif-item notif-error">
-      <div class="notif-icon">🚨</div>
-      <div>
-        <div class="notif-title">期限超過タスク ${overdue.length}件</div>
-        <div class="notif-list">${overdue.slice(0,5).map(t=>`<span class="notif-chip">${t.name}</span>`).join('')}</div>
-      </div>
-    </div>`;
-  }
-  if (dueSoon.length) {
-    html += `<div class="notif-item notif-warn">
-      <div class="notif-icon">⏰</div>
-      <div>
-        <div class="notif-title">期限間近のタスク ${dueSoon.length}件</div>
-        <div class="notif-list">${dueSoon.slice(0,5).map(t=>`<span class="notif-chip">${t.name} (${t.end})</span>`).join('')}</div>
-      </div>
-    </div>`;
-  }
-
-  if (banner)  { banner.innerHTML  = html; banner.style.display  = html ? '' : 'none'; }
-  if (bannerM) { bannerM.innerHTML = html; bannerM.style.display = html ? '' : 'none'; }
-
-  // Update badge
-  const total = overdue.length + dueSoon.length;
+  // タスク管理機能削除済み - バッジを非表示にする
   const badge = document.getElementById('notif-badge');
-  if (badge) { badge.textContent = total||''; badge.style.display = total ? 'inline-flex' : 'none'; }
+  if (badge) badge.style.display = 'none';
 }
 
 export async function autoRecordMissedClockIns() {
@@ -879,6 +934,7 @@ window.filterAttByMember          = filterAttByMember;
 window.resetAttFilter             = resetAttFilter;
 window.filterAttBySearch          = filterAttBySearch;
 window.exportCSV                  = exportCSV;
+window.exportExcel                = exportExcel;
 window.openEditAttendanceModal    = openEditAttendanceModal;
 window.saveAttendanceEdit         = saveAttendanceEdit;
 window.confirmDeleteAttendance    = confirmDeleteAttendance;
@@ -893,3 +949,209 @@ window.execBulkGenAttendance      = execBulkGenAttendance;
 window.checkNotifications         = checkNotifications;
 window.autoRecordMissedClockIns   = autoRecordMissedClockIns;
 window._cachedAttendance          = _cachedAttendance;
+
+// ── Alliance attendance ───────────────────────────────────
+
+export async function renderAllianceAttendance() {
+  const container = document.getElementById('alliance-att-content');
+  if (!container) return;
+  const today = todayJST();
+  const uid   = RC.currentUser?.uid;
+  const name  = RC.currentUserData?.name;
+
+  container.innerHTML = '<div style="color:var(--ink3);font-size:12px;text-align:center;padding:20px">読み込み中...</div>';
+
+  // 本日の勤怠を取得
+  let todayData = null;
+  try {
+    const snap = await getDoc(doc(db, 'attendance', `${uid}_${today}`));
+    if (snap.exists()) {
+      todayData = snap.data();
+    } else {
+      const qs = await getDocs(query(collection(db,'attendance'), where('name','==',name), where('date','==',today)));
+      if (!qs.empty) todayData = qs.docs[0].data();
+    }
+  } catch(e) {}
+
+  const ci = todayData?.clockIn  ? new Date(todayData.clockIn).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'}) : null;
+  const co = todayData?.clockOut ? new Date(todayData.clockOut).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'}) : null;
+
+  // 今日のシフトを取得
+  const month = today.slice(0,7);
+  let shiftInfo = '';
+  try {
+    const ss = await getDocs(query(collection(db,'shifts'), where('month','==',month), where('date','==',today)));
+    const myShift = ss.docs.map(d=>d.data()).find(s => s.uid===uid || s.name===name);
+    if (myShift && myShift.type !== 'off') {
+      shiftInfo = `<div style="text-align:center;background:rgba(42,82,152,.08);border-radius:8px;padding:10px;margin-bottom:16px;font-size:12px">
+        📋 本日のシフト：<strong>${myShift.startTime}〜${myShift.endTime}</strong>${myShift.location?`　${myShift.location}`:''}
+      </div>`;
+    }
+  } catch(e) {}
+
+  // 状態バナー
+  let statusBanner = '';
+  if (ci && co) {
+    statusBanner = `<div style="background:rgba(58,125,90,.1);border:1px solid rgba(58,125,90,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px;text-align:center">
+      <div style="font-size:12px;color:var(--accent2);font-weight:700;margin-bottom:6px">✅ 本日の記録完了</div>
+      <div style="display:flex;justify-content:center;gap:24px;font-size:12px">
+        <div><span style="color:var(--ink3)">出勤</span> <strong style="font-family:'DM Mono',monospace">${ci}</strong></div>
+        <div><span style="color:var(--ink3)">退勤</span> <strong style="font-family:'DM Mono',monospace">${co}</strong></div>
+      </div>
+    </div>`;
+  } else if (ci) {
+    statusBanner = `<div style="background:rgba(42,82,152,.08);border:1px solid rgba(42,82,152,.2);border-radius:8px;padding:12px 14px;margin-bottom:16px;text-align:center">
+      <div style="font-size:12px;color:var(--blue);font-weight:700;margin-bottom:4px">🟢 勤務中</div>
+      <div style="font-size:11px;color:var(--ink3)">出勤時刻：<strong style="font-family:'DM Mono',monospace;color:var(--ink)">${ci}</strong></div>
+    </div>`;
+  }
+
+  const dateStr = new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short',timeZone:'Asia/Tokyo'});
+
+  container.innerHTML = `
+    <div style="font-size:11px;color:var(--ink3);text-align:center;margin-bottom:16px;font-family:'DM Mono',monospace">${dateStr}</div>
+    ${shiftInfo}
+    ${statusBanner}
+    ${!ci ? `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">🟢 出勤を記録する</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">🚃 乗車駅</label>
+          <input class="form-input" id="al-station-from" placeholder="例：渋谷">
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">🏢 降車駅</label>
+          <input class="form-input" id="al-station-to" placeholder="例：新宿">
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">💴 交通費（自宅→勤務先）</label>
+        <input type="number" class="form-input" id="al-fare-in" placeholder="例：380" min="0">
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:var(--surface2);border-radius:6px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700">
+          <input type="checkbox" id="al-late" onchange="document.getElementById('al-late-reason-wrap').style.display=this.checked?'block':'none'" style="width:15px;height:15px;accent-color:var(--warn)">
+          ⏰ 遅刻あり
+        </label>
+        <div id="al-late-reason-wrap" style="display:none;margin-top:8px">
+          <input class="form-input" id="al-late-reason" placeholder="理由（例：電車遅延）">
+        </div>
+      </div>
+      <div style="margin-bottom:12px;padding:11px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:8px">🌤 今日のメンタル天気 <span style="background:var(--accent);color:#fff;font-size:9px;padding:1px 5px;border-radius:3px">必須</span></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">
+          ${['快晴☀️','曇り☁️','雨🌧','豪雨🌧🌧','雷🌩','嵐🌀','天災🔥'].map(w=>{
+            const [val,...emoji]=w.split(/(?=[☀️☁️🌧🌩🌀🔥])/); const v=w.replace(/[☀️☁️🌧🌩🌀🔥]/g,'').trim();
+            return `<label style="display:flex;flex-direction:column;align-items:center;padding:6px 4px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;gap:2px;background:var(--surface)">
+              <input type="radio" name="al-mental" value="${v||w}" style="display:none">${w.replace(/\S+/,'').trim()||w}<div>${v||''}</div></label>`;
+          }).join('')}
+        </div>
+      </div>
+      <button onclick="allianceClockIn()" style="width:100%;padding:14px;background:var(--accent2);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer">
+        🟢 出勤を記録する
+      </button>
+    </div>
+    ` : ''}
+    ${ci && !co ? `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">🔵 退勤を記録する</div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">💴 交通費（勤務先→自宅）</label>
+        <input type="number" class="form-input" id="al-fare-out" placeholder="例：380" min="0">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">☕ 休憩時間（分）</label>
+        <input type="number" class="form-input" id="al-break" placeholder="60" value="60" min="0">
+      </div>
+      <div style="margin-bottom:12px;padding:10px;background:var(--surface2);border-radius:6px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;font-weight:700">
+          <input type="checkbox" id="al-early" onchange="document.getElementById('al-early-reason-wrap').style.display=this.checked?'block':'none'" style="width:15px;height:15px;accent-color:var(--warn)">
+          🏃 早退あり
+        </label>
+        <div id="al-early-reason-wrap" style="display:none;margin-top:8px">
+          <input class="form-input" id="al-early-reason" placeholder="理由（例：体調不良）">
+        </div>
+      </div>
+      <input class="form-input" id="al-note" placeholder="メモ（任意）" style="margin-bottom:12px">
+      <button onclick="allianceClockOut()" style="width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer">
+        🔵 退勤を記録する
+      </button>
+    </div>
+    ` : ''}
+    <div id="alliance-att-msg" style="font-size:12px;text-align:center;min-height:18px;color:var(--accent)"></div>
+  `;
+}
+
+export async function allianceClockIn() {
+  const uid   = RC.currentUser?.uid;
+  const name  = RC.currentUserData?.name;
+  const today = todayJST();
+  const fareIn     = parseInt(document.getElementById('al-fare-in')?.value)||0;
+  const stFrom     = document.getElementById('al-station-from')?.value.trim()||'';
+  const stTo       = document.getElementById('al-station-to')?.value.trim()||'';
+  const isLate     = document.getElementById('al-late')?.checked||false;
+  const lateReason = document.getElementById('al-late-reason')?.value.trim()||'';
+  const mentalVal  = document.querySelector('input[name="al-mental"]:checked')?.value||'';
+  const msgEl      = document.getElementById('alliance-att-msg');
+
+  let gpsData = {};
+  try {
+    const pos = await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000}));
+    gpsData = { clockInLat: pos.coords.latitude, clockInLng: pos.coords.longitude, clockInGpsAccuracy: pos.coords.accuracy };
+  } catch(e) {}
+
+  try {
+    await setDoc(doc(db,'attendance',`${uid}_${today}`), {
+      uid, name, date: today,
+      clockIn: new Date().toISOString(), clockOut: null,
+      fare: fareIn, fareIn, fareOut: 0, fareOther: 0,
+      stationFrom: stFrom, stationTo: stTo,
+      isLate, lateReason, isAlliance: true,
+      ...(mentalVal ? { mentalWeather: mentalVal } : {}),
+      ...gpsData
+    }, { merge: true });
+    if (msgEl) msgEl.textContent = '✅ 出勤を記録しました';
+    setTimeout(() => renderAllianceAttendance(), 800);
+  } catch(e) {
+    if (msgEl) msgEl.textContent = '❌ エラー：' + e.message;
+  }
+}
+
+export async function allianceClockOut() {
+  const uid   = RC.currentUser?.uid;
+  const today = todayJST();
+  const fareOut    = parseInt(document.getElementById('al-fare-out')?.value)||0;
+  const breakMin   = (() => { const v = parseInt(document.getElementById('al-break')?.value); return isNaN(v) ? 60 : v; })();
+  const isEarly    = document.getElementById('al-early')?.checked||false;
+  const earlyReason= document.getElementById('al-early-reason')?.value.trim()||'';
+  const note       = document.getElementById('al-note')?.value.trim()||'';
+  const msgEl      = document.getElementById('alliance-att-msg');
+
+  let gpsData = {};
+  try {
+    const pos = await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000}));
+    gpsData = { clockOutLat: pos.coords.latitude, clockOutLng: pos.coords.longitude, clockOutGpsAccuracy: pos.coords.accuracy };
+  } catch(e) {}
+
+  try {
+    const existSnap = await getDoc(doc(db,'attendance',`${uid}_${today}`));
+    const exist = existSnap.exists() ? existSnap.data() : {};
+    const totalFare = (exist.fareIn||0) + fareOut + (exist.fareOther||0);
+    await setDoc(doc(db,'attendance',`${uid}_${today}`), {
+      clockOut: new Date().toISOString(),
+      fareOut, fare: totalFare,
+      breakMinutes: breakMin,
+      isEarlyLeave: isEarly, earlyLeaveReason: earlyReason,
+      note, ...gpsData
+    }, { merge: true });
+    if (msgEl) msgEl.textContent = '✅ 退勤を記録しました';
+    setTimeout(() => renderAllianceAttendance(), 800);
+  } catch(e) {
+    if (msgEl) msgEl.textContent = '❌ エラー：' + e.message;
+  }
+}
+
+window.renderAllianceAttendance = renderAllianceAttendance;
+window.allianceClockIn          = allianceClockIn;
+window.allianceClockOut         = allianceClockOut;

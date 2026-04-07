@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>成長ロードマップ — RegalCast</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F8FAFC; --surface: #FFFFFF; --surface2: #F1F5F9;
+      --border: #E2E8F0; --ink: #0F172A; --ink2: #334155; --ink3: #94A3B8;
+      --blue: #2563EB; --accent2: #059669; --accent: #EF4444; --warn: #D97706;
+      --r-sm: 6px; --r: 10px; --r-lg: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07),0 2px 4px -1px rgba(0,0,0,0.04);
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Inter','Noto Sans JP',-apple-system,sans-serif;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .rm-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow);
+    }
+    .rm-back {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: var(--r-sm);
+      transition: background .15s;
+    }
+    .rm-back:hover { background: rgba(37,99,235,.06); }
+    .rm-title {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .rm-member-badge {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink2);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .rm-save-btn {
+      background: var(--accent2);
+      color: #fff;
+      border: none;
+      border-radius: var(--r-sm);
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: inherit;
+    }
+    .rm-save-btn:hover { background: #047857; }
+    .rm-save-btn:disabled { background: var(--ink3); cursor: not-allowed; }
+
+    /* ── Main Layout ── */
+    .rm-main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 0;
+      overflow: hidden;
+      height: calc(100vh - 56px);
+    }
+
+    /* ── Chat Panel ── */
+    .rm-chat-panel {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .rm-chat-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .rm-chat-header h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 2px;
+    }
+    .rm-chat-header p {
+      font-size: 11px;
+      color: var(--ink3);
+    }
+    .rm-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .rm-msg {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .rm-msg.user { flex-direction: row-reverse; }
+    .rm-msg-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .rm-msg.ai .rm-msg-avatar { background: rgba(37,99,235,.1); }
+    .rm-msg.user .rm-msg-avatar { background: rgba(5,150,105,.1); }
+    .rm-msg-bubble {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .rm-msg.ai .rm-msg-bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top-left-radius: 4px;
+      color: var(--ink);
+    }
+    .rm-msg.user .rm-msg-bubble {
+      background: var(--blue);
+      color: #fff;
+      border-top-right-radius: 4px;
+    }
+    .rm-typing {
+      display: flex;
+      gap: 4px;
+      padding: 12px 16px;
+    }
+    .rm-typing span {
+      width: 7px;
+      height: 7px;
+      background: var(--ink3);
+      border-radius: 50%;
+      animation: rmBounce 1.2s ease-in-out infinite;
+    }
+    .rm-typing span:nth-child(2) { animation-delay: .2s; }
+    .rm-typing span:nth-child(3) { animation-delay: .4s; }
+    @keyframes rmBounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-6px); }
+    }
+    .rm-input-row {
+      padding: 16px 20px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .rm-input {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      border-radius: var(--r);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+      max-height: 120px;
+      transition: border-color .15s;
+    }
+    .rm-input:focus { border-color: var(--blue); }
+    .rm-send-btn {
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: var(--r);
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all .15s;
+      flex-shrink: 0;
+      align-self: flex-end;
+    }
+    .rm-send-btn:hover { background: #1d4ed8; }
+    .rm-send-btn:disabled { background: var(--ink3); cursor: not-allowed; }
+
+    /* ── Roadmap Preview Panel ── */
+    .rm-preview-panel {
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .rm-preview-header {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink3);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .rm-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .rm-card-header {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .rm-card-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--r-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .rm-card-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .rm-card-subtitle { font-size: 11px; color: var(--ink3); margin-top: 1px; }
+    .rm-card-body {
+      padding: 0 16px 16px;
+    }
+    .rm-goal-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--ink3);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 4px;
+    }
+    .rm-goal-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.5;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      background: var(--surface2);
+      border-radius: var(--r-sm);
+      border-left: 3px solid var(--border);
+    }
+    .rm-actions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .rm-action-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--ink2);
+      line-height: 1.5;
+    }
+    .rm-action-item::before {
+      content: '▶';
+      font-size: 8px;
+      color: var(--ink3);
+      margin-top: 3px;
+      flex-shrink: 0;
+    }
+    .rm-kpi-wrap {
+      background: rgba(37,99,235,.06);
+      border: 1px solid rgba(37,99,235,.12);
+      border-radius: var(--r-sm);
+      padding: 8px 12px;
+    }
+    .rm-kpi-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 3px;
+    }
+    .rm-kpi-text { font-size: 12px; color: var(--ink2); line-height: 1.5; }
+    .rm-empty-card {
+      background: var(--surface);
+      border: 1.5px dashed var(--border);
+      border-radius: var(--r-lg);
+      padding: 28px 20px;
+      text-align: center;
+      color: var(--ink3);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .rm-empty-card .rm-empty-icon { font-size: 28px; margin-bottom: 10px; }
+
+    /* ── Loading / Auth screen ── */
+    .rm-loading {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: var(--ink3);
+      gap: 10px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div id="rm-app">
+  <div class="rm-loading" id="rm-loading">
+    <span>🔄</span> <span>読み込み中...</span>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import {
+  getFirestore, doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCzzyVqRLG_G9kU2qjQ3yx0aznQBKuK4Vg",
+  authDomain: "regalcast-app.firebaseapp.com",
+  projectId: "regalcast-app",
+  storageBucket: "regalcast-app.firebasestorage.app",
+  messagingSenderId: "937984277929",
+  appId: "1:937984277929:web:e923791a191d1ffe8718b8",
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ── State ──────────────────────────────────────────────────
+const params = new URLSearchParams(location.search);
+let targetUid = params.get('uid');
+
+let memberData = null;     // users/{uid}
+let academyData = null;    // academy_users/{name} if exists
+let chatHistory = [];      // { role: 'user'|'model', parts: [{text}] }
+let currentRoadmap = null; // { 1month, 3months, 6months }
+let isSending = false;
+let canEdit = false;       // admin/leader only
+let isOwnPage = false;     // viewing own roadmap
+
+// ── Auth check ─────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    window.location.href = '/index.html';
+    return;
+  }
+  // uidなし → 自分のページ
+  if (!targetUid) targetUid = user.uid;
+
+  const myDoc = await getDoc(doc(db, 'users', user.uid));
+  const myData = myDoc.data();
+  if (!myData) { window.location.href = '/index.html'; return; }
+
+  canEdit = myData.role === 'admin' || myData.role === 'leader';
+  isOwnPage = user.uid === targetUid;
+
+  // アクセス許可：自分のページ or 管理者/リーダー
+  if (!canEdit && !isOwnPage) {
+    document.getElementById('rm-app').innerHTML =
+      '<div class="rm-loading">⛔ 他のメンバーのロードマップにはアクセスできません</div>';
+    return;
+  }
+  await initPage();
+});
+
+// ── Init ───────────────────────────────────────────────────
+async function initPage() {
+
+  // Load member data
+  const userSnap = await getDoc(doc(db, 'users', targetUid));
+  if (!userSnap.exists()) {
+    document.getElementById('rm-app').innerHTML =
+      '<div class="rm-loading">⚠️ メンバーが見つかりません</div>';
+    return;
+  }
+  memberData = { id: userSnap.id, ...userSnap.data() };
+
+  // Try load academy_users by name
+  try {
+    const firstName = (memberData.name || '').split(/[\s　]/)[0];
+    const academySnap = await getDoc(doc(db, 'academy_users', firstName));
+    if (academySnap.exists()) academyData = academySnap.data();
+  } catch (_) {}
+
+  // Try load existing roadmap
+  try {
+    const rdSnap = await getDoc(doc(db, 'academy_roadmap', `${memberData.name}_custom_plan`));
+    if (rdSnap.exists()) {
+      const d = rdSnap.data();
+      if (d.periods) currentRoadmap = d.periods;
+    }
+  } catch (_) {}
+
+  renderPage();
+  await startConversation();
+}
+
+// ── Render main layout ─────────────────────────────────────
+function renderPage() {
+  const app = document.getElementById('rm-app');
+  app.innerHTML = `
+    <div class="rm-header">
+      <a class="rm-back" href="/index.html">← 戻る</a>
+      <div class="rm-title">成長ロードマップ</div>
+      <div class="rm-member-badge">👤 ${esc(memberData.name || '—')}</div>
+      ${canEdit ? `
+        <button class="rm-save-btn" id="rm-save-btn" onclick="saveRoadmap()" ${currentRoadmap ? '' : 'disabled'}>
+          💾 保存
+        </button>
+      ` : `
+        <span style="font-size:11px;color:var(--ink3);padding:6px 12px;background:var(--surface2);border-radius:20px;border:1px solid var(--border)">
+          👀 閲覧・相談モード
+        </span>
+      `}
+    </div>
+    <div class="rm-main">
+      <div class="rm-chat-panel">
+        <div class="rm-chat-header">
+          <h2>🤖 AIコーチ（Gemini）</h2>
+          <p>${canEdit ? `${esc(memberData.name)}さんのロードマップを作成・編集します` : `ロードマップについてGeminiに相談できます`}</p>
+        </div>
+        <div class="rm-messages" id="rm-messages"></div>
+        <div class="rm-input-row">
+          <textarea class="rm-input" id="rm-input" placeholder="メッセージを入力..." rows="2"
+            onkeydown="handleInputKey(event)"></textarea>
+          <button class="rm-send-btn" id="rm-send-btn" onclick="sendMessage()">↑</button>
+        </div>
+      </div>
+      <div class="rm-preview-panel" id="rm-preview-panel">
+        <div class="rm-preview-header">📋 ロードマップ プレビュー</div>
+        ${renderRoadmapCards()}
+      </div>
+    </div>
+  `;
+}
+
+// ── Roadmap cards ──────────────────────────────────────────
+function renderRoadmapCards() {
+  const periods = [
+    { key: '1month',  label: '1ヶ月後', icon: '🌱', iconBg: 'rgba(5,150,105,.1)',  border: '3px solid #059669' },
+    { key: '3months', label: '3ヶ月後', icon: '🌿', iconBg: 'rgba(37,99,235,.1)',  border: '3px solid #2563EB' },
+    { key: '6months', label: '6ヶ月後', icon: '🌳', iconBg: 'rgba(217,119,6,.1)',  border: '3px solid #D97706' },
+  ];
+
+  if (!currentRoadmap) {
+    return periods.map(p => `
+      <div class="rm-empty-card">
+        <div class="rm-empty-icon">${p.icon}</div>
+        <strong>${p.label}の目標</strong><br>
+        AIと会話してロードマップを<br>作成してください
+      </div>
+    `).join('');
+  }
+
+  return periods.map(p => {
+    const d = currentRoadmap[p.key];
+    if (!d) return `<div class="rm-empty-card"><div class="rm-empty-icon">${p.icon}</div>${p.label}のデータなし</div>`;
+    return `
+      <div class="rm-card">
+        <div class="rm-card-header" style="border-bottom:1px solid var(--border)">
+          <div class="rm-card-icon" style="background:${p.iconBg}">${p.icon}</div>
+          <div>
+            <div class="rm-card-title">${p.label}</div>
+            <div class="rm-card-subtitle">${p.key === '1month' ? '基礎固め' : p.key === '3months' ? '応用・実践' : '自立・独立'}</div>
+          </div>
+        </div>
+        <div class="rm-card-body">
+          <div class="rm-goal-label" style="margin-top:12px">目標</div>
+          <div class="rm-goal-text" style="border-left-color:${p.iconBg.replace('.1)','1)')}">${esc(d.goal || '—')}</div>
+          ${d.actions?.length ? `
+            <div class="rm-goal-label">アクション</div>
+            <div class="rm-actions-list">
+              ${(d.actions || []).map(a => `<div class="rm-action-item">${esc(a)}</div>`).join('')}
+            </div>
+          ` : ''}
+          ${d.kpi ? `
+            <div class="rm-kpi-wrap">
+              <div class="rm-kpi-label">達成指標（KPI）</div>
+              <div class="rm-kpi-text">${esc(d.kpi)}</div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updatePreview() {
+  const panel = document.getElementById('rm-preview-panel');
+  if (!panel) return;
+  panel.innerHTML = `<div class="rm-preview-header">📋 ロードマップ プレビュー</div>` + renderRoadmapCards();
+  const saveBtn = document.getElementById('rm-save-btn');
+  if (saveBtn) saveBtn.disabled = !currentRoadmap;
+}
+
+// ── Chat ───────────────────────────────────────────────────
+function buildSystemPrompt() {
+  const name = memberData.name || '対象メンバー';
+  const role = academyData?.role || memberData.dept || '社員';
+  const strengths = academyData?.strengths || '—';
+  const weaknesses = academyData?.weaknesses || '—';
+  const policy = academyData?.training_policy || '—';
+  const joinDate = memberData.joinDate || academyData?.join_date || '—';
+
+  // 現在のロードマップ内容をプロンプトに含める（相談モード用）
+  const roadmapSummary = currentRoadmap ? `
+【設定済みロードマップ】
+- 1ヶ月後の目標: ${currentRoadmap['1month']?.goal || '未設定'}
+- 3ヶ月後の目標: ${currentRoadmap['3months']?.goal || '未設定'}
+- 6ヶ月後の目標: ${currentRoadmap['6months']?.goal || '未設定'}` : '【ロードマップ】まだ設定されていません。';
+
+  if (canEdit) {
+    // 管理者/リーダー：作成・編集モード
+    return {
+      parts: [{
+        text: `あなたは${name}さんの成長をサポートするプロフェッショナルなコーチです。
+以下のペルソナ情報をもとに、${name}さんの1ヶ月・3ヶ月・6ヶ月の成長ロードマップを一緒に作成してください。
+
+【ペルソナ情報】
+- 氏名: ${name}
+- 役職: ${role}
+- 入社日: ${joinDate}
+- 強み: ${strengths}
+- 課題: ${weaknesses}
+- 育成方針: ${policy}
+
+【重要な指示】
+1. まず会話を通して目標や意欲を引き出してください
+2. ロードマップが固まったら、必ずメッセージの最後に以下の形式でJSONを出力してください（コードブロック・マークダウン記法は一切不要）:
+ROADMAP_JSON:{"1month":{"goal":"...","actions":["..."],"kpi":"..."},"3months":{"goal":"...","actions":["..."],"kpi":"..."},"6months":{"goal":"...","actions":["..."],"kpi":"..."}}
+3. ユーザーが修正を求めたら柔軟に対応し、修正後も同じ形式でJSONを再出力してください
+4. 日本語で親しみやすく、かつプロフェッショナルに対話してください
+5. 最初のメッセージとして挨拶と6ヶ月後の目標を聞いてください`
+      }]
+    };
+  } else {
+    // 一般メンバー：閲覧・相談モード（ロードマップ変更不可）
+    return {
+      parts: [{
+        text: `あなたは${name}さんの成長をサポートするコーチです。
+${name}さんが自分のロードマップについて相談できる場です。
+
+【${name}さんの情報】
+- 役職: ${role}
+- 入社日: ${joinDate}
+- 強み: ${strengths}
+- 課題: ${weaknesses}
+${roadmapSummary}
+
+【重要な指示】
+1. ${name}さん（本人）が相談相手です。目標の達成方法・悩み・モチベーションなどに答えてください
+2. ロードマップの目標内容の変更は管理者のみが行えます。変更提案はできますが「管理者に相談してください」と必ず伝えてください
+3. 日本語で親しみやすく、励ましながら対話してください
+4. 最初のメッセージは${name}さんへの挨拶と、今どんなことが気になっているか聞いてください`
+      }]
+    };
+  }
+}
+
+async function startConversation() {
+  const systemInstruction = buildSystemPrompt();
+  // Send initial message to get Gemini to introduce itself
+  const initContent = [{
+    role: 'user',
+    parts: [{ text: `${memberData.name}さんのロードマップ作成を開始してください。最初のメッセージをお願いします。` }]
+  }];
+  chatHistory = initContent;
+  showTyping();
+  const reply = await callGemini(initContent, systemInstruction);
+  removeTyping();
+  if (reply) {
+    chatHistory.push({ role: 'model', parts: [{ text: reply }] });
+    addMessage('ai', cleanMessage(reply));
+    tryParseRoadmap(reply);
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('rm-input');
+  const text = input?.value.trim();
+  if (!text || isSending) return;
+  input.value = '';
+  isSending = true;
+  document.getElementById('rm-send-btn').disabled = true;
+
+  chatHistory.push({ role: 'user', parts: [{ text }] });
+  addMessage('user', text);
+  showTyping();
+
+  const reply = await callGemini(chatHistory, buildSystemPrompt());
+  removeTyping();
+  isSending = false;
+  document.getElementById('rm-send-btn').disabled = false;
+
+  if (reply) {
+    chatHistory.push({ role: 'model', parts: [{ text: reply }] });
+    addMessage('ai', cleanMessage(reply));
+    tryParseRoadmap(reply);
+  }
+}
+
+function handleInputKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+async function callGemini(contents, systemInstruction) {
+  try {
+    const res = await fetch('/.netlify/functions/gemini-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents, systemInstruction }),
+    });
+    const data = await res.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch (err) {
+    console.error('Gemini error:', err);
+    addMessage('ai', '⚠️ エラーが発生しました。もう一度お試しください。');
+    return null;
+  }
+}
+
+// ── Parse roadmap JSON from response ──────────────────────
+function tryParseRoadmap(text) {
+  const marker = 'ROADMAP_JSON:';
+  const idx = text.indexOf(marker);
+  if (idx === -1) return;
+  try {
+    const jsonStr = text.slice(idx + marker.length).trim().split('\n')[0].trim();
+    const parsed = JSON.parse(jsonStr);
+    if (parsed['1month'] || parsed['3months'] || parsed['6months']) {
+      currentRoadmap = parsed;
+      updatePreview();
+    }
+  } catch (_) {}
+}
+
+function cleanMessage(text) {
+  // Remove ROADMAP_JSON from displayed message
+  const idx = text.indexOf('ROADMAP_JSON:');
+  if (idx === -1) return text;
+  return text.slice(0, idx).trim();
+}
+
+// ── Chat UI helpers ────────────────────────────────────────
+function addMessage(role, text) {
+  const msgs = document.getElementById('rm-messages');
+  if (!msgs) return;
+  const isUser = role === 'user';
+  const div = document.createElement('div');
+  div.className = `rm-msg ${role}`;
+  div.innerHTML = `
+    <div class="rm-msg-avatar">${isUser ? '👤' : '🤖'}</div>
+    <div class="rm-msg-bubble">${formatMsg(text)}</div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('rm-messages');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.className = 'rm-msg ai';
+  div.id = 'rm-typing';
+  div.innerHTML = `
+    <div class="rm-msg-avatar">🤖</div>
+    <div class="rm-msg-bubble rm-typing"><span></span><span></span><span></span></div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  document.getElementById('rm-typing')?.remove();
+}
+
+function formatMsg(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>')
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+}
+
+function esc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Save ──────────────────────────────────────────────────
+async function saveRoadmap() {
+  if (!currentRoadmap) return;
+  const btn = document.getElementById('rm-save-btn');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  try {
+    const docId = `${memberData.name}_custom_plan`;
+    await setDoc(doc(db, 'academy_roadmap', docId), {
+      staff_name: memberData.name,
+      uid: targetUid,
+      created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
+      periods: currentRoadmap,
+    });
+    btn.textContent = '✅ 保存済み';
+    btn.style.background = 'var(--accent2)';
+    setTimeout(() => {
+      btn.textContent = '💾 保存';
+      btn.disabled = false;
+    }, 2000);
+  } catch (err) {
+    console.error(err);
+    btn.textContent = '❌ 保存失敗';
+    btn.style.background = 'var(--accent)';
+    setTimeout(() => {
+      btn.textContent = '💾 保存';
+      btn.disabled = false;
+    }, 2000);
+  }
+}
+
+window.sendMessage = sendMessage;
+window.handleInputKey = handleInputKey;
+window.saveRoadmap = saveRoadmap;
+</script>
+</body>
+</html>
