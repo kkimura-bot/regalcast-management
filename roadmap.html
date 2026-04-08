@@ -243,6 +243,7 @@
       border-radius: var(--r-lg);
       overflow: hidden;
       box-shadow: var(--shadow);
+      flex-shrink: 0;
     }
     .rm-card-header {
       padding: 14px 16px;
@@ -329,6 +330,7 @@
       color: var(--ink3);
       font-size: 12px;
       line-height: 1.7;
+      flex-shrink: 0;
     }
     .rm-empty-card .rm-empty-icon { font-size: 28px; margin-bottom: 10px; }
 
@@ -347,6 +349,56 @@
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* ── Mobile Tab Nav ── */
+    .rm-tab-nav {
+      display: none;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .rm-tab-btn {
+      flex: 1;
+      padding: 12px 0;
+      border: none;
+      background: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink3);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-family: inherit;
+      transition: all .15s;
+    }
+    .rm-tab-btn.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+    }
+
+    /* ── Mobile Responsive ── */
+    @media (max-width: 767px) {
+      .rm-header { padding: 0 12px; gap: 8px; }
+      .rm-title { font-size: 13px; }
+      .rm-member-badge, .rm-header span { font-size: 11px; padding: 3px 8px; }
+      .rm-save-btn { padding: 7px 14px; font-size: 12px; }
+      .rm-tab-nav { display: flex; }
+      .rm-main {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+        height: calc(100vh - 100px);
+      }
+      .rm-chat-panel,
+      .rm-preview-panel {
+        min-height: 0;
+      }
+      .rm-chat-panel {
+        border-right: none;
+      }
+      .rm-chat-panel.rm-hidden,
+      .rm-preview-panel.rm-hidden {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -442,6 +494,8 @@ async function initPage() {
   } catch (_) {}
 
   renderPage();
+  // モバイルではチャットタブをデフォルト表示（プレビューを隠す）
+  if (window.innerWidth <= 767) switchTab('chat');
   await startConversation();
 }
 
@@ -463,8 +517,12 @@ function renderPage() {
         </span>
       `}
     </div>
+    <div class="rm-tab-nav" id="rm-tab-nav">
+      <button class="rm-tab-btn active" id="rm-tab-chat" onclick="switchTab('chat')">🤖 AI相談</button>
+      <button class="rm-tab-btn" id="rm-tab-preview" onclick="switchTab('preview')">📋 プレビュー</button>
+    </div>
     <div class="rm-main">
-      <div class="rm-chat-panel">
+      <div class="rm-chat-panel" id="rm-chat-panel">
         <div class="rm-chat-header">
           <h2>🤖 AIコーチ（Gemini）</h2>
           <p>${canEdit ? `${esc(memberData.name)}さんのロードマップを作成・編集します` : `ロードマップについてGeminiに相談できます`}</p>
@@ -683,6 +741,8 @@ function tryParseRoadmap(text) {
     if (parsed['1month'] || parsed['3months'] || parsed['6months']) {
       currentRoadmap = parsed;
       updatePreview();
+      // モバイルではプレビュータブに自動切り替え
+      if (window.innerWidth <= 767) switchTab('preview');
     }
   } catch (_) {}
 }
@@ -770,9 +830,29 @@ async function saveRoadmap() {
   }
 }
 
+function switchTab(tab) {
+  const chatPanel = document.getElementById('rm-chat-panel');
+  const previewPanel = document.getElementById('rm-preview-panel');
+  const tabChat = document.getElementById('rm-tab-chat');
+  const tabPreview = document.getElementById('rm-tab-preview');
+  if (!chatPanel || !previewPanel) return;
+  if (tab === 'chat') {
+    chatPanel.classList.remove('rm-hidden');
+    previewPanel.classList.add('rm-hidden');
+    tabChat.classList.add('active');
+    tabPreview.classList.remove('active');
+  } else {
+    chatPanel.classList.add('rm-hidden');
+    previewPanel.classList.remove('rm-hidden');
+    tabChat.classList.remove('active');
+    tabPreview.classList.add('active');
+  }
+}
+
 window.sendMessage = sendMessage;
 window.handleInputKey = handleInputKey;
 window.saveRoadmap = saveRoadmap;
+window.switchTab = switchTab;
 </script>
 </body>
 </html>

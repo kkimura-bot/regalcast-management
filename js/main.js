@@ -2,7 +2,7 @@
 // Main entry point
 // ============================================================
 import { RC, isAdmin, isLeaderOrAbove } from './state.js';
-import { db, collection, getDocs, query, orderBy } from './firebase.js';
+import { db, doc, getDoc, collection, getDocs, query, orderBy } from './firebase.js';
 import { initAuthListener } from './auth.js';
 
 // Utils (side-effect: assigns to window)
@@ -114,9 +114,108 @@ export function postLoginSetup() {
   if (!isAdmin()) {
     window.loadMySalaryInfo?.();
   }
+  loadGoalWidget();
 }
 
 window.postLoginSetup = postLoginSetup;
+
+// ── 今月の目標ウィジェット ──────────────────────────────────
+
+async function loadGoalWidget() {
+  if (RC.currentRole !== 'member') return;
+  const name = RC.currentUserData?.name;
+  if (!name) return;
+  const card = document.getElementById('m-goal-widget');
+  if (!card) return;
+
+  try {
+    const snap = await getDoc(doc(db, 'academy_roadmap', `${name}_custom_plan`));
+
+    // 未設定メンバー
+    if (!snap.exists() || !snap.data()?.periods) {
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:16px">🎯</span>
+          <span style="font-size:12px;font-weight:700;color:var(--ink)">成長ロードマップ</span>
+        </div>
+        <div style="font-size:12px;color:var(--ink2);line-height:1.7;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:10px 12px">
+          📌 まだ目標が設定されていません。<br>
+          <strong>上長と一緒に目標を決めましょう！</strong>
+        </div>
+      `;
+      card.style.display = 'block';
+      return;
+    }
+
+    const data = snap.data();
+    const periods = data.periods;
+    const createdAt = data.created_at?.toDate?.() || data.updated_at?.toDate?.() || new Date();
+
+    // 経過月数を計算
+    const now = new Date();
+    const monthsElapsed = (now.getFullYear() - createdAt.getFullYear()) * 12
+      + (now.getMonth() - createdAt.getMonth());
+
+    // 期間を選択
+    let periodKey, offsetMonths;
+    if (monthsElapsed < 1)      { periodKey = '1month';  offsetMonths = 1; }
+    else if (monthsElapsed < 3) { periodKey = '3months'; offsetMonths = 3; }
+    else if (monthsElapsed < 6) { periodKey = '6months'; offsetMonths = 6; }
+    else                        { periodKey = null; }
+
+    // 6ヶ月超 → 更新促しメッセージ
+    if (!periodKey || !periods[periodKey]) {
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:16px">🔄</span>
+          <span style="font-size:12px;font-weight:700;color:var(--ink)">ロードマップ更新時期</span>
+        </div>
+        <div style="font-size:12px;color:var(--ink2);line-height:1.7;background:rgba(37,99,235,.05);border:1px solid rgba(37,99,235,.15);border-radius:8px;padding:10px 12px">
+          目標設定から6ヶ月が経過しました。<br>
+          <strong>上長と新しい目標を設定しましょう！</strong>
+        </div>
+        <a href="roadmap.html" style="display:inline-block;margin-top:10px;font-size:11px;font-weight:600;color:var(--blue);text-decoration:none;padding:4px 10px;border:1px solid rgba(37,99,235,.25);border-radius:20px;background:rgba(37,99,235,.05)">ロードマップを開く →</a>
+      `;
+      card.style.display = 'block';
+      return;
+    }
+
+    // 達成目標月を計算
+    const targetDate = new Date(createdAt);
+    targetDate.setMonth(targetDate.getMonth() + offsetMonths);
+    const targetMonth = `${targetDate.getMonth() + 1}月`;
+
+    renderGoalWidget(periods[periodKey], targetMonth);
+  } catch (e) {
+    console.log('Goal widget load failed:', e);
+  }
+}
+
+function renderGoalWidget(period, targetMonth) {
+  const card = document.getElementById('m-goal-widget');
+  if (!card) return;
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const actionsHtml = (period.actions || []).map(a => `
+    <div style="display:flex;align-items:flex-start;gap:6px;font-size:12px;color:var(--ink2);line-height:1.5">
+      <span style="font-size:8px;color:var(--accent2);margin-top:4px;flex-shrink:0">▶</span>
+      <span>${esc(a)}</span>
+    </div>
+  `).join('');
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px">
+        🎯 <span>${targetMonth}達成目標</span>
+      </div>
+      <a href="roadmap.html" style="font-size:11px;font-weight:600;color:var(--blue);text-decoration:none;padding:3px 8px;border:1px solid rgba(37,99,235,.25);border-radius:20px;background:rgba(37,99,235,.05)">詳細 →</a>
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--ink);line-height:1.55;padding:10px 12px;background:rgba(5,150,105,.06);border-left:3px solid var(--accent2);border-radius:0 6px 6px 0;margin-bottom:10px">${esc(period.goal)}</div>
+    ${actionsHtml ? `
+      <div style="font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">アクション</div>
+      <div style="display:flex;flex-direction:column;gap:5px">${actionsHtml}</div>
+    ` : ''}
+  `;
+  card.style.display = 'block';
+}
 
 // ── Mobile project cards helper ───────────────────────────
 

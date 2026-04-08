@@ -242,6 +242,32 @@
           </div>
         </div><!-- /m-clockout-form -->
       </div><!-- /m-att-card -->
+
+      <!-- ── 今月の目標ウィジェット ── -->
+      <div id="m-goal-widget"
+        style="display:none;margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+      </div>
+
+      <!-- ── 今日の振り返りAI相談 ── -->
+      <div style="margin-top:12px">
+        <details class="m-accordion" id="m-reflection-accordion">
+          <summary>
+            <span>💬 今日の振り返りをAIに相談</span>
+            <span class="m-accordion-chevron">▼</span>
+          </summary>
+          <div class="m-accordion-body" style="padding:0">
+            <div id="m-reflection-messages" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:12px;"></div>
+            <div style="padding:10px 12px 12px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end">
+              <textarea id="m-reflection-input" rows="2"
+                style="flex:1;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;resize:none;outline:none;line-height:1.5"
+                placeholder="今日の業務について話しかけてみよう..."
+                onkeydown="handleReflectionKey(event)"></textarea>
+              <button onclick="sendReflectionMessage()"
+                style="background:var(--blue);color:#fff;border:none;border-radius:8px;width:40px;height:40px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;align-self:flex-end">↑</button>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
 
     <!-- M: SHIFTS -->
@@ -511,10 +537,10 @@
         <div class="mnav-icon"><i data-lucide="map-pin"></i></div><div class="mnav-label">当日確認</div>
       </div>
       <div class="mnav-item" onclick="switchMobile('reports',this)" data-roles="admin">
-        <div class="mnav-icon"><i data-lucide="inbox"></i></div>
-        <div class="mnav-label">報告確認 <span id="m-report-badge" class="notif-badge" style="display:none;background:var(--accent);font-size:9px;padding:1px 4px"></span></div>
+        <div class="mnav-icon" style="position:relative"><i data-lucide="inbox"></i><span id="m-report-badge" class="notif-badge" style="display:none;background:var(--accent)"></span></div>
+        <div class="mnav-label">報告確認</div>
       </div>
-      <div class="mnav-item" onclick="switchMobile('notifications',this);loadNotificationSettings()" data-roles="admin">
+      <div class="mnav-item" onclick="switchMobile('notifications',this);loadNotificationSettings()" data-roles="" style="display:none">
         <div class="mnav-icon"><i data-lucide="bell"></i></div><div class="mnav-label">通知設定</div>
       </div>
       <div class="mnav-item" onclick="switchMobile('profiles',this);loadProfiles()" data-roles="admin,leader,member">
@@ -1156,13 +1182,105 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=35"></script>
+<script type="module" src="js/main.js?v=37"></script>
 <script>
   // Initialize lucide icons after DOM is ready
   if (typeof lucide !== 'undefined') lucide.createIcons();
   document.addEventListener('DOMContentLoaded', () => {
     if (typeof lucide !== 'undefined') lucide.createIcons();
   });
+</script>
+<script>
+// ── 振り返りAI相談チャット ──────────────────────────────────
+(function() {
+  let reflectionHistory = [];
+  let reflectionSending = false;
+
+  function getAttendanceContext() {
+    // 今日の打刻情報をコンテキストとして取得
+    const clockInEl = document.querySelector('#m-today-records, [id*="today"]');
+    const nameEl = document.querySelector('.m-user-name, #m-user-name');
+    const name = nameEl?.textContent?.trim() || '';
+    const now = new Date();
+    const dateStr = `${now.getMonth()+1}月${now.getDate()}日`;
+    return `今日は${dateStr}です。${name ? `ユーザー名: ${name}。` : ''}`;
+  }
+
+  function addReflectionMessage(role, text) {
+    const el = document.getElementById('m-reflection-messages');
+    if (!el) return;
+    const isUser = role === 'user';
+    const div = document.createElement('div');
+    div.style.cssText = `display:flex;gap:8px;align-items:flex-start;${isUser ? 'flex-direction:row-reverse' : ''}`;
+    div.innerHTML = `
+      <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:${isUser ? 'rgba(5,150,105,.12)' : 'rgba(37,99,235,.1)'}">
+        ${isUser ? '👤' : '🤖'}
+      </div>
+      <div style="max-width:78%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.6;${isUser ? 'background:var(--blue);color:#fff;border-top-right-radius:3px' : 'background:var(--surface);border:1px solid var(--border);color:var(--ink);border-top-left-radius:3px'}">
+        ${text.replace(/\n/g, '<br>')}
+      </div>`;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  async function sendReflectionMessage() {
+    if (reflectionSending) return;
+    const input = document.getElementById('m-reflection-input');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    reflectionSending = true;
+    addReflectionMessage('user', text);
+
+    // 初回メッセージ時にシステムプロンプトを設定
+    const systemInstruction = {
+      parts: [{ text: `あなたは仕事の振り返りをサポートするAI秘書です。${getAttendanceContext()}ユーザーの今日の業務について、共感しながら丁寧に振り返りをサポートしてください。良かった点・改善点・明日への展望などを引き出す質問をしながら、前向きに対話してください。返答は簡潔で温かみのあるトーンで。` }]
+    };
+
+    reflectionHistory.push({ role: 'user', parts: [{ text }] });
+
+    // ローディング表示
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'm-reflection-loading';
+    loadingDiv.style.cssText = 'display:flex;gap:4px;padding:8px 12px;align-items:center';
+    loadingDiv.innerHTML = `<div style="width:28px;height:28px;border-radius:50%;background:rgba(37,99,235,.1);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div>
+      <div style="display:flex;gap:4px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;border-top-left-radius:3px">
+        ${[1,2,3].map(i => `<span style="width:6px;height:6px;background:var(--ink3);border-radius:50%;animation:rmBounce 1.2s ease-in-out ${(i-1)*0.2}s infinite;display:inline-block"></span>`).join('')}
+      </div>`;
+    const msgs = document.getElementById('m-reflection-messages');
+    if (msgs) { msgs.appendChild(loadingDiv); msgs.scrollTop = msgs.scrollHeight; }
+
+    try {
+      const res = await fetch('/.netlify/functions/gemini-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: reflectionHistory, systemInstruction })
+      });
+      const data = await res.json();
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'うまく返答できませんでした。';
+      reflectionHistory.push({ role: 'model', parts: [{ text: reply }] });
+      loadingDiv.remove();
+      addReflectionMessage('ai', reply);
+    } catch (e) {
+      loadingDiv.remove();
+      addReflectionMessage('ai', '⚠️ エラーが発生しました。もう一度お試しください。');
+    } finally {
+      reflectionSending = false;
+    }
+  }
+
+  function handleReflectionKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      sendReflectionMessage();
+    }
+  }
+
+  window.sendReflectionMessage = sendReflectionMessage;
+  window.handleReflectionKey   = handleReflectionKey;
+})();
 </script>
 </body>
 </html>

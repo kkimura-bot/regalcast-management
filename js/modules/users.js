@@ -15,18 +15,27 @@ import { escHtml } from '../utils/helpers.js';
 
 let _bulkDeleteSelected = new Set();
 let _cachedSalNames = new Set();
+let _cachedRoadmapNames = new Set();
 
 // ── Load ──────────────────────────────────────────────────
 
 export async function loadUsers() {
-  const [usersSnap, salarySnap] = await Promise.all([
+  const [usersSnap, salarySnap, roadmapSnap] = await Promise.all([
     getDocs(query(collection(db,'users'), orderBy('name'))),
-    getDocs(collection(db,'salary'))
+    getDocs(collection(db,'salary')),
+    getDocs(collection(db,'academy_roadmap'))
   ]);
   RC._cachedMembers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  // salaryコレクションに存在するメンバー名のセット（nameフィールドで突き合わせ）
+  // salaryコレクションに存在するメンバー名のセット
   _cachedSalNames = new Set(salarySnap.docs.map(d => d.data().name).filter(Boolean));
+
+  // ロードマップが設定済みのメンバー名のセット（{name}_custom_plan 形式のドキュメントのみ）
+  _cachedRoadmapNames = new Set(
+    roadmapSnap.docs
+      .filter(d => d.id.endsWith('_custom_plan'))
+      .map(d => d.id.replace('_custom_plan', ''))
+  );
 
   renderUsersTable(_getSortedFilteredMembers(), _cachedSalNames);
 }
@@ -48,7 +57,7 @@ function _userRow(u, salNames) {
       <input type="checkbox" class="user-check" value="${u.id}" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)"
         onchange="updateBulkDeleteBar()">
     </td>
-    <td style="font-weight:600">${escHtml(u.name||'—')}${retiredBadge}</td>
+    <td style="font-weight:600;cursor:pointer;color:var(--blue)" onclick="openRoadmapPreviewModal('${u.id}','${escHtml(u.name||'')}')">${escHtml(u.name||'—')}${retiredBadge}</td>
     <td style="font-size:11px;color:var(--ink3)">${escHtml(u.email||'—')}</td>
     <td>
       <span class="badge ${u.role==='admin'?'badge-doing':u.role==='leader'?'badge-leader':'badge-todo'}">${roleLabel(u.role)}</span>
@@ -57,7 +66,7 @@ function _userRow(u, salNames) {
     <td style="font-size:11px;color:var(--ink3)">${escHtml(u.dept||'—')}</td>
     <td style="font-size:11px;color:var(--ink3)">${escHtml(u.company||'—')}</td>
     <td style="display:flex;gap:6px;align-items:center">
-      ${!isContractor && !u.isRetired ? `<button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2)" onclick="window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ</button>` : ''}
+      ${!isContractor && !u.isRetired ? `<button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2);position:relative" onclick="window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ${!_cachedRoadmapNames.has(u.name) ? `<span style="position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:6px;line-height:1.4">未設定</span>` : ''}</button>` : ''}
       <button class="mini-btn" onclick="openEditUserModal('${u.id}')">編集</button>
     </td>
   </tr>`;
@@ -70,7 +79,7 @@ function _userCard(u, salNames) {
   const retiredBadge = u.isRetired ? `<span class="badge" style="background:rgba(100,100,100,.12);color:var(--ink3)">退職</span>` : '';
   return `<div class="m-card" style="${cardStyle}" onclick="openEditUserModal('${u.id}')">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <div style="font-weight:700">${escHtml(u.name||'—')}</div>
+      <div style="font-weight:700;color:var(--blue);cursor:pointer" onclick="event.stopPropagation();openRoadmapPreviewModal('${u.id}','${escHtml(u.name||'')}')">${escHtml(u.name||'—')}</div>
       <div style="display:flex;gap:4px;align-items:center">
         <span class="badge ${u.role==='admin'?'badge-doing':u.role==='leader'?'badge-leader':'badge-todo'}">${roleLabel(u.role)}</span>
         ${retiredBadge}
@@ -80,7 +89,7 @@ function _userCard(u, salNames) {
     <div style="font-size:11px;color:var(--ink3);margin-top:4px">${escHtml(u.email||'—')}</div>
     <div style="font-size:11px;color:var(--ink3)">${escHtml(u.dept||'—')}</div>
     ${u.company ? `<div style="font-size:11px;color:var(--ink3)">${escHtml(u.company)}</div>` : ''}
-    ${!isContractor && !u.isRetired ? `<div style="margin-top:8px"><button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2)" onclick="event.stopPropagation();window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ</button></div>` : ''}
+    ${!isContractor && !u.isRetired ? `<div style="margin-top:8px"><button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2);position:relative" onclick="event.stopPropagation();window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ${!_cachedRoadmapNames.has(u.name) ? `<span style="position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:6px;line-height:1.4">未設定</span>` : ''}</button></div>` : ''}
   </div>`;
 }
 
@@ -867,6 +876,57 @@ window.loadUsers                = loadUsers;
 window.getMemberNames           = getMemberNames;
 window.renderUsersTable         = renderUsersTable;
 window.updateBulkDeleteBar      = updateBulkDeleteBar;
+// ── Roadmap Preview Modal ──────────────────────────────────
+async function openRoadmapPreviewModal(uid, name) {
+  const periods = [
+    { key: '1month',  label: '1ヶ月後', icon: '🌱', color: '#059669' },
+    { key: '3months', label: '3ヶ月後', icon: '🌿', color: '#2563EB' },
+    { key: '6months', label: '6ヶ月後', icon: '🌳', color: '#D97706' },
+  ];
+
+  // まずローディング状態で開く
+  document.getElementById('modal-title-text').textContent = `📋 ${name} さんのロードマップ`;
+  document.getElementById('modal-body').innerHTML = `
+    <div id="rdm-preview-body" style="color:var(--ink3);font-size:13px;text-align:center;padding:20px 0;max-height:55vh;overflow-y:auto;overflow-x:hidden">読み込み中...</div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="add-btn" style="flex:1;background:rgba(37,99,235,.08);color:var(--blue);border:1px solid rgba(37,99,235,.2)"
+        onclick="window.open('roadmap.html?uid=${uid}','_blank')">📋 ロードマップページを開く</button>
+      <button class="add-btn" style="background:var(--surface2);color:var(--ink2);border:1px solid var(--border)" onclick="closeModal()">閉じる</button>
+    </div>
+  `;
+  openModal();
+
+  // Firestore読み込み
+  try {
+    const snap = await getDoc(doc(db, 'academy_roadmap', `${name}_custom_plan`));
+    const body = document.getElementById('rdm-preview-body');
+    if (!body) return;
+
+    if (!snap.exists() || !snap.data().periods) {
+      body.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--ink3)">📭 まだロードマップが作成されていません</div>';
+      return;
+    }
+
+    const data = snap.data().periods;
+    body.innerHTML = periods.map(p => {
+      const d = data[p.key] || {};
+      const goal = d.goal || '—';
+      const actions = Array.isArray(d.actions) ? d.actions : [];
+      const kpi = d.kpi || '';
+      return `
+        <div style="border:1px solid var(--border);border-left:3px solid ${p.color};border-radius:8px;padding:12px;margin-bottom:10px;text-align:left">
+          <div style="font-weight:700;font-size:12px;color:${p.color};margin-bottom:6px">${p.icon} ${p.label}の目標</div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px;background:var(--surface2);padding:8px;border-radius:6px">${escHtml(goal)}</div>
+          ${actions.length ? `<div style="font-size:11px;color:var(--ink2)">${actions.map(a => `<div style="margin-bottom:3px">▶ ${escHtml(a)}</div>`).join('')}</div>` : ''}
+          ${kpi ? `<div style="font-size:11px;color:var(--blue);margin-top:6px;background:rgba(37,99,235,.06);padding:6px 8px;border-radius:4px">🎯 ${escHtml(kpi)}</div>` : ''}
+        </div>`;
+    }).join('');
+  } catch (e) {
+    const body = document.getElementById('rdm-preview-body');
+    if (body) body.innerHTML = '<div style="color:var(--accent)">読み込みに失敗しました</div>';
+  }
+}
+
 window.selectAllUsers           = selectAllUsers;
 window.bulkDeleteUsers          = bulkDeleteUsers;
 window.openAddUserModal         = openAddUserModal;
@@ -887,6 +947,7 @@ window.filterContractorsByCompany = filterContractorsByCompany;
 window.sortUsers                  = sortUsers;
 window.toggleShowRetired          = toggleShowRetired;
 window.renderAddUserStep        = renderAddUserStep;
+window.openRoadmapPreviewModal  = openRoadmapPreviewModal;
 window.nuUpdateSalaryPreview    = nuUpdateSalaryPreview;
 window.nuPreviewPhoto           = nuPreviewPhoto;
 window.addUserNextStep          = addUserNextStep;
