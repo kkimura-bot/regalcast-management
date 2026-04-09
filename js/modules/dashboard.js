@@ -242,8 +242,9 @@ function renderAdmin(today, att, shifts, mental, unread, unreadForms) {
   const totalMembers = RC._cachedMembers.filter(m =>
     !m.isAlliance && !m.noAuth && m.role !== '委託' && m.role !== 'alliance' && !m.id.startsWith('alliance_')
   ).length;
-  const attendedCount  = att.length;
-  const scheduledCount = shifts.length;
+  const scheduledUids  = new Set(shifts.map(s => s.uid).filter(Boolean));
+  const scheduledCount = scheduledUids.size;
+  const attendedCount  = att.filter(r => r.uid && scheduledUids.has(r.uid)).length;
   const pct = scheduledCount > 0 ? Math.round(attendedCount / scheduledCount * 100) : 0;
 
   // mental summary
@@ -301,7 +302,7 @@ function renderAdmin(today, att, shifts, mental, unread, unreadForms) {
         </div>
         <div class="dash-hero-sub">出勤済み — 本日シフト ${scheduledCount}名中</div>
         <div class="dash-prog-bar">
-          <div class="dash-prog-fill" style="width:${pct}%;background:linear-gradient(90deg,#3a7d5a,#52b788)"></div>
+          <div class="dash-prog-fill" style="width:${Math.min(pct,100)}%;background:linear-gradient(90deg,#3a7d5a,#52b788)"></div>
         </div>
         <div style="font-size:11px;color:#8a93a6;margin-top:6px;text-align:right">${pct}%</div>
       </div>
@@ -407,7 +408,7 @@ function renderLeader(today, att, shifts, mental) {
         </div>
         <div class="dash-hero-sub">出勤済み</div>
         <div class="dash-prog-bar">
-          <div class="dash-prog-fill" style="width:${pct}%;background:linear-gradient(90deg,#2a5298,#4a7bc8)"></div>
+          <div class="dash-prog-fill" style="width:${Math.min(pct,100)}%;background:linear-gradient(90deg,#2a5298,#4a7bc8)"></div>
         </div>
         <div style="font-size:11px;color:#8a93a6;margin-top:6px;text-align:right">${pct}%</div>
       </div>
