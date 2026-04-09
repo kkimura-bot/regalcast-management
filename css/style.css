@@ -472,9 +472,12 @@ tr:hover td { background: #F8FAFC; }
   width: 520px;
   max-width: 95vw;
   max-height: 88vh;
-  overflow-y: auto;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
   animation: modalSlideUp 0.2s ease;
   box-shadow: 0 20px 50px rgba(15,23,42,0.16), 0 4px 12px rgba(15,23,42,0.08);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 @keyframes modalSlideUp {
   from { transform: translateY(14px); opacity: 0; }
@@ -843,6 +846,7 @@ tr:hover td { background: #F8FAFC; }
   transition: color 0.15s;
   gap: 2px;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 .mnav-item.active { color: var(--blue); }
 .mnav-icon  { font-size: 20px; line-height: 1; }

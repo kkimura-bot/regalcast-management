@@ -67,6 +67,7 @@ export function renderSalaryList() {
   if (!_cachedSalary.length) {
     container.innerHTML = '<div class="empty">給与情報が登録されていません</div>'; return;
   }
+  // 退職者を除外
   const retiredNames = new Set(RC._cachedMembers.filter(m => m.isRetired).map(m => m.name).filter(Boolean));
   const activeSalary = _cachedSalary.filter(s => {
     if (s.uid) return !RC._cachedMembers.find(m => m.id === s.uid)?.isRetired;

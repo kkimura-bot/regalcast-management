@@ -14,5 +14,65 @@
       "codebase": "default",
       "ignore": ["node_modules", ".git"]
     }
-  ]
+  ],
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "storage.rules",
+      "cors.json",
+      "deno.lock",
+      "package.json",
+      "package-lock.json",
+      "check_onboarding.mjs",
+      "CLAUDE.md",
+      "REGALCAST_CLAUDE_CODE.md",
+      "RegalCast_App_v126.html",
+      "node_modules/**",
+      "functions/**",
+      "netlify/**",
+      ".git/**"
+    ],
+    "headers": [
+      {
+        "source": "**/*.js",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/javascript"
+          }
+        ]
+      },
+      {
+        "source": "**/*.mjs",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/javascript"
+          }
+        ]
+      },
+      {
+        "source": "**/*.css",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "text/css"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/api/geminiProxy",
+        "function": "geminiProxy",
+        "region": "us-central1"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
 }
