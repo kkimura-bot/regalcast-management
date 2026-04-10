@@ -521,6 +521,98 @@ export function copyBulkUrls() {
   });
 }
 
+// ── 既存アカウントに紐づける ────────────────────────────────
+
+export async function linkSubmissionToExistingUser(submissionId) {
+  const subSnap = await getDoc(doc(db, 'form_submissions', submissionId));
+  if (!subSnap.exists()) { alert('提出データが見つかりません'); return; }
+  const sub = subSnap.data();
+  const fd = sub.formData || {};
+
+  // 既存メンバー一覧（委託除く）
+  const members = (RC._cachedMembers || []).filter(m => {
+    return !m.isAlliance && !m.noAuth && m.role !== '委託' && m.role !== 'alliance' && !m.id.startsWith('alliance_');
+  });
+
+  const opts = members.map(m =>
+    `<option value="${m.id}">${escHtml(m.name)}（${escHtml(m.dept||'—')}）</option>`
+  ).join('');
+
+  document.getElementById('modal-title-text').textContent = '🔗 既存アカウントに紐づける';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:13px;color:var(--ink3);margin-bottom:16px;line-height:1.7">
+      提出済みフォームを既存のアカウントに紐づけます。<br>
+      入社手続きタブに自動で反映されます。
+    </div>
+    ${fd.fullName ? `
+    <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.9;margin-bottom:16px">
+      <div><strong>フォーム氏名：</strong>${escHtml(fd.fullName)}（${escHtml(fd.fullNameKana||'—')}）</div>
+      <div><strong>メール：</strong>${escHtml(fd.email||'—')}</div>
+      <div><strong>提出日：</strong>${sub.submittedAt ? sub.submittedAt.slice(0,10) : '—'}</div>
+    </div>` : ''}
+    <div class="form-row">
+      <label class="form-label">紐づけるアカウント<span style="color:var(--accent);margin-left:4px">必須</span></label>
+      <select class="form-input" id="link-member-select">
+        <option value="">選択してください</option>
+        ${opts}
+      </select>
+    </div>
+    <div id="link-error" style="font-size:12px;color:var(--accent);min-height:14px;margin-top:8px"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="link-confirm-btn" onclick="confirmLinkSubmission('${submissionId}')">🔗 紐づける</button>
+    </div>`;
+  openModal();
+}
+
+export async function confirmLinkSubmission(submissionId) {
+  const uid = document.getElementById('link-member-select')?.value;
+  const errEl = document.getElementById('link-error');
+  if (!uid) { errEl.textContent = 'アカウントを選択してください'; return; }
+
+  const btn = document.getElementById('link-confirm-btn');
+  btn.disabled = true; btn.textContent = '処理中...';
+
+  try {
+    const subSnap = await getDoc(doc(db, 'form_submissions', submissionId));
+    const sub = subSnap.data();
+    const m = RC._cachedMembers.find(x => x.id === uid);
+
+    // form_submissions の uid を更新・pending 解除
+    await updateDoc(doc(db, 'form_submissions', submissionId), {
+      uid,
+      name: m?.name || sub.name || '',
+      pending: false,
+      linkedAt: new Date().toISOString(),
+    });
+
+    // onboarding ドキュメントを作成 or 更新（formData をマージ）
+    const existing = _cachedOnboarding[uid] || {};
+    const obData = {
+      uid,
+      name: m?.name || '',
+      formToken: sub.token || submissionId,
+      formIssuedAt: sub.issuedAt || null,
+      updatedAt: serverTimestamp(),
+    };
+    if (!existing.createdAt) obData.createdAt = serverTimestamp();
+
+    await setDoc(doc(db, 'onboarding', uid), obData, { merge: true });
+
+    closeModal();
+    alert(`✅ ${m?.name || ''} さんのアカウントに紐づけました。\n入社手続きタブで内容を確認できます。`);
+
+    // 両方リロード
+    await Promise.all([
+      loadOnboarding(),
+      window.loadReports?.(),
+    ]);
+  } catch(e) {
+    errEl.textContent = 'エラー: ' + e.message;
+    btn.disabled = false; btn.textContent = '🔗 紐づける';
+  }
+}
+
 window.loadOnboarding       = loadOnboarding;
 window.openOnboardingModal  = openOnboardingModal;
 window.saveOnboarding       = saveOnboarding;
@@ -531,6 +623,8 @@ window.copyFormUrl          = copyFormUrl;
 window.openPendingFormModal = openPendingFormModal;
 window.issuePendingFormUrl  = issuePendingFormUrl;
 window.copyPendingUrl       = copyPendingUrl;
-window.approveAndCreateAccount = approveAndCreateAccount;
-window.bulkIssueFormUrls    = bulkIssueFormUrls;
-window.copyBulkUrls         = copyBulkUrls;
+window.approveAndCreateAccount   = approveAndCreateAccount;
+window.bulkIssueFormUrls         = bulkIssueFormUrls;
+window.copyBulkUrls              = copyBulkUrls;
+window.linkSubmissionToExistingUser = linkSubmissionToExistingUser;
+window.confirmLinkSubmission     = confirmLinkSubmission;

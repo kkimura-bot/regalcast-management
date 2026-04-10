@@ -411,7 +411,8 @@ function renderFormSubmissions() {
       </div>` : ''}
       ${isNew ? `<button class="mini-btn" style="color:var(--accent2);border-color:var(--accent2)" onclick="markFormSubmissionRead('${s.id}')">✅ 確認済みにする</button>` : ''}
       ${s.pending || !s.uid
-        ? `<button class="mini-btn" style="margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="approveAndCreateAccount('${s.id}')">✅ 承認 & アカウント作成</button>`
+        ? `<button class="mini-btn" style="margin-left:8px;color:var(--blue);border-color:var(--blue)" onclick="approveAndCreateAccount('${s.id}')">✅ 承認 & アカウント作成</button>
+           <button class="mini-btn" style="margin-left:8px;color:var(--accent2);border-color:var(--accent2)" onclick="linkSubmissionToExistingUser('${s.id}')">🔗 既存アカウントに紐づける</button>`
         : `<button class="mini-btn" style="margin-left:8px" onclick="if(window.innerWidth<=767){switchMobile('onboarding',document.querySelector('.mnav-item[onclick*=onboarding]'))}else{switchTab('onboarding');openOnboardingModal('${s.uid}')}">入社手続き管理へ →</button>`
       }
     </div>`;
