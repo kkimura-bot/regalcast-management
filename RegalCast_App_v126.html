@@ -5799,6 +5799,11 @@ window.deleteUser = async (uid, encodedName) => {
     for (const d of pjSnap.docs) await updateDoc(d.ref, { member: '未担当' });
     // Firestoreからユーザー削除
     await deleteDoc(doc(db, 'users', uid));
+    // Firebase AuthアカウントをCloud Function経由で削除
+    const { getFunctions, httpsCallable } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js");
+    const functions = getFunctions(app, 'us-central1');
+    const deleteAuthUser = httpsCallable(functions, 'deleteAuthUser');
+    await deleteAuthUser({ uid });
     closeModal();
     await loadUsers();
     alert(`${name} さんを削除しました。\n担当タスク・PJは「未担当」に変更されました。`);

@@ -1,11 +1,31 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { onRequest }  = require('firebase-functions/v2/https');
+const { onRequest, onCall } = require('firebase-functions/v2/https');
 const { initializeApp }  = require('firebase-admin/app');
 const { getFirestore }   = require('firebase-admin/firestore');
+const { getAuth }        = require('firebase-admin/auth');
 const nodemailer         = require('nodemailer');
 
 initializeApp();
 const db = getFirestore();
+
+// ── Auth ユーザー削除 ─────────────────────────────────────
+// 管理者がスタッフを削除する際にFirebase AuthアカウントもAdmin SDKで削除する
+
+exports.deleteAuthUser = onCall(
+  { invoker: 'public' },
+  async (request) => {
+    const { uid } = request.data;
+    if (!uid) throw new Error('uid is required');
+    try {
+      await getAuth().deleteUser(uid);
+      return { success: true };
+    } catch (e) {
+      // Auth上に存在しない場合（noAuthユーザー等）はエラーを無視して成功扱い
+      if (e.code === 'auth/user-not-found') return { success: true };
+      throw e;
+    }
+  }
+);
 
 // ── Gemini API プロキシ ────────────────────────────────────
 // GEMINI_API_KEY を安全にサーバーサイドで保持するためのプロキシ
