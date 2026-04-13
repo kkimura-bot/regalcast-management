@@ -117,6 +117,9 @@ export function postLoginSetup() {
   }
   loadGoalWidget();
   window.loadMemberTaskWidget?.();
+  if (isLeaderOrAbove()) {
+    window.loadTaskSummaryWidget?.();
+  }
 }
 
 window.postLoginSetup = postLoginSetup;

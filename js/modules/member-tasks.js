@@ -103,6 +103,95 @@ async function toggleMemberTask(taskId, currentStatus) {
 }
 
 // ══════════════════════════════════════════════════════════
+// 1b. 管理者・リーダー用 — メンバータスク状況一覧ウィジェット
+// ══════════════════════════════════════════════════════════
+
+export async function loadTaskSummaryWidget() {
+  const widget = document.getElementById('task-summary-widget');
+  if (!widget) return;
+  if (!isLeaderOrAbove()) { widget.style.display = 'none'; return; }
+
+  try {
+    // pending / in_progress のタスクを全件取得
+    const q = query(
+      collection(db, COL),
+      where('status', 'in', ['pending', 'in_progress'])
+    );
+    const snap = await getDocs(q);
+    const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // memberId でグルーピング
+    const countMap = {};  // memberId -> count
+    tasks.forEach(t => {
+      const mid = t.memberId || '_unlinked';
+      countMap[mid] = (countMap[mid] || 0) + 1;
+    });
+
+    // 全メンバーを含めてリスト化（タスク0件も表示）
+    const members = (RC._cachedMembers || []).map(m => ({
+      id: m.id,
+      name: m.name || '不明',
+      count: countMap[m.id] || 0,
+    }));
+
+    // 件数が多い順にソート
+    members.sort((a, b) => b.count - a.count);
+
+    // 折りたたみ対応のHTML構築
+    const rows = members.map(m => {
+      const warn = m.count >= 5;
+      const zero = m.count === 0;
+      const badge = warn ? ' <span style="font-size:12px">⚠️</span>'
+                   : zero ? ' <span style="font-size:12px">✅</span>' : '';
+      const countColor = warn ? 'var(--accent)' : zero ? 'var(--accent2)' : 'var(--ink)';
+      const countWeight = warn ? '700' : '500';
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px;color:var(--ink);font-weight:500">${esc(m.name)}</span>
+          <span style="font-size:12px;color:${countColor};font-weight:${countWeight};font-family:'DM Mono',monospace;white-space:nowrap">
+            ${zero ? '0件' : `残り ${m.count}件`}${badge}
+          </span>
+        </div>`;
+    }).join('');
+
+    // 未紐づけタスクがあれば注記
+    const unlinkCount = countMap['_unlinked'] || 0;
+    const unlinkNote = unlinkCount > 0
+      ? `<div style="font-size:10px;color:var(--warn);margin-top:8px;font-weight:600">⚠ 未紐づけタスク: ${unlinkCount}件</div>`
+      : '';
+
+    const totalPending = tasks.length;
+
+    widget.innerHTML = `
+      <details open>
+        <summary style="display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;user-select:none">
+          <span style="font-size:16px">📋</span>
+          <span style="font-size:12px;font-weight:700;color:var(--ink)">メンバータスク状況</span>
+          <span style="font-size:10px;color:var(--ink3);font-family:'DM Mono',monospace;margin-left:auto">全${totalPending}件</span>
+          <span style="font-size:10px;color:var(--ink3);transition:transform .2s;margin-left:4px">▼</span>
+        </summary>
+        <div style="margin-top:8px">
+          ${members.length ? rows : '<div style="font-size:12px;color:var(--ink3);padding:8px 0">メンバーがいません</div>'}
+          ${unlinkNote}
+        </div>
+      </details>
+    `;
+    // details の開閉でアイコン回転
+    const det = widget.querySelector('details');
+    if (det) {
+      det.addEventListener('toggle', () => {
+        const arrow = det.querySelector('summary span:last-child');
+        if (arrow) arrow.style.transform = det.open ? '' : 'rotate(-90deg)';
+      });
+    }
+    widget.style.display = 'block';
+  } catch (e) {
+    console.log('Task summary widget load failed:', e);
+    widget.style.display = 'none';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
 // 2. 管理者画面用 — タスク一覧・追加・編集・削除・紐づけ
 // ══════════════════════════════════════════════════════════
 
@@ -442,6 +531,7 @@ function formatDueDate(dueDate, today) {
 
 // ── Window exports ────────────────────────────────────────
 window.loadMemberTaskWidget      = loadMemberTaskWidget;
+window.loadTaskSummaryWidget     = loadTaskSummaryWidget;
 window.toggleMemberTask          = toggleMemberTask;
 window.loadAdminMemberTasks      = loadAdminMemberTasks;
 window.filterAdminMTMember       = filterAdminMTMember;
