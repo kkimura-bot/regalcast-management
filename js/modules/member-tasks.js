@@ -56,7 +56,7 @@ export async function loadMemberTaskWidget() {
       const dueStr = t.dueDate ? formatDueDate(t.dueDate, today) : '';
       const isOverdue = t.dueDate && t.dueDate < today && t.status !== 'completed';
       return `
-        <div class="mt-widget-item" data-id="${t.id}" onclick="toggleMemberTask('${t.id}','${t.status}')" style="cursor:pointer">
+        <div class="mt-widget-item" data-id="${t.id}" style="cursor:default">
           <div style="display:flex;align-items:flex-start;gap:10px">
             <span style="font-size:16px;margin-top:1px;flex-shrink:0;transition:transform .2s">${st.icon}</span>
             <div style="flex:1;min-width:0">
@@ -136,12 +136,14 @@ export async function loadTaskSummaryWidget() {
       countMap[mid] = (countMap[mid] || 0) + 1;
     });
 
-    // 全メンバーを含めてリスト化（タスク0件も表示）
-    const members = (RC._cachedMembers || []).map(m => ({
-      id: m.id,
-      name: m.name || '不明',
-      count: countMap[m.id] || 0,
-    }));
+    // 社員メンバーのみ（委託メンバーは除外）
+    const members = (RC._cachedMembers || [])
+      .filter(m => !m.isAlliance && !m.noAuth && m.role !== '委託' && m.role !== 'alliance' && !m.id?.startsWith('alliance_'))
+      .map(m => ({
+        id: m.id,
+        name: m.name || '不明',
+        count: countMap[m.id] || 0,
+      }));
 
     // 件数が多い順にソート
     members.sort((a, b) => b.count - a.count);
