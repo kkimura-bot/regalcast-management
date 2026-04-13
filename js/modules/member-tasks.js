@@ -91,10 +91,16 @@ export async function loadMemberTaskWidget() {
 async function toggleMemberTask(taskId, currentStatus) {
   const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
   try {
-    await updateDoc(doc(db, COL, taskId), {
+    const updateData = {
       status: newStatus,
-      updatedAt: serverTimestamp()
-    });
+      updatedAt: serverTimestamp(),
+    };
+    // 完了にしたときはsyncPendingフラグを立てる（LINE秘書Botがスプレッドシートに同期する）
+    // 未完了に戻したときもフラグを立てて同期対象にする
+    if (newStatus === 'completed' || currentStatus === 'completed') {
+      updateData.syncPending = true;
+    }
+    await updateDoc(doc(db, COL, taskId), updateData);
     loadMemberTaskWidget();
   } catch (e) {
     console.error('Task status update failed:', e);
