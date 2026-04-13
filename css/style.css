@@ -1139,3 +1139,17 @@ optgroup option { font-weight: 400; color: var(--ink); }
 
   /* モバイルナビ高さ調整: JSで動的に設定するためCSSでは指定しない */
 }
+
+/* ── Member Task Widget items ────────────── */
+.mt-widget-item {
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+  transition: background .15s, transform .15s;
+}
+.mt-widget-item:hover {
+  background: rgba(37,99,235,.06);
+}
+.mt-widget-item:active {
+  transform: scale(.98);
+}

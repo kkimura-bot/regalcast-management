@@ -51,7 +51,8 @@ export function switchMobile(name, el) {
   if (name === 'mysalary')    window.loadMySalaryPage?.();
   if (name === 'mypage')      window.loadMyPage?.();
   if (name === 'adminshifts') window.loadAdminShiftsM?.();
-  if (name === 'dashboard')   window.loadDashboard?.();
+  if (name === 'dashboard')    window.loadDashboard?.();
+  if (name === 'membertasks')  window.loadAdminMemberTasks?.();
 }
 
 window.switchMobile            = switchMobile;

@@ -82,8 +82,9 @@ export function switchTab(name) {
   if (name === 'mental')     window.loadMentalData?.();
   if (name === 'myshift')    window.loadMyShiftReport?.();
   if (name === 'mysalary')   window.loadMySalaryPage?.();
-  if (name === 'mypage')     window.loadMyPage?.();
-  if (name === 'dashboard')  window.loadDashboard?.();
+  if (name === 'mypage')       window.loadMyPage?.();
+  if (name === 'dashboard')    window.loadDashboard?.();
+  if (name === 'membertasks')  window.loadAdminMemberTasks?.();
 }
 
 // Event delegation: nav-tab clicks (pointer-event-safe, no onclick dependency)

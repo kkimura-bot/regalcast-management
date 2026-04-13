@@ -9045,6 +9045,26 @@ optgroup option { font-weight:400; color:var(--ink); }
       <div id="m-task-list"></div>
     </div>
 
+    <!-- M: MEMBER TASKS (秘書タスク管理) -->
+    <div class="mobile-view" id="m-view-membertasks">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:14px;font-weight:700;color:var(--ink)">📋 秘書タスク</div>
+        <button class="btn btn-primary" onclick="openAddMemberTaskModal()" style="font-size:11px;padding:6px 12px">＋ 追加</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="kpi-card" style="border-left-color:var(--blue)"><div class="kpi-num" id="m-mt-kpi-total" style="color:var(--blue)">0</div><div class="kpi-label">総数</div></div>
+        <div class="kpi-card" style="border-left-color:#d97706"><div class="kpi-num" id="m-mt-kpi-unlinked" style="color:#d97706">0</div><div class="kpi-label">未紐づけ</div></div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="pj-filter-btn admin-mt-status-btn active" data-status="all" onclick="filterAdminMTStatus('all')">すべて</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="pending" onclick="filterAdminMTStatus('pending')">未着手</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="in_progress" onclick="filterAdminMTStatus('in_progress')">進行中</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="completed" onclick="filterAdminMTStatus('completed')">完了</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="unlinked" onclick="filterAdminMTStatus('unlinked')" style="border-color:#d97706;color:#d97706">未紐づけ</button>
+      </div>
+      <div id="m-admin-mt-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
     <!-- M: ATTENDANCE -->
     <div class="mobile-view" id="m-view-attendance">
       <!-- 面談リクエストボタン（メンバー・リーダーのみ） -->
@@ -9428,6 +9448,7 @@ optgroup option { font-weight:400; color:var(--ink); }
       <div class="mnav-item active" onclick="switchMobile('dashboard',this)" data-roles="admin,leader,member"><div class="mnav-icon">📊</div><div class="mnav-label">ホーム</div></div>
       <div class="mnav-item" onclick="switchMobile('projects',this)" data-roles="" style="display:none"><div class="mnav-icon">🗂</div><div class="mnav-label">PJ</div></div>
       <div class="mnav-item" onclick="switchMobile('tasks',this)" data-roles="" style="display:none"><div class="mnav-icon">✅</div><div class="mnav-label">タスク</div></div>
+      <div class="mnav-item" onclick="switchMobile('membertasks',this)" data-roles="admin"><div class="mnav-icon">📋</div><div class="mnav-label">秘書タスク</div></div>
       <div class="mnav-item" onclick="switchMobile('attendance',this)" data-roles="admin,leader,member"><div class="mnav-icon">🕐</div><div class="mnav-label">出退勤</div></div>
       <div class="mnav-item" onclick="switchMobile('mysalary',this)" data-roles="member,leader"><div class="mnav-icon">💰</div><div class="mnav-label">給与</div></div>
       <div class="mnav-item" onclick="switchMobile('monthly',this)" data-roles="admin,leader,member"><div class="mnav-icon">📋</div><div class="mnav-label">勤怠表</div></div>
@@ -9462,6 +9483,7 @@ optgroup option { font-weight:400; color:var(--ink); }
     <div class="tab active" onclick="switchTab('dashboard')" data-roles="admin,leader,member">📊 ダッシュボード <span id="notif-badge" class="notif-badge" style="display:inline-flex"></span></div>
     <div class="tab" onclick="switchTab('projects')" data-roles="" style="display:none">🗂 PJ管理</div>
     <div class="tab" onclick="switchTab('tasks')" data-roles="" style="display:none">✅ タスク管理</div>
+    <div class="tab" onclick="switchTab('membertasks')" data-roles="admin">📋 秘書タスク <span id="mt-unlink-badge-pc" class="notif-badge" style="display:none;background:#d97706"></span></div>
     <div class="tab" onclick="switchTab('attendance')" data-roles="admin,leader,member">🕐 出退勤</div>
     <div class="tab" onclick="switchTab('shifts')" data-roles="admin,leader,member">📅 シフト確認</div>
     <div class="tab" onclick="switchTab('myshift')" data-roles="member,leader">📝 シフト報告</div>
@@ -9642,6 +9664,39 @@ optgroup option { font-weight:400; color:var(--ink); }
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- MEMBER TASKS (秘書タスク管理) -->
+    <div id="view-membertasks" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:700;color:var(--ink)">📋 秘書タスク管理</div>
+        <button class="btn btn-primary" onclick="openAddMemberTaskModal()" style="font-size:12px;padding:8px 16px">＋ タスク追加</button>
+      </div>
+      <!-- KPI -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+        <div class="kpi-card" style="border-left-color:var(--blue)"><div class="kpi-num" id="mt-kpi-total" style="color:var(--blue)">0</div><div class="kpi-label">総数</div></div>
+        <div class="kpi-card" style="border-left-color:var(--warn)"><div class="kpi-num" id="mt-kpi-pending" style="color:var(--warn)">0</div><div class="kpi-label">未完了</div></div>
+        <div class="kpi-card" style="border-left-color:var(--accent2)"><div class="kpi-num" id="mt-kpi-done" style="color:var(--accent2)">0</div><div class="kpi-label">完了</div></div>
+        <div class="kpi-card" style="border-left-color:#d97706"><div class="kpi-num" id="mt-kpi-unlinked" style="color:#d97706">0</div><div class="kpi-label">未紐づけ</div></div>
+      </div>
+      <!-- Status filter -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;align-items:center">
+        <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">ステータス</span>
+        <button class="pj-filter-btn admin-mt-status-btn active" data-status="all" onclick="filterAdminMTStatus('all')">すべて</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="pending" onclick="filterAdminMTStatus('pending')">未着手</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="in_progress" onclick="filterAdminMTStatus('in_progress')">進行中</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="completed" onclick="filterAdminMTStatus('completed')">完了</button>
+        <button class="pj-filter-btn admin-mt-status-btn" data-status="unlinked" onclick="filterAdminMTStatus('unlinked')" style="border-color:#d97706;color:#d97706">未紐づけ <span id="admin-mt-unlink-badge" class="notif-badge" style="display:none;background:#d97706;font-size:9px;padding:1px 5px;margin-left:4px"></span></button>
+      </div>
+      <!-- Member filter -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+        <span style="font-size:10px;color:var(--ink3);align-self:center;white-space:nowrap;font-family:'DM Mono',monospace">メンバー</span>
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="admin-mt-member-filters">
+          <button class="pj-filter-btn admin-mt-member-btn active" onclick="filterAdminMTMember('all')">全員</button>
+        </div>
+      </div>
+      <!-- Task list -->
+      <div id="admin-mt-list" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
 
     <!-- ATTENDANCE -->

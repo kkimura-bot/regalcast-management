@@ -17,8 +17,9 @@ export const RC = {
   _cachedMembers:    [],
   _cachedTasks:      [],
   _cachedAttendance: [],
-  _cachedProjects:   [],
-  _cachedSalary:     [],
+  _cachedProjects:     [],
+  _cachedMemberTasks:  [],
+  _cachedSalary:       [],
 
   // Filters
   _taskFilter: { status: 'all', member: 'all', dept: 'all' },

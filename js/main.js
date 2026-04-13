@@ -25,6 +25,7 @@ import './modules/profiles.js';
 import './modules/onboarding.js';
 import './modules/offboarding.js';
 import './modules/notifications.js';
+import './modules/member-tasks.js';
 
 // ── postLoginSetup ────────────────────────────────────────
 
@@ -115,6 +116,7 @@ export function postLoginSetup() {
     window.loadMySalaryInfo?.();
   }
   loadGoalWidget();
+  window.loadMemberTaskWidget?.();
 }
 
 window.postLoginSetup = postLoginSetup;
@@ -122,7 +124,7 @@ window.postLoginSetup = postLoginSetup;
 // ── 今月の目標ウィジェット ──────────────────────────────────
 
 async function loadGoalWidget() {
-  if (RC.currentRole !== 'member') return;
+  // 管理者でも自分の目標を表示する（member限定を解除）
   const name = RC.currentUserData?.name;
   if (!name) return;
   const card = document.getElementById('m-goal-widget');
