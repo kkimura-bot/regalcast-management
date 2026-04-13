@@ -120,6 +120,9 @@ export function postLoginSetup() {
   if (isLeaderOrAbove()) {
     window.loadTaskSummaryWidget?.();
   }
+  if (isAdmin()) {
+    window.loadUnlinkedTasksWidget?.();
+  }
 }
 
 window.postLoginSetup = postLoginSetup;

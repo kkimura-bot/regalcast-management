@@ -198,6 +198,87 @@ export async function loadTaskSummaryWidget() {
 }
 
 // ══════════════════════════════════════════════════════════
+// 1c. 管理者ダッシュボード用 — 未紐づけタスク紐づけウィジェット
+// ══════════════════════════════════════════════════════════
+
+export async function loadUnlinkedTasksWidget() {
+  const widget = document.getElementById('unlinked-tasks-widget');
+  if (!widget) return;
+  if (!isAdmin()) { widget.style.display = 'none'; return; }
+
+  try {
+    const q = query(
+      collection(db, COL),
+      where('isLinked', '==', false)
+    );
+    const snap = await getDocs(q);
+    const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (!tasks.length) {
+      widget.style.display = 'none';
+      return;
+    }
+
+    // メンバー選択肢
+    const memberOpts = (RC._cachedMembers || []).map(m =>
+      `<option value="${m.id}">${esc(m.name)}</option>`
+    ).join('');
+
+    const rows = tasks.map(t => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid rgba(217,119,6,.2);border-radius:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">「${esc(t.title)}」</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:2px">担当: ${esc(t.memberName || '不明')}</div>
+        </div>
+        <select id="link-sel-${t.id}" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);min-width:100px;max-width:140px">
+          <option value="">メンバー選択</option>
+          ${memberOpts}
+        </select>
+        <button onclick="linkTaskFromWidget('${t.id}')"
+          style="font-size:11px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;background:var(--blue);color:#fff;cursor:pointer;white-space:nowrap;transition:opacity .15s"
+          onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">紐づける</button>
+      </div>
+    `).join('');
+
+    widget.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <span style="font-size:16px">⚠️</span>
+        <span style="font-size:12px;font-weight:700;color:#d97706">未紐づけタスク（${tasks.length}件）</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
+    `;
+    widget.style.display = 'block';
+  } catch (e) {
+    console.log('Unlinked tasks widget load failed:', e);
+    widget.style.display = 'none';
+  }
+}
+
+async function linkTaskFromWidget(taskId) {
+  const sel = document.getElementById(`link-sel-${taskId}`);
+  if (!sel || !sel.value) { alert('メンバーを選択してください'); return; }
+  const memberId = sel.value;
+  const user = (RC._cachedMembers || []).find(m => m.id === memberId);
+  if (!user) { alert('メンバーが見つかりません'); return; }
+
+  try {
+    await updateDoc(doc(db, COL, taskId), {
+      memberId: memberId,
+      memberName: (user.name || '').split(/\s+/)[0] || user.name,
+      isLinked: true,
+      updatedAt: serverTimestamp(),
+    });
+    // ウィジェットをリロード
+    loadUnlinkedTasksWidget();
+    // タスクサマリーも更新
+    if (window.loadTaskSummaryWidget) window.loadTaskSummaryWidget();
+  } catch (e) {
+    console.error('Task link failed:', e);
+    alert('紐づけに失敗しました');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
 // 2. 管理者画面用 — タスク一覧・追加・編集・削除・紐づけ
 // ══════════════════════════════════════════════════════════
 
@@ -549,3 +630,5 @@ window.openAddMemberTaskModal    = openAddMemberTaskModal;
 window.openEditMemberTaskModal   = openEditMemberTaskModal;
 window.doLinkMemberTask          = doLinkMemberTask;
 window.linkMemberTaskToUser      = linkMemberTaskToUser;
+window.loadUnlinkedTasksWidget   = loadUnlinkedTasksWidget;
+window.linkTaskFromWidget        = linkTaskFromWidget;
