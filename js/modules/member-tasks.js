@@ -90,6 +90,9 @@ export async function loadMemberTaskWidget() {
 // メンバーがタスクの完了をトグル
 async function toggleMemberTask(taskId, currentStatus) {
   const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+  if (newStatus === 'completed') {
+    if (!confirm('本当に完了しましたか？\n\nこちらで完了にするとLINE秘書からのリマインド通知も来なくなります。')) return;
+  }
   try {
     const updateData = {
       status: newStatus,
