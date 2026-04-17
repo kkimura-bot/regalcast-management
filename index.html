@@ -437,6 +437,23 @@
 
     <!-- M: MY PAGE -->
     <!-- M: PROFILES -->
+    <!-- M: FORM SUBMISSIONS -->
+    <div class="mobile-view" id="m-view-formsubmissions">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div style="font-weight:700;font-size:14px">📬 入社フォーム確認</div>
+        <button class="mini-btn" onclick="loadFormSubmissions()" style="font-size:11px">🔄 更新</button>
+      </div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:10px">採用予定者から提出された入社フォームを確認できます</div>
+      <div style="display:flex;gap:0;overflow-x:auto;padding-bottom:2px;margin-bottom:12px;-webkit-overflow-scrolling:touch;border-bottom:1.5px solid var(--border)">
+        <button class="form-sub-tab active" data-filter="unread"    onclick="filterFormSubmissions('unread',this)"    style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:6px 12px;border:none;border-bottom:2px solid var(--ink);background:none;cursor:pointer;font-weight:700;color:var(--ink)">🆕 未処理</button>
+        <button class="form-sub-tab"        data-filter="processed" onclick="filterFormSubmissions('processed',this)" style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:6px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">✅ 処理済</button>
+        <button class="form-sub-tab"        data-filter="all"       onclick="filterFormSubmissions('all',this)"       style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:6px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">📋 すべて</button>
+        <button class="form-sub-tab"        data-filter="deleted"   onclick="filterFormSubmissions('deleted',this)"   style="white-space:nowrap;flex-shrink:0;font-size:11px;padding:6px 12px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3)">🗑 削除済</button>
+      </div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:8px" id="m-form-sub-count">—</div>
+      <div id="m-form-submissions-body"></div>
+    </div>
+
     <div class="mobile-view" id="m-view-onboarding">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
         <div style="font-weight:700;font-size:14px">📋 入社手続き</div>
@@ -543,6 +560,10 @@
       <div class="mnav-item" onclick="switchMobile('onboarding',this);loadOnboarding()" data-roles="admin">
         <div class="mnav-icon"><i data-lucide="clipboard-list"></i></div><div class="mnav-label">入社</div>
       </div>
+      <div class="mnav-item" onclick="switchMobile('formsubmissions',this);loadFormSubmissions()" data-roles="admin">
+        <div class="mnav-icon" style="position:relative"><i data-lucide="mail-open"></i><span id="m-form-sub-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
+        <div class="mnav-label">入社フォーム</div>
+      </div>
       <div class="mnav-item" onclick="switchMobile('offboarding',this)" data-roles="admin">
         <div class="mnav-icon"><i data-lucide="door-open"></i></div><div class="mnav-label">退職</div>
       </div>
@@ -617,6 +638,7 @@
         <div class="tab tab-dropdown-item" data-tab="reports" data-roles="admin">📨 報告確認 <span id="report-badge" class="notif-badge" style="display:none;background:var(--accent)"></span></div>
         <div class="tab tab-dropdown-item" data-tab="mental" data-roles="admin,leader">🌤 メンタル</div>
         <div class="tab tab-dropdown-item" data-tab="users" data-roles="admin">👥 メンバー管理</div>
+        <div class="tab tab-dropdown-item" data-tab="formsubmissions" data-roles="admin">📬 入社フォーム確認 <span id="form-sub-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
         <div class="tab tab-dropdown-item" data-tab="onboarding" data-roles="admin">📋 入社手続き</div>
         <div class="tab tab-dropdown-item" data-tab="offboarding" data-roles="admin">🚪 退職手続き</div>
         <div class="tab tab-dropdown-item" data-tab="notifications" data-roles="admin" onclick="loadNotificationSettings()">🔔 通知設定</div>
@@ -1045,6 +1067,28 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- FORM SUBMISSIONS / 入社フォーム確認 -->
+    <div id="view-formsubmissions" class="view">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="section-title" style="margin:0">📬 入社フォーム確認</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px">採用予定者から提出された入社フォームを一覧・確認できます</div>
+        </div>
+        <button class="mini-btn" onclick="loadFormSubmissions()" style="white-space:nowrap">🔄 更新</button>
+      </div>
+
+      <!-- フィルタタブ -->
+      <div style="display:flex;gap:0;overflow-x:auto;padding-bottom:2px;margin-bottom:14px;-webkit-overflow-scrolling:touch;border-bottom:1.5px solid var(--border)">
+        <button class="form-sub-tab active" data-filter="unread"    onclick="filterFormSubmissions('unread',this)"    style="white-space:nowrap;flex-shrink:0;font-size:12px;padding:8px 16px;border:none;border-bottom:2px solid var(--ink);background:none;cursor:pointer;font-weight:700;color:var(--ink);transition:all .15s">🆕 未処理</button>
+        <button class="form-sub-tab"        data-filter="processed" onclick="filterFormSubmissions('processed',this)" style="white-space:nowrap;flex-shrink:0;font-size:12px;padding:8px 16px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3);transition:all .15s">✅ 処理済</button>
+        <button class="form-sub-tab"        data-filter="all"       onclick="filterFormSubmissions('all',this)"       style="white-space:nowrap;flex-shrink:0;font-size:12px;padding:8px 16px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3);transition:all .15s">📋 すべて</button>
+        <button class="form-sub-tab"        data-filter="deleted"   onclick="filterFormSubmissions('deleted',this)"   style="white-space:nowrap;flex-shrink:0;font-size:12px;padding:8px 16px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-weight:600;color:var(--ink3);transition:all .15s">🗑 削除済み</button>
+      </div>
+
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:10px" id="form-sub-count">—</div>
+      <div id="form-submissions-body"></div>
     </div>
 
     <div id="view-onboarding" class="view">

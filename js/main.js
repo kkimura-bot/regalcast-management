@@ -26,6 +26,7 @@ import './modules/onboarding.js';
 import './modules/offboarding.js';
 import './modules/notifications.js';
 import './modules/member-tasks.js';
+import './modules/form-submissions.js';
 
 // ── postLoginSetup ────────────────────────────────────────
 
@@ -71,6 +72,7 @@ export function postLoginSetup() {
     window.updateReportBadge?.();
     window.updateAlertBadge?.();
     window.updateOffRequestBadge?.();
+    window.loadFormSubmissions?.();
     const shiftMemberFilter = document.getElementById('shift-member-filter');
     if (shiftMemberFilter) {
       shiftMemberFilter.style.display = 'inline-block';

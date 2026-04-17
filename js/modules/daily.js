@@ -5,8 +5,26 @@ import { RC, isAdmin, isLeaderOrAbove } from '../state.js';
 import {
   db, collection, getDocs, query, where, orderBy
 } from '../firebase.js';
-import { todayJST } from '../utils/helpers.js';
+import { todayJST, escHtml } from '../utils/helpers.js';
 import { MENTAL_WEATHER } from '../data/constants.js';
+
+// 表示順の優先度（小さいほど上）
+// 0: 打刻漏れ（シフトあり・出勤なし・欠勤でない）
+// 1: 出勤中（出勤あり・退勤なし）
+// 2: 退勤済み
+// 3: 欠勤
+// 4: シフトのみ（それ以外）
+// 5: その他
+function dailyPriority(r) {
+  const a = r.att;
+  const s = r.shift;
+  if (s && !a?.clockIn && !a?.absent) return 0;
+  if (a?.clockIn && !a?.clockOut)     return 1;
+  if (a?.clockIn && a?.clockOut)      return 2;
+  if (a?.absent)                       return 3;
+  if (s)                               return 4;
+  return 5;
+}
 
 const toHHMM = iso => {
   if (!iso) return '—';
@@ -41,6 +59,9 @@ export async function loadDailyCheck() {
     rows = rows.filter(r => r.att || r.shift);
   }
 
+  // 打刻漏れを最上位に
+  rows.sort((a, b) => dailyPriority(a) - dailyPriority(b));
+
   const tbody = document.getElementById('daily-check-body');
   if (!tbody) return;
 
@@ -48,25 +69,37 @@ export async function loadDailyCheck() {
     tbody.innerHTML = '<div class="empty">本日の出退勤記録なし</div>'; return;
   }
 
-  tbody.innerHTML = `<div class="tbl-wrap"><table style="min-width:700px">
+  tbody.innerHTML = `<div class="tbl-wrap"><table style="min-width:780px">
     <thead><tr>
       <th>メンバー</th><th>部門</th><th>シフト</th>
-      <th>出勤</th><th>退勤</th><th>🌤 メンタル</th><th>メモ</th>
+      <th>出勤</th><th>退勤</th><th>🌤 メンタル</th><th>メモ</th><th>操作</th>
     </tr></thead>
     <tbody>
       ${rows.map(({member:m, att, shift}) => {
         const shiftLabel = shift ? `${shift.startTime||'—'}〜${shift.endTime||'—'}` : '—';
         const mental = att?.mentalWeather;
         const mw = MENTAL_WEATHER[mental];
-        const statusColor = att?.clockOut ? 'var(--blue)' : att?.clockIn ? 'var(--accent2)' : 'var(--ink3)';
-        return `<tr>
-          <td style="font-weight:600">${m.name}</td>
-          <td style="font-size:11px;color:var(--ink3)">${m.dept||'—'}</td>
+        const isMissed = shift && !att?.clockIn && !att?.absent;
+        const rowStyle = isMissed ? 'background:rgba(200,71,42,.04)' : '';
+        const encName = encodeURIComponent(m.name||'');
+        const inCell = isMissed
+          ? `<span style="color:var(--accent);font-weight:700">⚠ 漏れ</span>`
+          : toHHMM(att?.clockIn);
+        let absentBtn = '';
+        if (att?.absent) {
+          absentBtn = `<button class="mini-btn" style="background:rgba(127,140,141,.1);color:var(--ink3);border-color:rgba(127,140,141,.3)" onclick="cancelAbsent('${m.id}','${today}')">🚫 欠勤中（取消）</button>`;
+        } else if (!att?.clockIn) {
+          absentBtn = `<button class="mini-btn" style="background:rgba(200,71,42,.08);color:var(--accent);border-color:rgba(200,71,42,.25)" onclick="markAbsent('${m.id}','${encName}','${today}')">欠勤</button>`;
+        }
+        return `<tr style="${rowStyle}">
+          <td style="font-weight:600">${escHtml(m.name||'')}</td>
+          <td style="font-size:11px;color:var(--ink3)">${escHtml(m.dept||'—')}</td>
           <td style="font-size:11px;color:var(--ink3)">${shiftLabel}</td>
-          <td style="font-family:'DM Mono',monospace;color:var(--accent2)">${toHHMM(att?.clockIn)}</td>
+          <td style="font-family:'DM Mono',monospace;color:var(--accent2)">${inCell}</td>
           <td style="font-family:'DM Mono',monospace;color:var(--blue)">${toHHMM(att?.clockOut)}</td>
           <td>${mental ? `<span title="${mental}">${mw?.icon||''} ${mental}</span>` : '—'}</td>
-          <td style="font-size:11px;color:var(--ink3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${att?.note||''}</td>
+          <td style="font-size:11px;color:var(--ink3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(att?.note||'')}</td>
+          <td>${absentBtn}</td>
         </tr>`;
       }).join('')}
     </tbody>
@@ -93,6 +126,9 @@ export async function loadDailyCheckM(force = false) {
   let rows = members.map(m => ({ member:m, att:attMap[m.id]||null, shift:shiftMap[m.id]||null }));
   if (!showAll) rows = rows.filter(r => r.att || r.shift);
 
+  // 打刻漏れを最上位に
+  rows.sort((a, b) => dailyPriority(a) - dailyPriority(b));
+
   const body = document.getElementById('m-daily-check-body');
   if (!body) return;
 
@@ -101,17 +137,27 @@ export async function loadDailyCheckM(force = false) {
   } else {
     body.innerHTML = rows.map(({member:m, att, shift}) => {
       const mw = MENTAL_WEATHER[att?.mentalWeather];
-      return `<div class="m-card" style="margin-bottom:8px">
+      const isMissed = shift && !att?.clockIn && !att?.absent;
+      const cardStyle = isMissed ? 'border-left:3px solid var(--accent);' : '';
+      const encName = encodeURIComponent(m.name||'');
+      let absentBtn = '';
+      if (att?.absent) {
+        absentBtn = `<button class="mini-btn" style="background:rgba(127,140,141,.1);color:var(--ink3);border-color:rgba(127,140,141,.3);font-size:10px;margin-top:6px" onclick="cancelAbsent('${m.id}','${today}')">🚫 欠勤中（取消）</button>`;
+      } else if (!att?.clockIn) {
+        absentBtn = `<button class="mini-btn" style="background:rgba(200,71,42,.08);color:var(--accent);border-color:rgba(200,71,42,.25);font-size:10px;margin-top:6px" onclick="markAbsent('${m.id}','${encName}','${today}')">欠勤</button>`;
+      }
+      return `<div class="m-card" style="margin-bottom:8px;${cardStyle}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-          <div style="font-weight:700">${m.name}</div>
-          <div style="font-size:10px;color:var(--ink3)">${m.dept||''}</div>
+          <div style="font-weight:700">${escHtml(m.name||'')}</div>
+          <div style="font-size:10px;color:var(--ink3)">${escHtml(m.dept||'')}</div>
         </div>
-        <div style="display:flex;gap:10px;font-size:12px;font-family:'DM Mono',monospace">
-          <span style="color:var(--accent2)">IN ${toHHMM(att?.clockIn)}</span>
+        <div style="display:flex;gap:10px;font-size:12px;font-family:'DM Mono',monospace;flex-wrap:wrap">
+          <span style="color:${isMissed?'var(--accent)':'var(--accent2)'};font-weight:${isMissed?'700':'normal'}">IN ${isMissed?'⚠漏れ':toHHMM(att?.clockIn)}</span>
           <span style="color:var(--blue)">OUT ${toHHMM(att?.clockOut)}</span>
           ${att?.mentalWeather ? `<span>${mw?.icon||''} ${att.mentalWeather}</span>` : ''}
         </div>
         ${shift ? `<div style="font-size:11px;color:var(--ink3);margin-top:3px">📅 シフト ${shift.startTime||''}〜${shift.endTime||''}</div>` : ''}
+        ${absentBtn}
       </div>`;
     }).join('');
   }
@@ -130,12 +176,8 @@ export async function loadAdminShiftsM() {
   let shifts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   if (uid) shifts = shifts.filter(s => s.uid === uid);
 
-  // Populate member filter
-  const memberSel = document.getElementById('shift-member-filter-m');
-  if (memberSel && RC._cachedMembers.length && memberSel.options.length <= 1) {
-    memberSel.innerHTML = '<option value="">全員</option>'
-      + RC._cachedMembers.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-  }
+  // Populate member filter（当該月の勤怠入力ありメンバーに絞る）
+  window.populateMonthMemberFilters?.(month, ['shift-member-filter-m']);
 
   const container = document.getElementById('shift-calendar-admin-m');
   if (!container) return;

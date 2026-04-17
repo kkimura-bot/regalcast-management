@@ -11,7 +11,7 @@ import {
   collection, doc, getDoc, getDocs,
   query, where, orderBy, serverTimestamp, addDoc, updateDoc
 } from './firebase.js';
-import { depts_options } from './data/constants.js';
+import { depts_options, sortMembersByOrder } from './data/constants.js';
 
 // ── Standard Firebase Auth login ──────────────────────────
 
@@ -73,7 +73,7 @@ export function initAuthListener() {
 
     // Load member cache
     const membersSnap = await getDocs(query(collection(db,'users'), orderBy('name')));
-    RC._cachedMembers  = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    RC._cachedMembers  = sortMembersByOrder(membersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
     showApp();
     window.postLoginSetup?.();

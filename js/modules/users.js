@@ -9,7 +9,7 @@ import {
   ref, uploadBytes, getDownloadURL,
   createUserWithEmailAndPassword, sendPasswordResetEmail
 } from '../firebase.js';
-import { depts_options, SALARY_TABLE, RANK_ORDER, RANK_COLORS } from '../data/constants.js';
+import { depts_options, SALARY_TABLE, RANK_ORDER, RANK_COLORS, sortMembersByOrder } from '../data/constants.js';
 import { openModal, closeModal } from '../utils/modal.js';
 import { escHtml } from '../utils/helpers.js';
 
@@ -25,7 +25,7 @@ export async function loadUsers() {
     getDocs(collection(db,'salary')),
     getDocs(collection(db,'academy_roadmap'))
   ]);
-  RC._cachedMembers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+  RC._cachedMembers = sortMembersByOrder(usersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
   // salaryコレクションに存在するメンバー名のセット
   _cachedSalNames = new Set(salarySnap.docs.map(d => d.data().name).filter(Boolean));
@@ -43,7 +43,7 @@ export async function loadUsers() {
 export async function getMemberNames() {
   if (RC._cachedMembers.length) return RC._cachedMembers.map(m => m.name);
   const snap = await getDocs(query(collection(db,'users'), orderBy('name')));
-  RC._cachedMembers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  RC._cachedMembers = sortMembersByOrder(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   return RC._cachedMembers.map(m => m.name);
 }
 
@@ -249,7 +249,24 @@ function renderAddUserStep(step) {
   let body = stepProgress(step);
 
   if (step === 1) {
+    const formUrl = `${location.protocol}//${location.host}/form.html`;
     body += `
+      <!-- 注意文：新入社員はフォーム経由で登録すべき -->
+      <div style="background:rgba(243,156,18,.08);border:1px solid rgba(243,156,18,.3);border-left:4px solid var(--warn);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.7">
+        <div style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--warn);margin-bottom:6px">
+          <span style="font-size:14px">⚠️</span>
+          <span>新入社員はフォーム経由で登録してください</span>
+        </div>
+        <div style="color:var(--ink2)">
+          新入社員の場合は、<a href="${formUrl}" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:underline">入社フォーム</a>から本人に入力してもらってください。<br>
+          直接追加は<strong>既存メンバーの情報修正や特殊ケース</strong>のみで使用します。
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <input type="text" value="${formUrl}" readonly class="form-input" style="flex:1;font-size:11px;background:var(--surface2);min-width:200px" id="nu-form-url">
+          <button class="mini-btn" type="button" onclick="nuCopyFormUrl()" style="white-space:nowrap">📋 コピー</button>
+          <button class="mini-btn" type="button" onclick="closeModal();openPendingFormModal()" style="white-space:nowrap;color:var(--blue);border-color:var(--blue)">🔗 新規フォームを発行</button>
+        </div>
+      </div>
       <div class="form-row"><label class="form-label">名前 <span style="color:var(--accent)">*</span></label>
         <input class="form-input" id="nu-name" value="${escHtml(_newUserData.name||'')}" placeholder="例：田中 太郎"></div>
       <div class="form-row"><label class="form-label">メールアドレス</label>
@@ -926,6 +943,16 @@ async function openRoadmapPreviewModal(uid, name) {
     if (body) body.innerHTML = '<div style="color:var(--accent)">読み込みに失敗しました</div>';
   }
 }
+
+// 入社フォームURLコピー用（メンバー追加モーダル内）
+window.nuCopyFormUrl = function() {
+  const input = document.getElementById('nu-form-url');
+  if (!input) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = document.querySelector('[onclick="nuCopyFormUrl()"]');
+    if (btn) { const o = btn.textContent; btn.textContent = '✓ コピー済み'; setTimeout(() => btn.textContent = o, 1800); }
+  });
+};
 
 window.selectAllUsers           = selectAllUsers;
 window.bulkDeleteUsers          = bulkDeleteUsers;

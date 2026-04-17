@@ -50,10 +50,8 @@ export async function loadShifts() {
   const shiftFilter = document.getElementById('shift-member-filter');
   if (isAdmin() && shiftFilter) {
     shiftFilter.style.display = 'inline-block';
-    if (shiftFilter.options.length <= 1 && RC._cachedMembers.length) {
-      shiftFilter.innerHTML = '<option value="">全員</option>'
-        + RC._cachedMembers.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
-    }
+    // 当該月の勤怠入力ありメンバーに絞る
+    window.populateMonthMemberFilters?.(month, ['shift-member-filter']);
   }
 
   const leaderFilterVal = document.getElementById('shift-leader-filter')?.value
@@ -517,8 +515,9 @@ export async function markAbsent(uid, encodedName, date) {
     absentRecordedBy: RC.currentUserData?.name || 'admin',
     autoRecorded: false
   }, { merge: true });
-  window.loadDailyCheck?.(true);
-  window.loadDailyCheckM?.(true);
+  window.loadDailyCheck?.();
+  window.loadDailyCheckM?.();
+  window.loadMonthlyAttendance?.(true);
 }
 
 export async function cancelAbsent(uid, date) {
@@ -529,8 +528,9 @@ export async function cancelAbsent(uid, date) {
     absentRecordedAt: null,
     absentRecordedBy: null
   });
-  window.loadDailyCheck?.(true);
-  window.loadDailyCheckM?.(true);
+  window.loadDailyCheck?.();
+  window.loadDailyCheckM?.();
+  window.loadMonthlyAttendance?.(true);
 }
 
 // ── Delete member shifts modal ────────────────────────────

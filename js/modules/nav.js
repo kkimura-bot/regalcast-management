@@ -46,6 +46,7 @@ export function switchMobile(name, el) {
   if (name === 'users')       window.loadUsers?.();
   if (name === 'onboarding')  window.loadOnboarding?.();
   if (name === 'offboarding') window.loadOffboarding?.();
+  if (name === 'formsubmissions') window.loadFormSubmissions?.();
   if (name === 'mental')      window.loadMentalData?.();
   if (name === 'myshift')     window.loadMyShiftReport?.();
   if (name === 'mysalary')    window.loadMySalaryPage?.();

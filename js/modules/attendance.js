@@ -18,6 +18,52 @@ let _clockOutCooldown = false;
 let _lastAttLoad      = 0;
 const ATT_COOLDOWN_MS = 5 * 60 * 1000; // 5分
 
+// 月ごとの「当該月に勤怠入力があるメンバーuid」キャッシュ
+const _monthActiveUidsCache = new Map();
+
+async function fetchMonthActiveUids(month) {
+  if (_monthActiveUidsCache.has(month)) return _monthActiveUidsCache.get(month);
+  const start = month + '-01';
+  const end   = getMonthEnd(month);
+  const snap = await getDocs(query(
+    collection(db,'attendance'),
+    where('date','>=',start), where('date','<=',end)
+  ));
+  const uids = new Set();
+  snap.docs.forEach(d => { const r = d.data(); if (r.uid) uids.add(r.uid); });
+  _monthActiveUidsCache.set(month, uids);
+  return uids;
+}
+
+function invalidateMonthActiveUidsCache(month) {
+  if (month) _monthActiveUidsCache.delete(month);
+  else _monthActiveUidsCache.clear();
+}
+
+// 指定selectIdsのプルダウンを「当該月に勤怠入力ありメンバー」に絞り込む
+export async function populateMonthMemberFilters(month, selectIds) {
+  if (!month) return;
+  let uids;
+  try {
+    uids = await fetchMonthActiveUids(month);
+  } catch (e) {
+    console.warn('当該月メンバー絞込の取得に失敗（全員表示にフォールバック）:', e);
+    uids = null;
+  }
+  const source = RC._cachedMembers.filter(m => !m.isAlliance);
+  const activeMembers = uids ? source.filter(m => uids.has(m.id)) : source;
+  selectIds.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">全員</option>'
+      + activeMembers.map(u => `<option value="${u.id}">${escHtml(u.name||'')}</option>`).join('');
+    if (prev && activeMembers.find(m => m.id === prev)) sel.value = prev;
+    else sel.value = '';
+  });
+}
+window.populateMonthMemberFilters = populateMonthMemberFilters;
+
 // ── GPS helper ────────────────────────────────────────────
 
 function getCurrentPosition() {
@@ -258,6 +304,9 @@ export async function loadMonthlyAttendance(force = false) {
              || new Date().toISOString().slice(0,7);
   ['att-month','att-month-m'].forEach(id => { const el=document.getElementById(id); if(el) el.value=month; });
 
+  // force 再読み込み時は当該月の絞込キャッシュも破棄（書き込み直後など）
+  if (force) invalidateMonthActiveUidsCache(month);
+
   const start = month + '-01';
   const end   = getMonthEnd(month);
 
@@ -344,6 +393,11 @@ export async function loadMonthlyAttendance(force = false) {
   renderAttendanceSummary(_cachedAttendance, month);
   renderAttMobileCards(_cachedAttendance);
 
+  // 絞り込みプルダウンを当該月の勤怠入力ありメンバーに絞る（リーダー以上のみ）
+  if (isLeaderOrAbove()) {
+    populateMonthMemberFilters(month, ['att-member-filter', 'att-member-filter-m']);
+  }
+
   _lastAttLoad = Date.now();
   const lastLabel = document.getElementById('att-last-loaded-label');
   if (lastLabel) lastLabel.textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'})}`;
@@ -421,21 +475,28 @@ export function renderAttendanceTable(records) {
     const overtime = calcOvertime(r);
     const mw       = MENTAL_WEATHER[r.mentalWeather];
     const isMissed = r.clockIn && !r.clockOut;
-    const rowStyle = isMissed ? 'background:rgba(200,71,42,.04)' : '';
+    const rowStyle = r.absent ? 'background:rgba(127,140,141,.06)' : (isMissed ? 'background:rgba(200,71,42,.04)' : '');
+    const canEdit  = isAdmin() || r.uid===RC.currentUser.uid;
+    const encName  = encodeURIComponent(r.name||'');
+    const absentBtn = canEdit ? (
+      r.absent
+        ? `<button class="mini-btn" style="background:rgba(127,140,141,.1);color:var(--ink3);border-color:rgba(127,140,141,.3)" onclick="cancelAbsent('${r.uid}','${r.date}')">🚫取消</button>`
+        : `<button class="mini-btn" style="background:rgba(200,71,42,.08);color:var(--accent);border-color:rgba(200,71,42,.25)" onclick="markAbsent('${r.uid}','${encName}','${r.date}')">欠勤</button>`
+    ) : '';
     return `<tr style="${rowStyle}">
       <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}</td>
       <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2)">${formatClockIn(r.clockIn)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠ 漏れ':formatClockOut(r.clockOut)}</td>
       <td style="font-size:11px;color:var(--ink3)">${r.breakMinutes ?? 60}分</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px">${hours!==null&&hours>0?hours.toFixed(1)+'h':r.absent?'欠勤':'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${hours!==null&&hours>0?hours.toFixed(1)+'h':r.absent?'<span style="color:var(--ink3);font-weight:700">欠勤</span>':'—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${overtime>0?'var(--warn)':'var(--ink3)'}">${overtime>0?overtime.toFixed(1)+'h':'—'}</td>
       <td style="font-size:11px;color:var(--ink3)">${r.stationFrom&&r.stationTo?r.stationFrom+'→'+r.stationTo:r.stationFrom||r.stationTo||'—'}</td>
       <td style="font-size:11px;font-family:'DM Mono',monospace">${r.fare?'¥'+r.fare.toLocaleString():'—'}</td>
       <td style="font-size:12px">${mw?`<span title="${r.mentalWeather}">${mw.icon} ${r.mentalWeather}</span>`:'—'}</td>
       <td style="font-size:11px;color:var(--ink3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(r.note||'')}">${r.note||''}</td>
       <td style="font-size:10px;color:var(--ink3)">${r.clockInLat?`<a href="https://www.google.com/maps?q=${r.clockInLat},${r.clockInLng}" target="_blank" style="color:var(--blue)">📍</a>`:'—'}</td>
-      <td>${(isAdmin() || r.uid===RC.currentUser.uid) ? `<button class="mini-btn" onclick="openEditAttendanceModal('${r.id}')">修正</button>` : ''}</td>
+      <td>${canEdit ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${absentBtn}<button class="mini-btn" onclick="openEditAttendanceModal('${r.id}')">修正</button></div>` : ''}</td>
     </tr>`;
   }).join('');
 
@@ -482,19 +543,27 @@ function renderAttMobileCards(records) {
     const hours    = calcHours(r);
     const isMissed = r.clockIn && !r.clockOut;
     const mw       = MENTAL_WEATHER[r.mentalWeather];
-    return `<div class="m-card" style="${isMissed?'border-left:3px solid var(--accent)':''}">
+    const canEdit  = isAdmin() || r.uid===RC.currentUser.uid;
+    const encName  = encodeURIComponent(r.name||'');
+    const absentBtn = canEdit ? (
+      r.absent
+        ? `<button class="mini-btn" style="font-size:10px;background:rgba(127,140,141,.1);color:var(--ink3);border-color:rgba(127,140,141,.3)" onclick="cancelAbsent('${r.uid}','${r.date}')">🚫取消</button>`
+        : `<button class="mini-btn" style="font-size:10px;background:rgba(200,71,42,.08);color:var(--accent);border-color:rgba(200,71,42,.25)" onclick="markAbsent('${r.uid}','${encName}','${r.date}')">欠勤</button>`
+    ) : '';
+    const cardBorder = r.absent ? 'border-left:3px solid var(--ink3)' : (isMissed ? 'border-left:3px solid var(--accent)' : '');
+    return `<div class="m-card" style="${cardBorder}">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
         <div style="font-weight:700;font-size:12px;${isMissed?'color:var(--accent)':''}">${r.date||'—'}</div>
         ${showMember ? `<span class="member-chip" style="font-size:10px">${r.name||'—'}</span>` : ''}
         ${mw ? `<span style="font-size:13px">${mw.icon}</span>` : ''}
       </div>
-      <div style="display:flex;gap:10px;font-size:12px;font-family:'DM Mono',monospace">
+      <div style="display:flex;gap:10px;font-size:12px;font-family:'DM Mono',monospace;flex-wrap:wrap">
         <span style="color:var(--accent2)">${formatClockIn(r.clockIn)}</span>
         <span style="color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠漏れ':formatClockOut(r.clockOut)}</span>
-        ${hours!==null&&hours>0?`<span style="color:var(--ink3)">${hours.toFixed(1)}h</span>`:r.absent?`<span style="color:var(--accent)">欠勤</span>`:''}
+        ${hours!==null&&hours>0?`<span style="color:var(--ink3)">${hours.toFixed(1)}h</span>`:r.absent?`<span style="color:var(--ink3);font-weight:700">欠勤</span>`:''}
         ${r.fare?`<span style="color:var(--ink3)">¥${r.fare.toLocaleString()}</span>`:''}
       </div>
-      ${(isAdmin()||r.uid===RC.currentUser.uid)?`<button class="mini-btn" style="margin-top:6px;font-size:10px" onclick="openEditAttendanceModal('${r.id}')">修正</button>`:''}
+      ${canEdit?`<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">${absentBtn}<button class="mini-btn" style="font-size:10px" onclick="openEditAttendanceModal('${r.id}')">修正</button></div>`:''}
     </div>`;
   }).join('');
 }

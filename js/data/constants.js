@@ -119,3 +119,46 @@ export const GOALS_TREE = {
 // Name list used for alliance login dropdown (populated dynamically from Firestore)
 // This constant is kept here for reference; actual list is loaded at runtime.
 export const CSV_ALLIANCE_MEMBERS = [];
+
+// ── Member display order（社員番号ベースの並び順。名前でマッチ） ──
+// 新規入社メンバーはこのリストに無いため自動的に末尾（名前順）に並ぶ
+export const MEMBER_ORDER = [
+  '木村航也',
+  '中田勝馬',
+  '児島拓也',
+  '中川久史',
+  '碩真也',
+  '迫沙紀',
+  '西田浩',
+  '永田浩太郎',
+  '森本隆之',
+  '伊藤弘幸',
+  '岩崎七海',
+  '横山翔',
+  '蓮井瑛人',
+  '梅木誠也',
+  '小田祐志郎',
+  '村上絢信',
+  '馬場有希',
+  '三浦真之介',
+  '原泰彰',
+  '大小田脩人',
+  '松田柊哉',
+  '今田翔太',
+  '村山航汰',
+  '岩崎成陽',
+  '世羅駿多',
+  '田中野乃香',
+  '佐々木星羅',
+  '島野裕李'
+];
+
+export function sortMembersByOrder(members) {
+  const orderMap = new Map(MEMBER_ORDER.map((name, i) => [name, i]));
+  return [...members].sort((a, b) => {
+    const ai = orderMap.has(a.name) ? orderMap.get(a.name) : Infinity;
+    const bi = orderMap.has(b.name) ? orderMap.get(b.name) : Infinity;
+    if (ai !== bi) return ai - bi;
+    return (a.name || '').localeCompare(b.name || '', 'ja');
+  });
+}
