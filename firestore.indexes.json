@@ -10,13 +10,6 @@
       ]
     },
     {
-      "collectionGroup": "member_tasks",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "paid_leave_requests",
       "queryScope": "COLLECTION",
       "fields": [
