@@ -27,6 +27,7 @@ import './modules/offboarding.js';
 import './modules/notifications.js';
 import './modules/member-tasks.js';
 import './modules/form-submissions.js';
+import './modules/paid-leave.js';
 
 // ── postLoginSetup ────────────────────────────────────────
 
@@ -67,6 +68,9 @@ export function postLoginSetup() {
   if (roleEl) roleEl.style.color = RC.currentRole==='leader' ? 'var(--warn)' : '';
   const mnDisplay = document.getElementById('user-name-display-m');
   if (mnDisplay && RC.currentUserData) mnDisplay.textContent = RC.currentUserData.name;
+
+  // 有給申請バッジ（全ロール呼び出すが、管理者だけ件数表示される仕組み）
+  window.updatePaidLeaveBadges?.();
 
   if (isAdmin()) {
     window.updateReportBadge?.();

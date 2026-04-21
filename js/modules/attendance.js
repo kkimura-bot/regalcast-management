@@ -356,6 +356,48 @@ export async function loadMonthlyAttendance(force = false) {
     return;
   }
 
+  // 承認済み有給データ突合（該当月）
+  try {
+    const plMap = await (window.fetchApprovedPaidLeaveForMonth?.(month) || Promise.resolve({}));
+    // 既存レコードに注入
+    _cachedAttendance = _cachedAttendance.map(r => {
+      const t = plMap?.[r.uid]?.[r.date];
+      return t ? { ...r, paidLeaveType: t } : r;
+    });
+    // 該当月のレコードに無い日付の承認済み有給は「合成行」として追加
+    // 管理者の「全員表示」時 or 本人ビューでは、対象uidの有給日を追加する
+    const existingSet = new Set(_cachedAttendance.map(r => `${r.uid}_${r.date}`));
+    const addExtras = [];
+    // 自分のuidまたは、取得済みレコードに含まれるuidのみ対象（未ロードuidの全員分は挿入しない）
+    const scopeUids = new Set(_cachedAttendance.map(r => r.uid).filter(Boolean));
+    if (!isLeaderOrAbove() || !isAdmin()) { /* noop */ }
+    // member/leader「自分のみ」表示時は scopeUids に自分も入れる
+    if (RC.currentUser?.uid) scopeUids.add(RC.currentUser.uid);
+    Object.entries(plMap || {}).forEach(([uid, dateMap]) => {
+      if (!scopeUids.has(uid)) return;
+      // 名前取得
+      const cachedName = (RC._cachedMembers.find(m => m.id === uid) || {}).name
+        || (RC.currentUser?.uid === uid ? RC.currentUserData?.name : '');
+      Object.entries(dateMap || {}).forEach(([date, type]) => {
+        const key = `${uid}_${date}`;
+        if (existingSet.has(key)) return;
+        addExtras.push({
+          id: `paidleave_${uid}_${date}`,
+          uid,
+          name: cachedName || '',
+          date,
+          paidLeaveType: type,
+          _syntheticPaidLeave: true,
+        });
+      });
+    });
+    if (addExtras.length) {
+      _cachedAttendance = [..._cachedAttendance, ...addExtras].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    }
+  } catch (e) {
+    console.warn('有給データ突合失敗（スキップ）:', e);
+  }
+
   // シフト突合: shiftStart/End が未設定のレコードに補完（同日複数シフトは最長優先）
   try {
     const shiftSnap = await getDocs(query(
@@ -470,12 +512,32 @@ export function renderAttendanceTable(records) {
   }
 
   const showMemberCol = isLeaderOrAbove();
+  const PL_TYPE_BADGE = {
+    full: { label:'🌴 有給',  bg:'rgba(82,183,136,.12)',  color:'#3a7d5a' },
+    am:   { label:'🌴 AM半休', bg:'rgba(82,183,136,.10)',  color:'#3a7d5a' },
+    pm:   { label:'🌴 PM半休', bg:'rgba(82,183,136,.10)',  color:'#3a7d5a' },
+  };
+
   tbody.innerHTML = records.map(r => {
+    // 合成有給行（打刻・シフトなし。有給だけ入ってる日）
+    if (r._syntheticPaidLeave) {
+      const pl = PL_TYPE_BADGE[r.paidLeaveType] || PL_TYPE_BADGE.full;
+      return `<tr style="background:rgba(82,183,136,.05)">
+        <td style="font-size:11px;color:var(--ink2);font-weight:700">${r.date||'—'}</td>
+        <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
+        <td colspan="9" style="font-size:12px">
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:${pl.bg};color:${pl.color};font-size:11px;font-weight:700">${pl.label}</span>
+        </td>
+        <td colspan="2"></td>
+      </tr>`;
+    }
     const hours    = calcHours(r);
     const overtime = calcOvertime(r);
     const mw       = MENTAL_WEATHER[r.mentalWeather];
     const isMissed = r.clockIn && !r.clockOut;
-    const rowStyle = r.absent ? 'background:rgba(127,140,141,.06)' : (isMissed ? 'background:rgba(200,71,42,.04)' : '');
+    const rowStyle = r.absent
+      ? 'background:rgba(127,140,141,.06)'
+      : (r.paidLeaveType ? 'background:rgba(82,183,136,.05)' : (isMissed ? 'background:rgba(200,71,42,.04)' : ''));
     const canEdit  = isAdmin() || r.uid===RC.currentUser.uid;
     const encName  = encodeURIComponent(r.name||'');
     const absentBtn = canEdit ? (
@@ -483,8 +545,12 @@ export function renderAttendanceTable(records) {
         ? `<button class="mini-btn" style="background:rgba(127,140,141,.1);color:var(--ink3);border-color:rgba(127,140,141,.3)" onclick="cancelAbsent('${r.uid}','${r.date}')">🚫取消</button>`
         : `<button class="mini-btn" style="background:rgba(200,71,42,.08);color:var(--accent);border-color:rgba(200,71,42,.25)" onclick="markAbsent('${r.uid}','${encName}','${r.date}')">欠勤</button>`
     ) : '';
+    const plBadge = r.paidLeaveType ? (() => {
+      const pl = PL_TYPE_BADGE[r.paidLeaveType] || PL_TYPE_BADGE.full;
+      return `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:${pl.bg};color:${pl.color};font-size:10px;font-weight:700">${pl.label}</span>`;
+    })() : '';
     return `<tr style="${rowStyle}">
-      <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}</td>
+      <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}${plBadge}</td>
       <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2)">${formatClockIn(r.clockIn)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠ 漏れ':formatClockOut(r.clockOut)}</td>
@@ -539,7 +605,20 @@ function renderAttMobileCards(records) {
   if (!records.length) { container.innerHTML = '<div class="empty">データなし</div>'; return; }
 
   const showMember = isLeaderOrAbove();
+  const PL_TYPE_LABEL = { full: '🌴 有給', am: '🌴 AM半休', pm: '🌴 PM半休' };
   container.innerHTML = records.map(r => {
+    // 合成有給行
+    if (r._syntheticPaidLeave) {
+      return `<div class="m-card" style="border-left:3px solid #3a7d5a;background:rgba(82,183,136,.05)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <div style="font-weight:700;font-size:12px;color:var(--ink2)">${r.date||'—'}</div>
+          ${showMember ? `<span class="member-chip" style="font-size:10px">${r.name||'—'}</span>` : ''}
+        </div>
+        <div>
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:rgba(82,183,136,.12);color:#3a7d5a;font-size:11px;font-weight:700">${PL_TYPE_LABEL[r.paidLeaveType]||'🌴 有給'}</span>
+        </div>
+      </div>`;
+    }
     const hours    = calcHours(r);
     const isMissed = r.clockIn && !r.clockOut;
     const mw       = MENTAL_WEATHER[r.mentalWeather];
@@ -550,10 +629,15 @@ function renderAttMobileCards(records) {
         ? `<button class="mini-btn" style="font-size:10px;background:rgba(127,140,141,.1);color:var(--ink3);border-color:rgba(127,140,141,.3)" onclick="cancelAbsent('${r.uid}','${r.date}')">🚫取消</button>`
         : `<button class="mini-btn" style="font-size:10px;background:rgba(200,71,42,.08);color:var(--accent);border-color:rgba(200,71,42,.25)" onclick="markAbsent('${r.uid}','${encName}','${r.date}')">欠勤</button>`
     ) : '';
-    const cardBorder = r.absent ? 'border-left:3px solid var(--ink3)' : (isMissed ? 'border-left:3px solid var(--accent)' : '');
+    const cardBorder = r.absent
+      ? 'border-left:3px solid var(--ink3)'
+      : (r.paidLeaveType ? 'border-left:3px solid #3a7d5a' : (isMissed ? 'border-left:3px solid var(--accent)' : ''));
+    const plChip = r.paidLeaveType
+      ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:rgba(82,183,136,.12);color:#3a7d5a;font-size:10px;font-weight:700">${PL_TYPE_LABEL[r.paidLeaveType]}</span>`
+      : '';
     return `<div class="m-card" style="${cardBorder}">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <div style="font-weight:700;font-size:12px;${isMissed?'color:var(--accent)':''}">${r.date||'—'}</div>
+        <div style="font-weight:700;font-size:12px;${isMissed?'color:var(--accent)':''}">${r.date||'—'}${plChip}</div>
         ${showMember ? `<span class="member-chip" style="font-size:10px">${r.name||'—'}</span>` : ''}
         ${mw ? `<span style="font-size:13px">${mw.icon}</span>` : ''}
       </div>

@@ -54,6 +54,7 @@ export function switchMobile(name, el) {
   if (name === 'adminshifts') window.loadAdminShiftsM?.();
   if (name === 'dashboard')    window.loadDashboard?.();
   if (name === 'membertasks')  window.loadAdminMemberTasks?.();
+  if (name === 'paid-leave')   window.loadPaidLeave?.();
 }
 
 window.switchMobile            = switchMobile;

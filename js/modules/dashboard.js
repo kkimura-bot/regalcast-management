@@ -215,9 +215,16 @@ export async function loadDashboard() {
   const fetchMyMental = (!isLeaderOrAbove())
     ? getDocs(query(collection(db,'mental'), where('uid','==',RC.currentUser.uid)))
     : Promise.resolve({ docs: [] });
+  // 有給申請: 管理者は未処理件数、申請者は自分の直近の申請
+  const fetchPaidLeavePending = isAdmin()
+    ? getDocs(query(collection(db,'paid_leave_requests'), where('status','==','pending')))
+    : Promise.resolve({ docs: [] });
+  const fetchMyPaidLeave = (!isAdmin())
+    ? getDocs(query(collection(db,'paid_leave_requests'), where('uid','==',RC.currentUser.uid)))
+    : Promise.resolve({ docs: [] });
 
-  const [attSnap, shiftSnap, mentalSnap, reportSnap, myMentalSnap, formSubsSnap] = await Promise.all([
-    fetchAtt, fetchShifts, fetchMental, fetchReports, fetchMyMental, fetchFormSubs
+  const [attSnap, shiftSnap, mentalSnap, reportSnap, myMentalSnap, formSubsSnap, plPendingSnap, myPlSnap] = await Promise.all([
+    fetchAtt, fetchShifts, fetchMental, fetchReports, fetchMyMental, fetchFormSubs, fetchPaidLeavePending, fetchMyPaidLeave
   ]);
 
   const attRecords     = attSnap.docs.map(d => d.data());
@@ -226,19 +233,68 @@ export async function loadDashboard() {
   const unreadReports  = reportSnap.docs.length;
   const myMentalHist   = myMentalSnap.docs.map(d => d.data()).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,7);
   const unreadFormSubs = formSubsSnap.docs.filter(d => d.data().submittedAt && !d.data().readAt).length;
+  const paidLeavePending = plPendingSnap.docs.length;
+  // 本人の直近申請（createdAt desc）上位3件
+  const myPaidLeaveRecent = myPlSnap.docs
+    .map(d => d.data())
+    .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))
+    .slice(0,3);
 
   if (isAdmin()) {
-    renderAdmin(today, attRecords, todayShifts, mentalToday, unreadReports, unreadFormSubs);
+    renderAdmin(today, attRecords, todayShifts, mentalToday, unreadReports, unreadFormSubs, paidLeavePending);
   } else if (isLeaderOrAbove()) {
-    renderLeader(today, attRecords, todayShifts, mentalToday);
+    renderLeader(today, attRecords, todayShifts, mentalToday, myPaidLeaveRecent);
   } else {
-    renderMember(today, attRecords, todayShifts, myMentalHist);
+    renderMember(today, attRecords, todayShifts, myMentalHist, myPaidLeaveRecent);
   }
+}
+
+// 有給ステータス定義（dashboard用の簡易表示）
+const PL_STATUS = {
+  pending:   { label: '申請中',   icon: '⏳', color: '#D97706', bg: 'rgba(217,119,6,.10)' },
+  approved:  { label: '承認済み', icon: '✅', color: '#3a7d5a', bg: 'rgba(58,125,90,.10)' },
+  rejected:  { label: '否認',     icon: '❌', color: '#EF4444', bg: 'rgba(239,68,68,.10)' },
+  cancelled: { label: '取下げ',   icon: '↩',  color: '#8a93a6', bg: 'rgba(148,163,184,.15)' },
+};
+const PL_TYPE_LABEL = { full: '全休', am: '午前半休', pm: '午後半休' };
+
+function renderMyPaidLeaveCardHtml(myPaidLeaveRecent) {
+  if (!myPaidLeaveRecent || !myPaidLeaveRecent.length) {
+    return `
+      <div class="dash-card" style="cursor:pointer" onclick="switchTab('paid-leave')">
+        <div class="dash-card-label">🌴 有給申請</div>
+        <div style="padding:10px 0">
+          <div style="font-size:13px;color:var(--ink2);margin-bottom:6px">まだ申請はありません</div>
+          <div style="font-size:11px;color:#8a93a6">有給申請ページから新規申請できます</div>
+        </div>
+        <div style="font-size:11px;color:#2a5298;margin-top:12px;font-weight:600">新規申請へ →</div>
+      </div>`;
+  }
+  const rowsHtml = myPaidLeaveRecent.map(r => {
+    const s = PL_STATUS[r.status] || PL_STATUS.pending;
+    const dates = [...(r.dates||[])].sort();
+    const firstDate = dates[0] ? dates[0].slice(5).replace('-','/') : '—';
+    const dateLabel = dates.length > 1 ? `${firstDate} 他${dates.length-1}日` : firstDate;
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid #f0f2f5">
+        <div>
+          <div style="font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace">${dateLabel}</div>
+          <div style="font-size:11px;color:#8a93a6;margin-top:2px">${PL_TYPE_LABEL[r.type]||'—'}</div>
+        </div>
+        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:${s.bg};color:${s.color};font-size:11px;font-weight:700">${s.icon} ${s.label}</span>
+      </div>`;
+  }).join('');
+  return `
+    <div class="dash-card" style="cursor:pointer" onclick="switchTab('paid-leave')">
+      <div class="dash-card-label">🌴 有給申請（直近）</div>
+      ${rowsHtml}
+      <div style="font-size:11px;color:#2a5298;margin-top:12px;font-weight:600">申請一覧へ →</div>
+    </div>`;
 }
 
 // ── Admin dashboard ───────────────────────────────────────
 
-function renderAdmin(today, att, shifts, mental, unread, unreadForms) {
+function renderAdmin(today, att, shifts, mental, unread, unreadForms, paidLeavePending) {
   const totalMembers = RC._cachedMembers.filter(m =>
     !m.isAlliance && !m.noAuth && m.role !== '委託' && m.role !== 'alliance' && !m.id.startsWith('alliance_')
   ).length;
@@ -331,6 +387,14 @@ function renderAdmin(today, att, shifts, mental, unread, unreadForms) {
         <div style="font-size:11px;color:#2a5298;margin-top:12px;font-weight:600">当日確認へ →</div>
       </div>
 
+      <!-- 未処理 有給申請 -->
+      <div class="dash-card" style="cursor:pointer" onclick="switchTab('paid-leave')">
+        <div class="dash-card-label">🌴 有給申請</div>
+        <div class="dash-stat-num" style="color:${paidLeavePending>0?'#D97706':'#3a7d5a'}">${paidLeavePending}</div>
+        <div class="dash-stat-label">${paidLeavePending>0?'件の未処理申請あり':'未処理なし'}</div>
+        <div style="font-size:11px;color:#2a5298;margin-top:12px;font-weight:600">申請一覧へ →</div>
+      </div>
+
       <!-- 出勤記録 -->
       <div class="dash-card">
         <div class="dash-card-label">🟢 打刻状況（最新8名）</div>
@@ -350,12 +414,12 @@ function renderAdmin(today, att, shifts, mental, unread, unreadForms) {
     </div>`;
 
   document.getElementById('dash-content').innerHTML = html;
-  renderMobileDashboard('admin', { today, att, shifts, mental, unread, unreadForms, totalMembers, attendedCount, scheduledCount, pct, negMembers, dateLabel });
+  renderMobileDashboard('admin', { today, att, shifts, mental, unread, unreadForms, paidLeavePending, totalMembers, attendedCount, scheduledCount, pct, negMembers, dateLabel });
 }
 
 // ── Leader dashboard ──────────────────────────────────────
 
-function renderLeader(today, att, shifts, mental) {
+function renderLeader(today, att, shifts, mental, myPaidLeaveRecent) {
   const myDept = RC.currentUserData?.dept || '';
   const deptMemberIds = RC._cachedMembers.filter(m => m.dept === myDept && !m.isAlliance && !m.noAuth).map(m => m.id);
 
@@ -428,15 +492,18 @@ function renderLeader(today, att, shifts, mental) {
         ${mentalHtml}
       </div>
 
+      <!-- 自分の有給申請 -->
+      ${renderMyPaidLeaveCardHtml(myPaidLeaveRecent)}
+
     </div>`;
 
   document.getElementById('dash-content').innerHTML = html;
-  renderMobileDashboard('leader', { today, deptAtt, deptShifts, deptMental, deptMemberIds, pct, myDept, dateLabel });
+  renderMobileDashboard('leader', { today, deptAtt, deptShifts, deptMental, deptMemberIds, pct, myDept, dateLabel, myPaidLeaveRecent });
 }
 
 // ── Member dashboard ──────────────────────────────────────
 
-function renderMember(today, att, shifts, myMentalHist) {
+function renderMember(today, att, shifts, myMentalHist, myPaidLeaveRecent) {
   const myAtt   = att.find(r => r.uid === RC.currentUser?.uid);
   const myShift = shifts.find(s => s.uid === RC.currentUser?.uid);
   const isIn    = !!myAtt?.clockIn;
@@ -496,15 +563,18 @@ function renderMember(today, att, shifts, myMentalHist) {
       </div>
 
       <!-- メンタル天気履歴 -->
-      <div class="dash-card span-2">
+      <div class="dash-card">
         <div class="dash-card-label">🌤 メンタル天気（直近7日）</div>
         ${mentalHistHtml}
       </div>
 
+      <!-- 自分の有給申請 -->
+      ${renderMyPaidLeaveCardHtml(myPaidLeaveRecent)}
+
     </div>`;
 
   document.getElementById('dash-content').innerHTML = html;
-  renderMobileDashboard('member', { today, myAtt, myShift, isIn, isOut, statusLabel, statusColor, statusBg, myMentalHist, dateLabel });
+  renderMobileDashboard('member', { today, myAtt, myShift, isIn, isOut, statusLabel, statusColor, statusBg, myMentalHist, dateLabel, myPaidLeaveRecent });
 }
 
 // ── Mobile render ─────────────────────────────────────────
@@ -522,7 +592,7 @@ function renderMobileDashboard(role, data) {
   let html = refreshBtn;
 
   if (role === 'admin') {
-    const { att, totalMembers, attendedCount, scheduledCount, pct, mental, negMembers, unread, unreadForms } = data;
+    const { att, totalMembers, attendedCount, scheduledCount, pct, mental, negMembers, unread, unreadForms, paidLeavePending } = data;
     const attHtml = att.slice(0,6).map(r => `
       <div class="dash-att-row">
         <span class="dash-att-name">${r.name||'—'}</span>
@@ -558,6 +628,13 @@ function renderMobileDashboard(role, data) {
         <div style="font-size:28px;font-weight:800;color:#7c3aed;letter-spacing:-1px">${unreadForms}</div>
         <div style="font-size:11px;color:#8a93a6;margin-top:2px">件の未確認フォーム</div>
       </div>` : ''}
+      <div class="m-dash-card" style="cursor:pointer;${paidLeavePending>0?'border:1.5px solid rgba(217,119,6,.35)':''}" onclick="switchMobile('paid-leave',document.querySelector('[onclick*=paid-leave]'))">
+        <div class="dash-card-label" style="margin-bottom:8px;${paidLeavePending>0?'color:#D97706':''}">🌴 有給申請</div>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <div style="font-size:28px;font-weight:800;color:${paidLeavePending>0?'#D97706':'#3a7d5a'};letter-spacing:-1px">${paidLeavePending}</div>
+          <div style="font-size:11px;color:#8a93a6;margin-bottom:6px">${paidLeavePending>0?'件の未処理申請':'未処理なし'}</div>
+        </div>
+      </div>
       <div class="m-dash-card">
         <div class="dash-card-label">🟢 打刻状況</div>
         ${attHtml}
@@ -579,7 +656,7 @@ function renderMobileDashboard(role, data) {
       </div>` : ''}`;
 
   } else if (role === 'leader') {
-    const { deptAtt, deptShifts, deptMental, deptMemberIds, pct, myDept } = data;
+    const { deptAtt, deptShifts, deptMental, deptMemberIds, pct, myDept, myPaidLeaveRecent } = data;
     html += `
       <div class="m-dash-card">
         <div class="dash-card-label">👥 ${myDept} 出勤状況</div>
@@ -608,10 +685,11 @@ function renderMobileDashboard(role, data) {
             <span style="font-size:12px;padding:3px 10px;border-radius:99px;background:${mw?.bg};color:${mw?.color};font-weight:700">${mw?.icon} ${r.mentalWeather}</span>
           </div>`;
         }).join('')}
-      </div>` : ''}`;
+      </div>` : ''}
+      ${renderMyPaidLeaveMobileCardHtml(myPaidLeaveRecent)}`;
 
   } else {
-    const { myAtt, myShift, isIn, isOut, statusLabel, statusColor, statusBg, myMentalHist } = data;
+    const { myAtt, myShift, isIn, isOut, statusLabel, statusColor, statusBg, myMentalHist, myPaidLeaveRecent } = data;
     html += `
       <div class="m-dash-card">
         <div class="dash-card-label">📍 本日の打刻状況</div>
@@ -647,10 +725,43 @@ function renderMobileDashboard(role, data) {
             <span style="font-size:12px;padding:3px 10px;border-radius:99px;background:${mw?.bg};color:${mw?.color};font-weight:700">${mw?.icon} ${r.mentalWeather}</span>
           </div>`;
         }).join('')}
-      </div>` : ''}`;
+      </div>` : ''}
+      ${renderMyPaidLeaveMobileCardHtml(myPaidLeaveRecent)}`;
   }
 
   el.innerHTML = html;
+}
+
+// ── モバイル 自分の有給申請カード ──
+function renderMyPaidLeaveMobileCardHtml(myPaidLeaveRecent) {
+  if (!myPaidLeaveRecent || !myPaidLeaveRecent.length) {
+    return `
+      <div class="m-dash-card" style="cursor:pointer" onclick="switchMobile('paid-leave',document.querySelector('[onclick*=paid-leave]'))">
+        <div class="dash-card-label">🌴 有給申請</div>
+        <div style="font-size:12px;color:var(--ink2);padding:6px 0 4px">まだ申請はありません</div>
+        <div style="font-size:11px;color:#8a93a6">タップして新規申請へ →</div>
+      </div>`;
+  }
+  const rowsHtml = myPaidLeaveRecent.map(r => {
+    const s = PL_STATUS[r.status] || PL_STATUS.pending;
+    const dates = [...(r.dates||[])].sort();
+    const firstDate = dates[0] ? dates[0].slice(5).replace('-','/') : '—';
+    const dateLabel = dates.length > 1 ? `${firstDate} 他${dates.length-1}日` : firstDate;
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0f2f5">
+        <div>
+          <div style="font-size:12px;color:var(--ink2);font-family:'DM Mono',monospace">${dateLabel}</div>
+          <div style="font-size:10px;color:#8a93a6;margin-top:1px">${PL_TYPE_LABEL[r.type]||'—'}</div>
+        </div>
+        <span style="display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:99px;background:${s.bg};color:${s.color};font-size:10px;font-weight:700">${s.icon} ${s.label}</span>
+      </div>`;
+  }).join('');
+  return `
+    <div class="m-dash-card" style="cursor:pointer" onclick="switchMobile('paid-leave',document.querySelector('[onclick*=paid-leave]'))">
+      <div class="dash-card-label">🌴 有給申請（直近）</div>
+      ${rowsHtml}
+      <div style="font-size:11px;color:#2a5298;margin-top:10px;font-weight:600">申請一覧へ →</div>
+    </div>`;
 }
 
 window.loadDashboard = loadDashboard;

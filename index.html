@@ -483,6 +483,11 @@
       <div id="profile-card-grid-m" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px"></div>
     </div>
 
+    <!-- M: PAID LEAVE -->
+    <div class="mobile-view" id="m-view-paid-leave">
+      <div id="m-paid-leave-content"></div>
+    </div>
+
     <div class="mobile-view" id="m-view-mypage">
       <div style="font-weight:700;font-size:15px;margin-bottom:16px">👤 マイページ</div>
 
@@ -583,6 +588,10 @@
       <div class="mnav-item" onclick="switchMobile('profiles',this);loadProfiles()" data-roles="admin,leader,member">
         <div class="mnav-icon"><i data-lucide="id-card"></i></div><div class="mnav-label">社員紹介</div>
       </div>
+      <div class="mnav-item" onclick="switchMobile('paid-leave',this)" data-roles="admin,leader,member">
+        <div class="mnav-icon" style="position:relative"><i data-lucide="palmtree"></i><span id="m-paid-leave-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
+        <div class="mnav-label">有給申請</div>
+      </div>
       <div class="mnav-item" onclick="switchMobile('mypage',this)" data-roles="admin,leader,member">
         <div class="mnav-icon"><i data-lucide="user-round"></i></div><div class="mnav-label">マイページ</div>
       </div>
@@ -630,6 +639,9 @@
 
     <!-- 社員紹介 -->
     <div class="tab" data-tab="profiles" data-roles="admin,leader,member" onclick="loadProfiles()">👥 社員紹介</div>
+
+    <!-- 有給申請 -->
+    <div class="tab" data-tab="paid-leave" data-roles="admin,leader,member" onclick="loadPaidLeave()">🌴 有給申請 <span id="paid-leave-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
 
     <!-- 管理グループ -->
     <div class="tab-group" id="tabgroup-kanri">
@@ -1180,6 +1192,11 @@
       <div id="profile-card-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px"></div>
     </div>
 
+    <!-- PAID LEAVE -->
+    <div id="view-paid-leave" class="view">
+      <div id="paid-leave-content"></div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /app-screen -->
 
@@ -1242,7 +1259,7 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=37"></script>
+<script type="module" src="js/main.js?v=38"></script>
 <script>
   // Initialize lucide icons after DOM is ready
   if (typeof lucide !== 'undefined') lucide.createIcons();
