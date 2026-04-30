@@ -1505,7 +1505,7 @@ window.addShift              = addShift;
 // ── Sync shifts from 受注管理 assignments ──────────────────
 
 export function openSyncShiftFromOrdersModal() {
-  const month = document.getElementById('shift-month')?.value || new Date().toISOString().slice(0,7);
+  const month = todayJST().slice(0, 7);
   const memberOpts = RC._cachedMembers.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('');
   document.getElementById('modal-title-text').textContent = '🔄 受注管理からシフト同期';
   document.getElementById('modal-body').innerHTML = `
