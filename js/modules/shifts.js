@@ -1502,6 +1502,116 @@ export function filterShiftBySearch() {
 window.shiftWeekNav          = shiftWeekNav;
 window.loadShifts            = loadShifts;
 window.addShift              = addShift;
+// ── Sync shifts from 受注管理 assignments ──────────────────
+
+export function openSyncShiftFromOrdersModal() {
+  const month = document.getElementById('shift-month')?.value || new Date().toISOString().slice(0,7);
+  const memberOpts = RC._cachedMembers.map(u => `<option value="${u.id}">${escHtml(u.name)}</option>`).join('');
+  document.getElementById('modal-title-text').textContent = '🔄 受注管理からシフト同期';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.7">
+      受注管理アプリのシフト配置を勤怠アプリのシフトに同期します。<br>
+      対象スタッフの既存シフト（work）を削除して受注管理の内容で上書きします。
+    </div>
+    <div class="form-row"><label class="form-label">対象月</label>
+      <input type="month" class="form-input" id="sync-month" value="${month}"></div>
+    <div class="form-row"><label class="form-label">対象スタッフ</label>
+      <select class="form-input" id="sync-staff">
+        <option value="all">全員</option>
+        ${memberOpts}
+      </select></div>
+    <div style="font-size:11px;color:var(--accent);padding:8px 10px;background:rgba(200,71,42,.06);border-radius:6px;margin-bottom:12px">
+      ⚠ 対象の既存シフト（work）は削除されます。有給・休暇申請はそのまま残ります。
+    </div>
+    <div id="sync-error" style="font-size:12px;color:var(--accent);min-height:16px"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="execSyncShiftFromOrders()">同期実行</button>
+    </div>`;
+  openModal();
+}
+
+export async function execSyncShiftFromOrders() {
+  const month   = document.getElementById('sync-month').value;
+  const staffId = document.getElementById('sync-staff').value;
+  if (!month) { document.getElementById('sync-error').textContent = '月を選択してください'; return; }
+
+  const [year, mon] = month.split('-');
+  const monthStart = `${month}-01`;
+  const lastDay    = new Date(parseInt(year), parseInt(mon), 0).getDate();
+  const monthEnd   = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+  // assignments を取得
+  const assignConstraints = [
+    where('date', '>=', monthStart),
+    where('date', '<=', monthEnd),
+    ...(staffId !== 'all' ? [where('staffId', '==', staffId)] : [])
+  ];
+  const assignSnap  = await getDocs(query(collection(db, 'assignments'), ...assignConstraints));
+  const assignments = assignSnap.docs.map(d => d.data());
+
+  if (!assignments.length) {
+    document.getElementById('sync-error').textContent = 'この月のシフト配置がありません';
+    return;
+  }
+
+  // orders を重複排除して取得
+  const orderIds = [...new Set(assignments.map(a => a.orderId))];
+  const orderMap = {};
+  for (const oid of orderIds) {
+    const snap = await getDoc(doc(db, 'orders', oid));
+    if (snap.exists()) orderMap[oid] = snap.data();
+  }
+
+  // 既存 shifts（work）を削除
+  const existConstraints = [
+    where('month', '==', month),
+    ...(staffId !== 'all' ? [where('uid', '==', staffId)] : [])
+  ];
+  const existSnap = await getDocs(query(collection(db, 'shifts'), ...existConstraints));
+  const toDelete  = existSnap.docs.filter(d => d.data().type !== 'off');
+
+  const BATCH_SIZE = 400;
+  for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    toDelete.slice(i, i + BATCH_SIZE).forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+
+  // 新しいシフトを作成
+  const newShifts = [];
+  let skipped = 0;
+  for (const a of assignments) {
+    const order = orderMap[a.orderId];
+    if (!order?.startTime || !order?.endTime) { skipped++; continue; }
+    const member = RC._cachedMembers.find(m => m.id === a.staffId);
+    newShifts.push({
+      uid:       a.staffId,
+      name:      member?.name || '',
+      date:      a.date,
+      month:     a.date.slice(0, 7),
+      startTime: order.startTime,
+      endTime:   order.endTime,
+      location:  a.location || '',
+      note:      '',
+      createdAt: serverTimestamp()
+    });
+  }
+
+  for (let i = 0; i < newShifts.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    newShifts.slice(i, i + BATCH_SIZE).forEach(s => batch.set(doc(collection(db, 'shifts')), s));
+    await batch.commit();
+  }
+
+  closeModal();
+  loadShifts();
+  const msg = skipped > 0
+    ? `✅ ${newShifts.length}件のシフトを同期しました（${skipped}件スキップ：時刻未設定オーダー）`
+    : `✅ ${newShifts.length}件のシフトを同期しました`;
+  alert(msg);
+}
+
 window.openAddShiftModal     = openAddShiftModal;
 window.onShiftMemberChange   = onShiftMemberChange;
 window.openEditShiftModal    = openEditShiftModal;
@@ -1529,7 +1639,9 @@ window.execShiftImport       = execShiftImport;
 window.writeShiftNotification = writeShiftNotification;
 window.markShiftNotifRead    = markShiftNotifRead;
 window.checkNotifications    = checkNotifications;
-window.filterShiftBySearch   = filterShiftBySearch;
+window.filterShiftBySearch         = filterShiftBySearch;
+window.openSyncShiftFromOrdersModal = openSyncShiftFromOrdersModal;
+window.execSyncShiftFromOrders      = execSyncShiftFromOrders;
 
 // Compatibility shim: inline onclick handlers use `_shiftWeekOffset=0`
 // which sets window._shiftWeekOffset; proxy this to RC._shiftWeekOffset
