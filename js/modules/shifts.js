@@ -1590,7 +1590,7 @@ export async function execSyncShiftFromOrders() {
       month:     a.date.slice(0, 7),
       startTime: order?.startTime || '10:00',
       endTime:   order?.endTime   || '19:00',
-      location:  a.location || '',
+      location:  a.location || order?.title || '',
       note:      '',
       createdAt: serverTimestamp()
     });
