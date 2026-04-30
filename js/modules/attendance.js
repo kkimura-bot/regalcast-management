@@ -1061,6 +1061,102 @@ export async function execBulkGenAttendance() {
   alert(`✅ ${count}件の勤怠データを生成しました`);
 }
 
+// ── Bulk generate attendance from orders (受注管理) ────────
+
+export function openBulkGenFromOrdersModal() {
+  const month = document.getElementById('att-month')?.value || new Date().toISOString().slice(0,7);
+  document.getElementById('modal-title-text').textContent = '📦 受注管理から勤怠一括生成';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.7">
+      受注管理アプリのシフト配置（assignments）をもとに勤怠データを一括生成します。<br>
+      既存データがある日付はスキップされます。
+    </div>
+    <div class="form-row"><label class="form-label">対象月</label>
+      <input type="month" class="form-input" id="bg-order-month" value="${month}"></div>
+    <div id="bg-order-error" style="font-size:12px;color:var(--accent);min-height:16px"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="execBulkGenFromOrders()">一括生成</button>
+    </div>`;
+  openModal();
+}
+
+export async function execBulkGenFromOrders() {
+  const month = document.getElementById('bg-order-month').value;
+  if (!month) { document.getElementById('bg-order-error').textContent = '月を選択してください'; return; }
+
+  const [year, mon] = month.split('-');
+  const monthStart = `${month}-01`;
+  const lastDay = new Date(parseInt(year), parseInt(mon), 0).getDate();
+  const monthEnd  = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+  const assignSnap = await getDocs(
+    query(collection(db, 'assignments'), where('date', '>=', monthStart), where('date', '<=', monthEnd))
+  );
+  const assignments = assignSnap.docs.map(d => d.data());
+
+  if (!assignments.length) {
+    document.getElementById('bg-order-error').textContent = 'この月のシフト配置がありません';
+    return;
+  }
+
+  // オーダーをまとめて取得（重複排除）
+  const orderIds = [...new Set(assignments.map(a => a.orderId))];
+  const orderMap = {};
+  for (const oid of orderIds) {
+    const snap = await getDoc(doc(db, 'orders', oid));
+    if (snap.exists()) orderMap[oid] = snap.data();
+  }
+
+  let count = 0, skipped = 0;
+  let batch = writeBatch(db);
+  let batchCount = 0;
+
+  for (const a of assignments) {
+    const order = orderMap[a.orderId];
+    if (!order?.startTime || !order?.endTime) { skipped++; continue; }
+
+    const docId = `${a.staffId}_${a.date}`;
+    const existing = await getDoc(doc(db, 'attendance', docId));
+    if (existing.exists()) { skipped++; continue; }
+
+    const makeISO = (t) => new Date(`${a.date}T${t}:00+09:00`).toISOString();
+    const member  = RC._cachedMembers.find(m => m.id === a.staffId);
+
+    batch.set(doc(db, 'attendance', docId), {
+      uid:           a.staffId,
+      name:          member?.name || '',
+      dept:          member?.dept || '',
+      date:          a.date,
+      clockIn:       makeISO(order.startTime),
+      clockOut:      makeISO(order.endTime),
+      breakMinutes:  60,
+      fare:          0,
+      note:          '【受注管理から自動生成】',
+      generatedFrom: 'orders',
+      generatedAt:   serverTimestamp()
+    });
+    count++;
+    batchCount++;
+
+    // Firestore の 1バッチ上限（500件）に余裕を持って分割
+    if (batchCount >= 400) {
+      await batch.commit();
+      batch = writeBatch(db);
+      batchCount = 0;
+    }
+  }
+
+  if (batchCount > 0) await batch.commit();
+
+  closeModal();
+  loadMonthlyAttendance(true);
+  const msg = skipped > 0
+    ? `✅ ${count}件の勤怠データを生成しました（${skipped}件スキップ）`
+    : `✅ ${count}件の勤怠データを生成しました`;
+  alert(msg);
+}
+
 // ── Notifications ─────────────────────────────────────────
 
 export async function checkNotifications() {
@@ -1097,8 +1193,10 @@ window.openMissedCorrectionForm   = openMissedCorrectionForm;
 window.submitMissedCorrection     = submitMissedCorrection;
 window.openOvertimeModal          = openOvertimeModal;
 window.submitOvertimeRequest      = submitOvertimeRequest;
-window.openBulkGenAttendanceModal = openBulkGenAttendanceModal;
-window.execBulkGenAttendance      = execBulkGenAttendance;
+window.openBulkGenAttendanceModal  = openBulkGenAttendanceModal;
+window.execBulkGenAttendance       = execBulkGenAttendance;
+window.openBulkGenFromOrdersModal  = openBulkGenFromOrdersModal;
+window.execBulkGenFromOrders       = execBulkGenFromOrders;
 window.checkNotifications         = checkNotifications;
 window.autoRecordMissedClockIns   = autoRecordMissedClockIns;
 window._cachedAttendance          = _cachedAttendance;

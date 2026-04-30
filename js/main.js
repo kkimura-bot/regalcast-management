@@ -60,7 +60,7 @@ export function postLoginSetup() {
         + RC._cachedMembers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
     }
     if (isAdmin()) {
-      ['att-add-btn','m-att-add-btn','att-bulk-gen-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
+      ['att-add-btn','m-att-add-btn','att-bulk-gen-orders-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
     }
   }
 
