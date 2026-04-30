@@ -1580,18 +1580,16 @@ export async function execSyncShiftFromOrders() {
 
   // 新しいシフトを作成
   const newShifts = [];
-  let skipped = 0;
   for (const a of assignments) {
     const order = orderMap[a.orderId];
-    if (!order?.startTime || !order?.endTime) { skipped++; continue; }
     const member = RC._cachedMembers.find(m => m.id === a.staffId);
     newShifts.push({
       uid:       a.staffId,
       name:      member?.name || '',
       date:      a.date,
       month:     a.date.slice(0, 7),
-      startTime: order.startTime,
-      endTime:   order.endTime,
+      startTime: order?.startTime || '10:00',
+      endTime:   order?.endTime   || '19:00',
       location:  a.location || '',
       note:      '',
       createdAt: serverTimestamp()
@@ -1606,10 +1604,7 @@ export async function execSyncShiftFromOrders() {
 
   closeModal();
   loadShifts();
-  const msg = skipped > 0
-    ? `✅ ${newShifts.length}件のシフトを同期しました（${skipped}件スキップ：時刻未設定オーダー）`
-    : `✅ ${newShifts.length}件のシフトを同期しました`;
-  alert(msg);
+  alert(`✅ ${newShifts.length}件のシフトを同期しました`);
 }
 
 window.openAddShiftModal     = openAddShiftModal;
