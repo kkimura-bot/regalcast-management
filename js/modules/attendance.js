@@ -108,10 +108,26 @@ export async function clockIn() {
   _clockInCooldown = true;
   setTimeout(() => _clockInCooldown = false, 5000);
 
-  // 15-minute ceiling for clock-in
   const now = new Date();
-  const roundedIn = new Date(Math.ceil(now.getTime() / (15*60*1000)) * (15*60*1000));
-  const clockInISO = now.toISOString();
+  let clockInISO = now.toISOString();
+
+  // シフト開始時刻より早く押した場合はシフト開始時刻に補正
+  try {
+    const shiftSnap = await getDocs(query(
+      collection(db, 'shifts'),
+      where('uid', '==', RC.currentUser.uid),
+      where('date', '==', today)
+    ));
+    const workShifts = shiftSnap.docs.map(d => d.data())
+      .filter(s => s.type !== 'off' && s.startTime)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    if (workShifts.length) {
+      const shiftStart = new Date(`${today}T${workShifts[0].startTime}:00+09:00`);
+      if (now < shiftStart) clockInISO = shiftStart.toISOString();
+    }
+  } catch(e) {
+    console.warn('シフト照合失敗、実打刻時刻を使用:', e);
+  }
 
   await setDoc(ref, {
     uid: RC.currentUser.uid,
