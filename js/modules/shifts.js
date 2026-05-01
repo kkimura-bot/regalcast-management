@@ -1541,23 +1541,23 @@ export async function execSyncShiftFromOrders() {
   const lastDay    = new Date(parseInt(year), parseInt(mon), 0).getDate();
   const monthEnd   = `${month}-${String(lastDay).padStart(2, '0')}`;
 
-  // assignments を取得
-  const assignConstraints = [
+  // assignments を取得（月全体を取得してクライアント側でフィルタ → インデックス不要）
+  const assignSnap = await getDocs(query(
+    collection(db, 'assignments'),
     where('date', '>=', monthStart),
-    where('date', '<=', monthEnd),
-    ...(staffId !== 'all' ? [where('staffId', '==', staffId)] : [])
-  ];
-  const assignSnap  = await getDocs(query(collection(db, 'assignments'), ...assignConstraints));
-  const assignments = assignSnap.docs.map(d => d.data());
+    where('date', '<=', monthEnd)
+  ));
+  const assignments = assignSnap.docs.map(d => d.data())
+    .filter(a => staffId === 'all' || a.staffId === staffId);
 
-  // internalSchedules を取得
-  const internalConstraints = [
+  // internalSchedules を取得（同様）
+  const internalSnap = await getDocs(query(
+    collection(db, 'internalSchedules'),
     where('date', '>=', monthStart),
-    where('date', '<=', monthEnd),
-    ...(staffId !== 'all' ? [where('staffId', '==', staffId)] : [])
-  ];
-  const internalSnap      = await getDocs(query(collection(db, 'internalSchedules'), ...internalConstraints));
-  const internalSchedules = internalSnap.docs.map(d => d.data());
+    where('date', '<=', monthEnd)
+  ));
+  const internalSchedules = internalSnap.docs.map(d => d.data())
+    .filter(s => staffId === 'all' || s.staffId === staffId);
 
   if (!assignments.length && !internalSchedules.length) {
     document.getElementById('sync-error').textContent = 'この月のシフト配置がありません';
@@ -1572,13 +1572,12 @@ export async function execSyncShiftFromOrders() {
     if (snap.exists()) orderMap[oid] = snap.data();
   }
 
-  // 既存 shifts（work）を削除
-  const existConstraints = [
-    where('month', '==', month),
-    ...(staffId !== 'all' ? [where('uid', '==', staffId)] : [])
-  ];
-  const existSnap = await getDocs(query(collection(db, 'shifts'), ...existConstraints));
-  const toDelete  = existSnap.docs.filter(d => d.data().type !== 'off');
+  // 既存 shifts（work）を削除（month で取得してクライアント側でフィルタ）
+  const existSnap = await getDocs(query(collection(db, 'shifts'), where('month', '==', month)));
+  const toDelete  = existSnap.docs.filter(d => {
+    const data = d.data();
+    return data.type !== 'off' && (staffId === 'all' || data.uid === staffId);
+  });
 
   const BATCH_SIZE = 400;
   for (let i = 0; i < toDelete.length; i += BATCH_SIZE) {
