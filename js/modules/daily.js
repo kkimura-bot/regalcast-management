@@ -59,8 +59,10 @@ export async function loadDailyCheck() {
     rows = rows.filter(r => r.att || r.shift);
   }
 
-  // 打刻漏れを最上位に
-  rows.sort((a, b) => dailyPriority(a) - dailyPriority(b));
+  // シフト開始時間順（時間が来ていない人は下部）
+  const _nowMinPC = (() => { const d = new Date(new Date().toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})); return d.getHours()*60+d.getMinutes(); })();
+  const _sMin = r => { const t=r.shift?.startTime; if(!t) return 9999; const [h,m]=t.split(':').map(Number); return h*60+(m||0); };
+  rows.sort((a,b) => { const aM=_sMin(a),bM=_sMin(b),aD=aM<=_nowMinPC,bD=bM<=_nowMinPC; if(aD!==bD) return aD?-1:1; return aM-bM; });
 
   const tbody = document.getElementById('daily-check-body');
   if (!tbody) return;
@@ -126,8 +128,10 @@ export async function loadDailyCheckM(force = false) {
   let rows = members.map(m => ({ member:m, att:attMap[m.id]||null, shift:shiftMap[m.id]||null }));
   if (!showAll) rows = rows.filter(r => r.att || r.shift);
 
-  // 打刻漏れを最上位に
-  rows.sort((a, b) => dailyPriority(a) - dailyPriority(b));
+  // シフト開始時間順（時間が来ていない人は下部）
+  const _nowMinM = (() => { const d = new Date(new Date().toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})); return d.getHours()*60+d.getMinutes(); })();
+  const _sMn = r => { const t=r.shift?.startTime; if(!t) return 9999; const [h,m]=t.split(':').map(Number); return h*60+(m||0); };
+  rows.sort((a,b) => { const aM=_sMn(a),bM=_sMn(b),aD=aM<=_nowMinM,bD=bM<=_nowMinM; if(aD!==bD) return aD?-1:1; return aM-bM; });
 
   const body = document.getElementById('m-daily-check-body');
   if (!body) return;
