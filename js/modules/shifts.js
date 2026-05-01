@@ -1550,7 +1550,16 @@ export async function execSyncShiftFromOrders() {
   const assignSnap  = await getDocs(query(collection(db, 'assignments'), ...assignConstraints));
   const assignments = assignSnap.docs.map(d => d.data());
 
-  if (!assignments.length) {
+  // internalSchedules を取得
+  const internalConstraints = [
+    where('date', '>=', monthStart),
+    where('date', '<=', monthEnd),
+    ...(staffId !== 'all' ? [where('staffId', '==', staffId)] : [])
+  ];
+  const internalSnap      = await getDocs(query(collection(db, 'internalSchedules'), ...internalConstraints));
+  const internalSchedules = internalSnap.docs.map(d => d.data());
+
+  if (!assignments.length && !internalSchedules.length) {
     document.getElementById('sync-error').textContent = 'この月のシフト配置がありません';
     return;
   }
@@ -1578,7 +1587,7 @@ export async function execSyncShiftFromOrders() {
     await batch.commit();
   }
 
-  // 新しいシフトを作成
+  // assignments からシフトを生成
   const newShifts = [];
   for (const a of assignments) {
     const order = orderMap[a.orderId];
@@ -1592,6 +1601,26 @@ export async function execSyncShiftFromOrders() {
       endTime:   order?.endTime   || '19:00',
       location:  a.location || order?.title || '',
       note:      '',
+      createdAt: serverTimestamp()
+    });
+  }
+
+  // internalSchedules からシフトを生成
+  for (const s of internalSchedules) {
+    const member   = RC._cachedMembers.find(m => m.id === s.staffId);
+    const location = s.type === 'ojt'      ? (s.targetStore   || '社内（OJT）')
+                   : s.type === 'training' ? (s.location      || s.trainingName || '社内研修')
+                   : s.type === 'office'   ? (s.officeWork?.category || '社内業務')
+                   :                         (s.content        || '社内');
+    newShifts.push({
+      uid:       s.staffId,
+      name:      member?.name || '',
+      date:      s.date,
+      month:     s.date.slice(0, 7),
+      startTime: '10:00',
+      endTime:   '19:00',
+      location,
+      note:      s.note || '',
       createdAt: serverTimestamp()
     });
   }
