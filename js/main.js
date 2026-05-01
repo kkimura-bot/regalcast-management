@@ -87,7 +87,7 @@ export function postLoginSetup() {
     }
     const shiftSearchWrap = document.getElementById('shift-search-wrap');
     if (shiftSearchWrap) shiftSearchWrap.style.display = 'flex';
-    ['add-shift-btn','import-shift-btn','bulk-shift-btn','delete-member-shift-btn','sync-orders-shift-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
+    ['add-shift-btn','delete-member-shift-btn','sync-orders-shift-btn'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=''; });
   }
 
   if (isLeaderOrAbove() && !isAdmin()) {
