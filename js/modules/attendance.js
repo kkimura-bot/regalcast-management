@@ -1332,6 +1332,50 @@ window.checkNotifications         = checkNotifications;
 window.autoRecordMissedClockIns   = autoRecordMissedClockIns;
 window._cachedAttendance          = _cachedAttendance;
 
+// ── 入店時刻一括補正（シフト開始前打刻を補正） ──────────────
+
+export async function fixClockInByShift(dateStr) {
+  if (!isAdmin()) { alert('管理者のみ実行可能です'); return; }
+  if (!dateStr) { alert('対象日を指定してください（例：2026-05-01）'); return; }
+  if (!confirm(`${dateStr} の入店時刻をシフト開始時刻に一括補正します。\nシフト開始前に打刻したメンバーのみ対象です。\n実行しますか？`)) return;
+
+  const attSnap = await getDocs(query(collection(db, 'attendance'), where('date', '==', dateStr)));
+
+  const shiftSnap = await getDocs(query(collection(db, 'shifts'), where('date', '==', dateStr)));
+  const shiftMap  = {};
+  shiftSnap.docs.forEach(d => {
+    const s = d.data();
+    if (s.type === 'off' || !s.startTime || !s.uid) return;
+    if (!shiftMap[s.uid] || s.startTime.localeCompare(shiftMap[s.uid].startTime) < 0) {
+      shiftMap[s.uid] = s;
+    }
+  });
+
+  const batch  = writeBatch(db);
+  const fixed  = [];
+
+  attSnap.docs.forEach(d => {
+    const att = d.data();
+    if (!att.clockIn || !att.uid) return;
+    const shift = shiftMap[att.uid];
+    if (!shift) return;
+    const clockInTime  = new Date(att.clockIn);
+    const shiftStart   = new Date(`${dateStr}T${shift.startTime}:00+09:00`);
+    if (clockInTime < shiftStart) {
+      batch.update(d.ref, { clockIn: shiftStart.toISOString() });
+      fixed.push(`${att.name}：${clockInTime.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'})} → ${shift.startTime}`);
+    }
+  });
+
+  if (!fixed.length) { alert('補正対象のレコードはありませんでした'); return; }
+
+  await batch.commit();
+  alert(`✅ ${fixed.length}件を補正しました\n\n${fixed.join('\n')}`);
+  window.loadMonthlyAttendance?.(true);
+}
+
+window.fixClockInByShift = fixClockInByShift;
+
 // ── Alliance attendance ───────────────────────────────────
 
 export async function renderAllianceAttendance() {
