@@ -602,7 +602,9 @@ export function renderAttendanceTable(records) {
     const hours    = calcHours(r);
     const overtime = calcOvertime(r);
     const mw       = MENTAL_WEATHER[r.mentalWeather];
-    const isMissed = r.clockIn && !r.clockOut;
+    const noClockIn  = !r.absent && !r._syntheticPaidLeave && !r.clockIn;
+    const noClockOut = !r.absent && r.clockIn && !r.clockOut;
+    const isMissed   = noClockIn || noClockOut;
     const rowStyle = r.absent
       ? 'background:rgba(127,140,141,.06)'
       : (r.paidLeaveType ? 'background:rgba(82,183,136,.05)' : (isMissed ? 'background:rgba(200,71,42,.04)' : ''));
@@ -617,11 +619,12 @@ export function renderAttendanceTable(records) {
       const pl = PL_TYPE_BADGE[r.paidLeaveType] || PL_TYPE_BADGE.full;
       return `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:${pl.bg};color:${pl.color};font-size:10px;font-weight:700">${pl.label}</span>`;
     })() : '';
+    const missedLabel = noClockIn ? '⚠ 入店未入力' : '⚠ 退店漏れ';
     return `<tr style="${rowStyle}">
       <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}${plBadge}</td>
       <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--accent2)">${formatClockIn(r.clockIn)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠ 漏れ':formatClockOut(r.clockOut)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockIn?'var(--accent)':'var(--accent2)'}">${noClockIn?missedLabel:formatClockIn(r.clockIn)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockOut?'var(--accent)':'var(--blue)'}">${noClockOut?'⚠ 退店漏れ':formatClockOut(r.clockOut)}</td>
       <td style="font-size:11px;color:var(--ink3)">${r.breakMinutes ?? 60}分</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px">${hours!==null&&hours>0?hours.toFixed(1)+'h':r.absent?'<span style="color:var(--ink3);font-weight:700">欠勤</span>':'—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${overtime>0?'var(--warn)':'var(--ink3)'}">${overtime>0?overtime.toFixed(1)+'h':'—'}</td>
@@ -644,14 +647,14 @@ export function renderAttendanceTable(records) {
 export function renderAttendanceSummary(records, month) {
   const totalDays  = records.length;
   const worked     = records.filter(r => r.clockIn && r.clockOut).length;
-  const missing    = records.filter(r => r.clockIn && !r.clockOut).length;
+  const missing    = records.filter(r => !r.absent && !r._syntheticPaidLeave && (!r.clockIn || !r.clockOut)).length;
   const totalHours = records.reduce((s,r) => s + (calcHours(r) || 0), 0);
   const totalOT    = records.reduce((s,r) => s + calcOvertime(r), 0);
   const totalFare  = records.reduce((s,r) => s + (r.fare||0), 0);
 
   const html = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px">
     <div class="kpi-card" style="border-left-color:var(--blue)"><div class="kpi-num" style="color:var(--blue);font-size:24px">${worked}</div><div class="kpi-label">出勤日数</div></div>
-    ${missing?`<div class="kpi-card" style="border-left-color:var(--accent)"><div class="kpi-num" style="color:var(--accent);font-size:24px">${missing}</div><div class="kpi-label">退勤漏れ</div></div>`:''}
+    ${missing?`<div class="kpi-card" style="border-left-color:var(--accent)"><div class="kpi-num" style="color:var(--accent);font-size:24px">${missing}</div><div class="kpi-label">報告漏れ</div></div>`:''}
     <div class="kpi-card" style="border-left-color:var(--accent2)"><div class="kpi-num" style="color:var(--accent2);font-size:24px">${totalHours.toFixed(1)}</div><div class="kpi-label">総勤務時間(h)</div></div>
     <div class="kpi-card" style="border-left-color:var(--warn)"><div class="kpi-num" style="color:var(--warn);font-size:24px">${totalOT.toFixed(1)}</div><div class="kpi-label">残業時間(h)</div></div>
     <div class="kpi-card"><div class="kpi-num" style="font-size:22px">¥${totalFare.toLocaleString()}</div><div class="kpi-label">交通費合計</div></div>
@@ -687,8 +690,10 @@ function renderAttMobileCards(records) {
         </div>
       </div>`;
     }
-    const hours    = calcHours(r);
-    const isMissed = r.clockIn && !r.clockOut;
+    const hours      = calcHours(r);
+    const noClockIn  = !r.absent && !r._syntheticPaidLeave && !r.clockIn;
+    const noClockOut = !r.absent && r.clockIn && !r.clockOut;
+    const isMissed   = noClockIn || noClockOut;
     const mw       = MENTAL_WEATHER[r.mentalWeather];
     const canEdit  = isAdmin() || r.uid===RC.currentUser.uid;
     const encName  = encodeURIComponent(r.name||'');
@@ -710,8 +715,8 @@ function renderAttMobileCards(records) {
         ${mw ? `<span style="font-size:13px">${mw.icon}</span>` : ''}
       </div>
       <div style="display:flex;gap:10px;font-size:12px;font-family:'DM Mono',monospace;flex-wrap:wrap">
-        <span style="color:var(--accent2)">${formatClockIn(r.clockIn)}</span>
-        <span style="color:${isMissed?'var(--accent)':'var(--blue)'}">${isMissed?'⚠漏れ':formatClockOut(r.clockOut)}</span>
+        <span style="color:${noClockIn?'var(--accent)':'var(--accent2)'}">${noClockIn?'⚠入店未入力':formatClockIn(r.clockIn)}</span>
+        <span style="color:${noClockOut?'var(--accent)':'var(--blue)'}">${noClockOut?'⚠退店漏れ':formatClockOut(r.clockOut)}</span>
         ${hours!==null&&hours>0?`<span style="color:var(--ink3)">${hours.toFixed(1)}h</span>`:r.absent?`<span style="color:var(--ink3);font-weight:700">欠勤</span>`:''}
         ${r.fare?`<span style="color:var(--ink3)">¥${r.fare.toLocaleString()}</span>`:''}
       </div>
@@ -728,7 +733,7 @@ export function setAttDetailFilter(filter) {
     b.classList.toggle('active', b.dataset.filter === filter);
   });
   const filtered = filter === 'missed'
-    ? _cachedAttendance.filter(r => r.clockIn && !r.clockOut)
+    ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && (!r.clockIn || !r.clockOut))
     : _cachedAttendance;
   renderAttendanceTable(filtered);
   renderAttMobileCards(filtered);
