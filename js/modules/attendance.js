@@ -1526,6 +1526,8 @@ export async function allianceClockIn() {
   const mentalVal  = document.querySelector('input[name="al-mental"]:checked')?.value||'';
   const msgEl      = document.getElementById('alliance-att-msg');
 
+  if (!mentalVal) { if (msgEl) msgEl.textContent = 'メンタル天気を選択してください'; return; }
+
   let gpsData = {};
   try {
     const pos = await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000}));
@@ -1539,7 +1541,7 @@ export async function allianceClockIn() {
       fare: fareIn, fareIn, fareOut: 0, fareOther: 0,
       stationFrom: stFrom, stationTo: stTo,
       isLate, lateReason, isAlliance: true,
-      ...(mentalVal ? { mentalWeather: mentalVal } : {}),
+      mentalWeather: mentalVal,
       ...gpsData
     }, { merge: true });
     if (msgEl) msgEl.textContent = '✅ 出勤を記録しました';
