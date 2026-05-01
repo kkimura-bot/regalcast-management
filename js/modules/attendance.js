@@ -691,7 +691,7 @@ export function filterAttBySearch(q) {
   renderAttendanceSummary(filtered, month);
 }
 
-// ── Excel export（メンバー別シート） ───────────────────────
+// ── Excel export（サマリー + メンバー別シート） ────────────
 
 export function exportExcel() {
   const records = _cachedAttendance;
@@ -700,7 +700,8 @@ export function exportExcel() {
   const XLSX = window.XLSX;
   if (!XLSX) { alert('Excelライブラリが読み込まれていません'); return; }
 
-  const headers = ['日付', '名前', '出勤', '退勤', '休憩(分)', '勤務時間(h)', '残業(h)', '交通費(円)', 'メンタル', 'メモ'];
+  const month = document.getElementById('att-month')?.value || new Date().toISOString().slice(0, 7);
+  const DOW   = ['日', '月', '火', '水', '木', '金', '土'];
 
   const wb = XLSX.utils.book_new();
 
@@ -711,43 +712,105 @@ export function exportExcel() {
     if (!memberMap[name]) memberMap[name] = [];
     memberMap[name].push(r);
   });
-
-  // メンバー名でソート
   const sortedNames = Object.keys(memberMap).sort((a, b) => a.localeCompare(b, 'ja'));
 
+  // ── シート1: 全体サマリー ────────────────────────────────
+  const summaryHeader = ['氏名', '出勤日数', '欠勤日数', '総勤務時間(h)', '残業時間(h)', '交通費合計(円)'];
+  const summaryRows = sortedNames.map(name => {
+    const rs        = memberMap[name];
+    const workDays  = rs.filter(r => !r.absent && (r.clockIn || r.shiftStart)).length;
+    const absentDays = rs.filter(r => r.absent).length;
+    const totalHours = rs.reduce((s, r) => s + (calcHours(r) || 0), 0);
+    const totalOT    = rs.reduce((s, r) => s + (calcOvertime(r) || 0), 0);
+    const totalFare  = rs.reduce((s, r) => s + (r.fare || 0), 0);
+    return [name, workDays, absentDays, parseFloat(totalHours.toFixed(2)), parseFloat(totalOT.toFixed(2)), totalFare];
+  });
+  const totalRow = ['合計',
+    summaryRows.reduce((s, r) => s + r[1], 0),
+    summaryRows.reduce((s, r) => s + r[2], 0),
+    parseFloat(summaryRows.reduce((s, r) => s + r[3], 0).toFixed(2)),
+    parseFloat(summaryRows.reduce((s, r) => s + r[4], 0).toFixed(2)),
+    summaryRows.reduce((s, r) => s + r[5], 0)
+  ];
+
+  const wsSummary = XLSX.utils.aoa_to_sheet([
+    [`勤怠サマリー ${month}`], [],
+    summaryHeader,
+    ...summaryRows,
+    [],
+    totalRow
+  ]);
+  wsSummary['!cols'] = [
+    { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 14 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'サマリー');
+
+  // ── 個人別シート ─────────────────────────────────────────
+  const detailHeaders = [
+    '日付', '曜日', '出勤', '退勤', '休憩(分)', '勤務時間(h)', '残業(h)',
+    '乗車駅', '降車駅', '往路(円)', '復路(円)', 'その他(円)', '交通費合計(円)',
+    'メンタル', 'メモ'
+  ];
+
   sortedNames.forEach(name => {
-    const rows = memberMap[name].map(r => {
+    const rs = memberMap[name].slice().sort((a, b) => a.date.localeCompare(b.date));
+
+    const rows = rs.map(r => {
       const hours = calcHours(r);
       const ot    = calcOvertime(r);
+      const dow   = DOW[new Date(r.date + 'T00:00:00+09:00').getDay()];
       return [
         r.date,
-        r.name || '',
-        formatClockIn(r.clockIn),
-        formatClockOut(r.clockOut),
-        r.breakMinutes ?? 60,
-        hours != null ? parseFloat(hours.toFixed(2)) : '',
-        ot != null ? parseFloat(ot.toFixed(2)) : '',
-        r.fare || 0,
+        dow,
+        r.absent ? '欠勤' : formatClockIn(r.clockIn),
+        r.absent ? ''     : formatClockOut(r.clockOut),
+        r.absent ? ''     : (r.breakMinutes ?? 60),
+        r.absent ? ''     : (hours != null ? parseFloat(hours.toFixed(2)) : ''),
+        r.absent ? ''     : (ot != null ? parseFloat(ot.toFixed(2)) : 0),
+        r.stationFrom || '',
+        r.stationTo   || '',
+        r.fareIn      || 0,
+        r.fareOut     || 0,
+        r.fareOther   || 0,
+        r.fare        || 0,
         r.mentalWeather || '',
         r.note || ''
       ];
     });
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const sumHours     = rs.reduce((s, r) => s + (calcHours(r)    || 0), 0);
+    const sumOT        = rs.reduce((s, r) => s + (calcOvertime(r) || 0), 0);
+    const sumFareIn    = rs.reduce((s, r) => s + (r.fareIn    || 0), 0);
+    const sumFareOut   = rs.reduce((s, r) => s + (r.fareOut   || 0), 0);
+    const sumFareOther = rs.reduce((s, r) => s + (r.fareOther || 0), 0);
+    const sumFare      = rs.reduce((s, r) => s + (r.fare      || 0), 0);
 
-    // 列幅設定
-    ws['!cols'] = [
-      { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 8 },
-      { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 },
-      { wch: 8 }, { wch: 20 }
+    const sumRow = [
+      '合計', '', '', '', '',
+      parseFloat(sumHours.toFixed(2)),
+      parseFloat(sumOT.toFixed(2)),
+      '', '',
+      sumFareIn, sumFareOut, sumFareOther, sumFare,
+      '', ''
     ];
 
-    // シート名は31文字以内（Excelの制限）
-    const sheetName = name.slice(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const ws = XLSX.utils.aoa_to_sheet([
+      [`${name} 勤怠表 ${month}`], [],
+      detailHeaders,
+      ...rows,
+      [],
+      sumRow
+    ]);
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 5  }, { wch: 8  }, { wch: 8  }, { wch: 8  },
+      { wch: 10 }, { wch: 8  },
+      { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+      { wch: 10 }, { wch: 24 }
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
   });
 
-  const month = document.getElementById('att-month')?.value || new Date().toISOString().slice(0, 7);
   XLSX.writeFile(wb, `勤怠表_${month}.xlsx`);
 }
 
