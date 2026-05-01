@@ -244,19 +244,71 @@ export async function loadAttendanceToday() {
 
   // Team status (leader/admin)
   if (isLeaderOrAbove()) {
-    const attSnap = await getDocs(query(collection(db,'attendance'), where('date','==',today)));
-    const records = attSnap.docs.map(d => d.data());
+    const [attSnap, shiftSnap] = await Promise.all([
+      getDocs(query(collection(db, 'attendance'), where('date', '==', today))),
+      getDocs(query(collection(db, 'shifts'),     where('date', '==', today)))
+    ]);
+
+    // attendance を uid でマップ
+    const attMap = {};
+    attSnap.docs.forEach(d => { const v = d.data(); attMap[v.uid] = v; });
+
+    // shifts（off以外）+ attendance を統合
+    const seen   = new Set();
+    const merged = [];
+    shiftSnap.docs.forEach(d => {
+      const s = d.data();
+      if (s.type === 'off') return;
+      if (seen.has(s.uid)) return;
+      seen.add(s.uid);
+      merged.push({
+        name:       s.name || attMap[s.uid]?.name || '—',
+        shiftStart: s.startTime || '',
+        clockIn:    attMap[s.uid]?.clockIn  || null,
+        clockOut:   attMap[s.uid]?.clockOut || null
+      });
+    });
+    // シフトにない打刻者も追加
+    attSnap.docs.forEach(d => {
+      const a = d.data();
+      if (seen.has(a.uid)) return;
+      seen.add(a.uid);
+      merged.push({ name: a.name || '—', shiftStart: '', clockIn: a.clockIn, clockOut: a.clockOut });
+    });
+
+    // シフト開始時間(分)を取得、未設定は9999
+    const toMin = t => { if (!t) return 9999; const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0); };
+    const nowJST = new Date(new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }));
+    const nowMin = nowJST.getHours() * 60 + nowJST.getMinutes();
+
+    // 時間が来ている人を上、まだの人を下にソート（それぞれ開始時間昇順）
+    merged.sort((a, b) => {
+      const aMin = toMin(a.shiftStart), bMin = toMin(b.shiftStart);
+      const aDue = aMin <= nowMin, bDue = bMin <= nowMin;
+      if (aDue !== bDue) return aDue ? -1 : 1;
+      return aMin - bMin;
+    });
+
     const teamStatus = document.getElementById('att-team-status');
     if (teamStatus) {
-      teamStatus.innerHTML = records.length
-        ? records.map(r => `<div class="att-row">
-            <span class="att-label">${r.name||'—'}</span>
-            <div style="display:flex;gap:10px;font-size:12px;font-family:'DM Mono',monospace">
+      if (!merged.length) {
+        teamStatus.innerHTML = '<div class="empty" style="padding:12px">本日の出勤記録なし</div>';
+      } else {
+        teamStatus.innerHTML = merged.map(r => {
+          const due     = toMin(r.shiftStart) <= nowMin;
+          const missing = due && !r.clockIn;
+          const border  = missing ? 'var(--accent)' : r.clockOut ? 'var(--ink3)' : r.clockIn ? 'var(--accent2)' : 'rgba(0,0,0,.1)';
+          return `<div class="att-row" style="border-left:2px solid ${border};padding-left:8px">
+            <span class="att-label">${r.name}</span>
+            <div style="display:flex;gap:8px;font-size:12px;font-family:'DM Mono',monospace;align-items:center;flex-wrap:wrap">
+              ${r.shiftStart ? `<span style="color:var(--ink3);font-size:11px">${r.shiftStart}〜</span>` : ''}
               <span style="color:var(--accent2)">${formatTime(r.clockIn)}</span>
               <span style="color:var(--blue)">${formatTime(r.clockOut)}</span>
+              ${missing ? '<span style="font-size:10px;color:var(--accent);background:rgba(200,71,42,.1);padding:1px 5px;border-radius:4px">未出勤</span>' : ''}
             </div>
-          </div>`).join('')
-        : '<div class="empty" style="padding:12px">本日の出勤記録なし</div>';
+          </div>`;
+        }).join('');
+      }
     }
   }
 }
