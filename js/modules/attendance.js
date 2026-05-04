@@ -359,7 +359,7 @@ export async function checkMissedClockIn() {
 
 // ── Monthly attendance ────────────────────────────────────
 
-export async function loadMonthlyAttendance(force = false) {
+export async function loadMonthlyAttendance(force = false, explicitMonth = null) {
   const now = Date.now();
   if (!force && now - _lastAttLoad < ATT_COOLDOWN_MS) {
     const remaining = Math.ceil((ATT_COOLDOWN_MS - (now - _lastAttLoad)) / 1000 / 60);
@@ -367,7 +367,9 @@ export async function loadMonthlyAttendance(force = false) {
     return;
   }
 
-  const month = document.getElementById('att-month')?.value
+  // 明示的に月が渡された場合はそれを優先。なければ両方の input を確認（PC優先）
+  const month = explicitMonth
+             || document.getElementById('att-month')?.value
              || document.getElementById('att-month-m')?.value
              || new Date().toISOString().slice(0,7);
   ['att-month','att-month-m'].forEach(id => { const el=document.getElementById(id); if(el) el.value=month; });

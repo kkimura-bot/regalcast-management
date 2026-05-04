@@ -18,8 +18,9 @@ export function mentalBadge(weather) {
   return `<span style="font-size:14px" title="${weather}">${mw.icon}</span>`;
 }
 
-export async function loadMentalData() {
-  const month = document.getElementById('mental-month')?.value
+export async function loadMentalData(explicitMonth = null) {
+  const month = explicitMonth
+             || document.getElementById('mental-month')?.value
              || document.getElementById('mental-month-m')?.value
              || new Date().toISOString().slice(0,7);
   ['mental-month','mental-month-m'].forEach(id => { const el=document.getElementById(id); if(el) el.value=month; });
