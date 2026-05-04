@@ -313,7 +313,7 @@
     <div class="mobile-view" id="m-view-monthly">
       <!-- コントロール -->
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-        <input type="month" class="form-input" id="att-month-m" value="" style="flex:1;min-width:130px" onchange="loadMonthlyAttendance(true)">
+        <input type="month" class="form-input" id="att-month-m" value="" style="flex:1;min-width:130px" onchange="var el=document.getElementById('att-month');if(el)el.value=this.value;loadMonthlyAttendance(true)">
         <button class="mini-btn" id="att-reload-btn-m" onclick="loadMonthlyAttendance()" style="padding:6px 12px;background:var(--accent2);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;min-width:80px">🔄 更新</button>
         <button onclick="exportExcel()" style="padding:6px 12px;background:var(--accent2);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">⬇ Excel</button>
         <button id="m-att-add-btn" onclick="openAddAttendanceModal()" style="display:none;padding:6px 12px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">＋ 追加</button>
@@ -826,7 +826,7 @@
         <div id="att-member-filter-wrap" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <div class="month-row" style="margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <label>対象月</label>
-            <input type="month" class="form-input" id="att-month" style="width:auto" onchange="loadMonthlyAttendance(true)">
+            <input type="month" class="form-input" id="att-month" style="width:auto" onchange="var el=document.getElementById('att-month-m');if(el)el.value=this.value;loadMonthlyAttendance(true)">
             <button class="add-btn" id="att-reload-btn" onclick="loadMonthlyAttendance()" style="background:var(--accent2);min-width:80px">🔄 更新</button>
             <span id="att-last-loaded-label" style="font-size:11px;color:var(--ink3)"></span>
           </div>
