@@ -1451,31 +1451,6 @@ export async function checkNotifications() {
     }
   }
 
-  if (isAdmin()) {
-    try {
-      const nowMonth = new Date(new Date().toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})).toLocaleDateString('sv-SE').slice(0,7);
-      const shiftSnap = await getDocs(query(collection(db,'shifts'), where('month','==',nowMonth)));
-      const registeredUids = new Set(
-        shiftSnap.docs
-          .filter(d => d.data().type !== 'off')
-          .map(d => d.data().uid || d.data().name)
-      );
-      const unregistered = RC._cachedMembers.filter(m => {
-        if (!m.name) return false;
-        return !registeredUids.has(m.id) && !registeredUids.has(m.name);
-      });
-      if (unregistered.length > 0) {
-        html += `<div class="notif-item notif-warn">
-          <div class="notif-icon">📋</div>
-          <div>
-            <div class="notif-title">今月シフト未登録 ${unregistered.length}名</div>
-            <div class="notif-list">${unregistered.slice(0,5).map(m=>`<span class="notif-chip">${m.name}</span>`).join('')}${unregistered.length>5?`<span class="notif-chip">他${unregistered.length-5}名</span>`:''}</div>
-            <button class="mini-btn" style="margin-top:4px" onclick="switchTab('shifts')">シフト管理へ →</button>
-          </div>
-        </div>`;
-      }
-    } catch(e) {}
-  }
 
   if (banner) { banner.style.display = html ? '' : 'none'; banner.innerHTML = html; }
   if (bannerM) { bannerM.style.display = html ? '' : 'none'; bannerM.innerHTML = html; }
