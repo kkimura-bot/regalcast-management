@@ -1454,8 +1454,12 @@ export async function checkNotifications() {
   if (isAdmin()) {
     try {
       const nowMonth = new Date(new Date().toLocaleString('ja-JP',{timeZone:'Asia/Tokyo'})).toLocaleDateString('sv-SE').slice(0,7);
-      const shiftSnap = await getDocs(query(collection(db,'shifts'), where('month','==',nowMonth), where('type','==','work')));
-      const registeredUids = new Set(shiftSnap.docs.map(d => d.data().uid || d.data().name));
+      const shiftSnap = await getDocs(query(collection(db,'shifts'), where('month','==',nowMonth)));
+      const registeredUids = new Set(
+        shiftSnap.docs
+          .filter(d => d.data().type !== 'off')
+          .map(d => d.data().uid || d.data().name)
+      );
       const unregistered = RC._cachedMembers.filter(m => {
         if (!m.name) return false;
         return !registeredUids.has(m.id) && !registeredUids.has(m.name);
