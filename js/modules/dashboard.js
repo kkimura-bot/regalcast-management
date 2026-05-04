@@ -295,9 +295,13 @@ function renderMyPaidLeaveCardHtml(myPaidLeaveRecent) {
 // ── Admin dashboard ───────────────────────────────────────
 
 function renderAdmin(today, att, shifts, mental, unread, unreadForms, paidLeavePending) {
-  const totalMembers = RC._cachedMembers.filter(m =>
-    !m.isAlliance && !m.noAuth && m.role !== '委託' && m.role !== 'alliance' && !m.id.startsWith('alliance_')
+  const activeEmployees = RC._cachedMembers.filter(m =>
+    !m.isRetired && !m.isAlliance && !m.noAuth && !m.id.startsWith('alliance_') && m.role !== '委託' && m.role !== 'alliance'
   ).length;
+  const contractStaff = RC._cachedMembers.filter(m =>
+    !m.isRetired && (m.isAlliance || m.role === '委託' || m.id.startsWith('alliance_') || m.role === 'alliance')
+  ).length;
+  const totalMembers = activeEmployees;
   const scheduledUids  = new Set(shifts.map(s => s.uid).filter(Boolean));
   const scheduledCount = scheduledUids.size;
   const attendedCount  = att.filter(r => r.uid && scheduledUids.has(r.uid)).length;
@@ -379,12 +383,20 @@ function renderAdmin(today, att, shifts, mental, unread, unreadForms, paidLeaveP
         <div style="font-size:11px;color:#2a5298;margin-top:12px;font-weight:600">入社フォームを確認 →</div>
       </div>
 
-      <!-- 今日のシフト人数 -->
-      <div class="dash-card" style="cursor:pointer" onclick="switchTab('daily')">
-        <div class="dash-card-label">📅 今日のシフト</div>
-        <div class="dash-stat-num">${scheduledCount}</div>
-        <div class="dash-stat-label">名がシフト入り</div>
-        <div style="font-size:11px;color:#2a5298;margin-top:12px;font-weight:600">当日確認へ →</div>
+      <!-- スタッフ構成 -->
+      <div class="dash-card">
+        <div class="dash-card-label">👔 スタッフ構成</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:12px;color:#5a6478">稼働中の社員</div>
+            <div style="font-size:22px;font-weight:800;color:#1a1a1a">${activeEmployees}<span style="font-size:13px;font-weight:600;color:#8a93a6;margin-left:2px">名</span></div>
+          </div>
+          <div style="height:1px;background:#f0f2f5"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:12px;color:#5a6478">委託スタッフ</div>
+            <div style="font-size:22px;font-weight:800;color:#2a5298">${contractStaff}<span style="font-size:13px;font-weight:600;color:#8a93a6;margin-left:2px">名</span></div>
+          </div>
+        </div>
       </div>
 
       <!-- 未処理 有給申請 -->
@@ -414,7 +426,7 @@ function renderAdmin(today, att, shifts, mental, unread, unreadForms, paidLeaveP
     </div>`;
 
   document.getElementById('dash-content').innerHTML = html;
-  renderMobileDashboard('admin', { today, att, shifts, mental, unread, unreadForms, paidLeavePending, totalMembers, attendedCount, scheduledCount, pct, negMembers, dateLabel });
+  renderMobileDashboard('admin', { today, att, shifts, mental, unread, unreadForms, paidLeavePending, totalMembers, activeEmployees, contractStaff, attendedCount, scheduledCount, pct, negMembers, dateLabel });
 }
 
 // ── Leader dashboard ──────────────────────────────────────
@@ -592,7 +604,7 @@ function renderMobileDashboard(role, data) {
   let html = refreshBtn;
 
   if (role === 'admin') {
-    const { att, totalMembers, attendedCount, scheduledCount, pct, mental, negMembers, unread, unreadForms, paidLeavePending } = data;
+    const { att, totalMembers, attendedCount, scheduledCount, pct, mental, negMembers, unread, unreadForms, paidLeavePending, activeEmployees, contractStaff } = data;
     const attHtml = att.slice(0,6).map(r => `
       <div class="dash-att-row">
         <span class="dash-att-name">${r.name||'—'}</span>
@@ -617,9 +629,12 @@ function renderMobileDashboard(role, data) {
           <div class="dash-card-label" style="margin-bottom:8px">📨 未読日報</div>
           <div class="dash-stat-num" style="font-size:28px;color:${unread>0?'#e53e3e':'#3a7d5a'}">${unread}</div>
         </div>
-        <div class="m-dash-card" style="cursor:pointer" onclick="switchMobile('daily',document.querySelector('[onclick*=daily]'))">
-          <div class="dash-card-label" style="margin-bottom:8px">📅 シフト</div>
-          <div class="dash-stat-num" style="font-size:28px">${scheduledCount}</div>
+        <div class="m-dash-card">
+          <div class="dash-card-label" style="margin-bottom:8px">👔 社員 / 🤝 委託</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:22px;font-weight:800">${activeEmployees}</span>
+            <span style="font-size:12px;color:#8a93a6">/ ${contractStaff}名</span>
+          </div>
         </div>
       </div>
       ${unreadForms > 0 ? `
