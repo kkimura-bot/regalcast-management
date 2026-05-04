@@ -64,25 +64,44 @@ export function renderSalaryList() {
   if (!isAdmin()) return;
   const container = document.getElementById('salary-list');
   if (!container) return;
-  if (!_cachedSalary.length) {
-    container.innerHTML = '<div class="empty">給与情報が登録されていません</div>'; return;
+
+  // メンバー管理を軸にする：アクティブな社員メンバーを全員表示
+  const activeMembers = RC._cachedMembers.filter(
+    m => !m.isRetired && !m.isAlliance && !m.noAuth && !m.id.startsWith('alliance_')
+  );
+
+  if (!activeMembers.length) {
+    container.innerHTML = '<div class="empty">メンバーが登録されていません</div>'; return;
   }
-  // 退職者を除外
-  const retiredNames = new Set(RC._cachedMembers.filter(m => m.isRetired).map(m => m.name).filter(Boolean));
-  const activeSalary = _cachedSalary.filter(s => {
-    if (s.uid) return !RC._cachedMembers.find(m => m.id === s.uid)?.isRetired;
-    return !retiredNames.has(s.name);
+
+  // salary コレクションを uid → record でマップ（uid なければ name で照合）
+  const salaryByUid  = {};
+  const salaryByName = {};
+  _cachedSalary.forEach(s => {
+    if (s.uid)  salaryByUid[s.uid]   = s;
+    if (s.name) salaryByName[s.name] = s;
   });
+
   container.innerHTML = `<div class="tbl-wrap"><table>
     <thead><tr><th>名前</th><th>部門</th><th>グレード</th><th>月収合計</th><th>内訳</th><th>備考</th><th></th></tr></thead>
-    <tbody>${activeSalary.map(s => {
-      const grade = s.salaryTable || s.rank || '';
+    <tbody>${activeMembers.map(m => {
+      const s = salaryByUid[m.id] || salaryByName[m.name] || null;
+      const grade = s?.salaryTable || s?.rank || '';
       const rankColor = RANK_COLORS[grade] || 'var(--ink3)';
       const td = SALARY_TABLE[grade] || {};
-      const total = s.totalSalary || s.totalAmount || td.total || 0;
+      const total = s?.totalSalary || s?.totalAmount || td.total || 0;
+      if (!s) {
+        return `<tr style="background:rgba(200,71,42,.03)">
+          <td style="font-weight:600">${escHtml(m.name||'—')}</td>
+          <td style="font-size:11px;color:var(--ink3)">${escHtml(m.dept||'—')}</td>
+          <td colspan="3" style="font-size:11px;color:var(--ink3)">未設定</td>
+          <td></td>
+          <td><button class="mini-btn" onclick="openAddSalaryModal('${m.id}','${escHtml(m.name||'')}')">設定</button></td>
+        </tr>`;
+      }
       return `<tr>
-        <td style="font-weight:600">${escHtml(s.name||'—')}</td>
-        <td style="font-size:11px;color:var(--ink3)">${escHtml(s.dept||'—')}</td>
+        <td style="font-weight:600">${escHtml(m.name||'—')}</td>
+        <td style="font-size:11px;color:var(--ink3)">${escHtml(m.dept||'—')}</td>
         <td><span style="font-weight:700;color:${rankColor};font-size:12px">${escHtml(grade||'—')}</span>
             <div style="font-size:10px;color:var(--ink3)">${escHtml(td.rank||'')}</div></td>
         <td style="font-family:'DM Mono',monospace;font-weight:700">¥${total.toLocaleString()}</td>
@@ -96,21 +115,31 @@ export function renderSalaryList() {
   // Mobile list
   const mList = document.getElementById('salary-list-m');
   if (mList) {
-    mList.innerHTML = activeSalary.map(s => {
-      const grade = s.salaryTable || s.rank || '';
+    mList.innerHTML = activeMembers.map(m => {
+      const s = salaryByUid[m.id] || salaryByName[m.name] || null;
+      const grade = s?.salaryTable || s?.rank || '';
       const rankColor = RANK_COLORS[grade] || 'var(--ink3)';
       const td = SALARY_TABLE[grade] || {};
-      const total = s.totalSalary || s.totalAmount || td.total || 0;
+      const total = s?.totalSalary || s?.totalAmount || td.total || 0;
+      if (!s) {
+        return `<div class="m-card" style="border-left:3px solid var(--accent)" onclick="openAddSalaryModal('${m.id}','${escHtml(m.name||'')}')">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-weight:700">${escHtml(m.name||'—')}</span>
+            <span style="font-size:11px;color:var(--accent)">未設定</span>
+          </div>
+          <div style="font-size:11px;color:var(--ink3)">${escHtml(m.dept||'—')}</div>
+        </div>`;
+      }
       return `<div class="m-card" onclick="openEditSalaryModal('${s.id}')">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-          <span style="font-weight:700">${escHtml(s.name||'—')}</span>
+          <span style="font-weight:700">${escHtml(m.name||'—')}</span>
           <span style="font-weight:700;color:${rankColor};font-size:13px">${escHtml(grade||'—')}</span>
         </div>
-        <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${escHtml(td.rank||s.dept||'—')}</div>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${escHtml(td.rank||m.dept||'—')}</div>
         <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace">¥${total.toLocaleString()}</div>
         <div style="font-size:10px;color:var(--ink3);margin-top:4px">${salaryBreakdown(td)}</div>
       </div>`;
-    }).join('') || '<div class="empty">給与情報なし</div>';
+    }).join('') || '<div class="empty">メンバーなし</div>';
   }
 }
 
