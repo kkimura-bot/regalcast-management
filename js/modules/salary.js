@@ -86,6 +86,7 @@ export function renderSalaryList() {
     <thead><tr><th>名前</th><th>部門</th><th>グレード</th><th>月収合計</th><th>内訳</th><th>備考</th><th></th></tr></thead>
     <tbody>${activeMembers.map(m => {
       const s = salaryByUid[m.id] || salaryByName[m.name] || null;
+      const isHourly = s?.salaryType === 'hourly';
       const grade = s?.salaryTable || s?.rank || '';
       const rankColor = RANK_COLORS[grade] || 'var(--ink3)';
       const td = SALARY_TABLE[grade] || {};
@@ -97,6 +98,17 @@ export function renderSalaryList() {
           <td colspan="3" style="font-size:11px;color:var(--ink3)">未設定</td>
           <td></td>
           <td><button class="mini-btn" onclick="openAddSalaryModal('${m.id}','${escHtml(m.name||'')}')">設定</button></td>
+        </tr>`;
+      }
+      if (isHourly) {
+        return `<tr>
+          <td style="font-weight:600">${escHtml(m.name||'—')}</td>
+          <td style="font-size:11px;color:var(--ink3)">${escHtml(m.dept||'—')}</td>
+          <td><span style="font-weight:700;color:#0077b6;font-size:12px">時給</span></td>
+          <td style="font-family:'DM Mono',monospace;font-weight:700">¥${(s.hourlyRate||0).toLocaleString()} / h</td>
+          <td style="font-size:11px;color:var(--ink3)">—</td>
+          <td style="font-size:11px;color:var(--ink3)">${escHtml(s.note||'')}</td>
+          <td><button class="mini-btn" onclick="openEditSalaryModal('${s.id}')">編集</button></td>
         </tr>`;
       }
       return `<tr>
@@ -117,6 +129,7 @@ export function renderSalaryList() {
   if (mList) {
     mList.innerHTML = activeMembers.map(m => {
       const s = salaryByUid[m.id] || salaryByName[m.name] || null;
+      const isHourly = s?.salaryType === 'hourly';
       const grade = s?.salaryTable || s?.rank || '';
       const rankColor = RANK_COLORS[grade] || 'var(--ink3)';
       const td = SALARY_TABLE[grade] || {};
@@ -128,6 +141,16 @@ export function renderSalaryList() {
             <span style="font-size:11px;color:var(--accent)">未設定</span>
           </div>
           <div style="font-size:11px;color:var(--ink3)">${escHtml(m.dept||'—')}</div>
+        </div>`;
+      }
+      if (isHourly) {
+        return `<div class="m-card" onclick="openEditSalaryModal('${s.id}')">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-weight:700">${escHtml(m.name||'—')}</span>
+            <span style="font-weight:700;color:#0077b6;font-size:13px">時給</span>
+          </div>
+          <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${escHtml(m.dept||'—')}</div>
+          <div style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace">¥${(s.hourlyRate||0).toLocaleString()} / h</div>
         </div>`;
       }
       return `<div class="m-card" onclick="openEditSalaryModal('${s.id}')">
@@ -147,6 +170,7 @@ export function renderSalaryList() {
 
 function salaryForm(s, presetUid) {
   const isEdit = !!s;
+  const isHourly = s?.salaryType === 'hourly';
   const currentGrade = s?.salaryTable || s?.rank || '';
   const rankOpts = RANK_ORDER.map(r => `<option value="${r}" ${currentGrade===r?'selected':''}>${r}（¥${(SALARY_TABLE[r]?.total||0).toLocaleString()}）</option>`).join('');
   const selectedUid = s?.uid || presetUid;
@@ -157,9 +181,30 @@ function salaryForm(s, presetUid) {
       <select class="form-input" id="sal-member">${memberOpts}</select></div>` : `
     <div class="form-row"><label class="form-label">名前</label>
       <input class="form-input" id="sal-name-display" value="${escHtml(s?.name||'')}" readonly style="background:var(--surface2)"></div>`}
-    <div class="form-row"><label class="form-label">グレード</label>
-      <select class="form-input" id="sal-rank" onchange="onSalaryTableChange()">${rankOpts}</select></div>
-    <div id="sal-table-preview" style="margin:8px 0;padding:10px;background:var(--surface2);border-radius:6px;font-size:12px"></div>
+    <div class="form-row"><label class="form-label">給与タイプ</label>
+      <div style="display:flex;gap:8px">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+          <input type="radio" name="sal-type" value="monthly" ${!isHourly?'checked':''} onchange="onSalaryTypeChange()"> 月給（グレード制）
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:13px">
+          <input type="radio" name="sal-type" value="hourly" ${isHourly?'checked':''} onchange="onSalaryTypeChange()"> 時給
+        </label>
+      </div>
+    </div>
+    <div id="sal-monthly-area" style="${isHourly?'display:none':''}">
+      <div class="form-row"><label class="form-label">グレード</label>
+        <select class="form-input" id="sal-rank" onchange="onSalaryTableChange()">${rankOpts}</select></div>
+      <div id="sal-table-preview" style="margin:8px 0;padding:10px;background:var(--surface2);border-radius:6px;font-size:12px"></div>
+    </div>
+    <div id="sal-hourly-area" style="${isHourly?'':'display:none'}">
+      <div class="form-row"><label class="form-label">時給単価（円）</label>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:13px;color:var(--ink3)">¥</span>
+          <input class="form-input" id="sal-hourly-rate" type="text" inputmode="numeric" value="${s?.hourlyRate||''}" placeholder="1200" style="width:120px">
+          <span style="font-size:13px;color:var(--ink3)">/ h</span>
+        </div>
+      </div>
+    </div>
     <div class="form-row"><label class="form-label">備考</label>
       <input class="form-input" id="sal-note" value="${escHtml(s?.note||'')}"></div>
     <div class="btn-row">
@@ -168,6 +213,14 @@ function salaryForm(s, presetUid) {
         ${isEdit?'更新':'追加する'}
       </button>
     </div>`;
+}
+
+export function onSalaryTypeChange() {
+  const type = document.querySelector('input[name="sal-type"]:checked')?.value;
+  const monthly = document.getElementById('sal-monthly-area');
+  const hourly  = document.getElementById('sal-hourly-area');
+  if (monthly) monthly.style.display = type === 'hourly' ? 'none' : '';
+  if (hourly)  hourly.style.display  = type === 'hourly' ? '' : 'none';
 }
 
 export function onSalaryTableChange() {
@@ -200,9 +253,11 @@ export function openEditSalaryModal(id) {
 }
 
 export async function saveSalary(id) {
-  const rank      = document.getElementById('sal-rank').value;
+  const salType   = document.querySelector('input[name="sal-type"]:checked')?.value || 'monthly';
   const note      = document.getElementById('sal-note').value.trim();
+  const rank      = document.getElementById('sal-rank')?.value || '';
   const tableData = SALARY_TABLE[rank] || {};
+  const hourlyRate = parseInt((document.getElementById('sal-hourly-rate')?.value||'').replace(/[^0-9]/g,''),10) || 0;
 
   let uid, name, dept;
   if (!id) {
@@ -218,12 +273,9 @@ export async function saveSalary(id) {
     dept = s?.dept;
   }
 
-  const data = {
-    name, dept,
-    salaryTable: rank,
-    totalSalary: tableData.total || 0,
-    note
-  };
+  const data = salType === 'hourly'
+    ? { name, dept, salaryType: 'hourly', hourlyRate, salaryTable: '', totalSalary: 0, note }
+    : { name, dept, salaryType: 'monthly', salaryTable: rank, totalSalary: tableData.total || 0, note };
   if (uid) data.uid = uid;
 
   if (id) {
@@ -459,6 +511,7 @@ export async function submitMeetingRequest() {
 window.loadSalary          = loadSalary;
 window.renderSalaryList    = renderSalaryList;
 window.onSalaryTableChange = onSalaryTableChange;
+window.onSalaryTypeChange  = onSalaryTypeChange;
 window.openAddSalaryModal  = openAddSalaryModal;
 window.openEditSalaryModal = openEditSalaryModal;
 window.saveSalary          = saveSalary;
