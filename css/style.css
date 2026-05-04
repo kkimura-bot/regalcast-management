@@ -608,6 +608,8 @@ tr:hover td { background: #F8FAFC; }
 .shift-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
 .shift-cal-cell {
   min-height: 76px;
+  min-width: 0;
+  overflow: hidden;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   padding: 5px;
