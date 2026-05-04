@@ -766,127 +766,274 @@ export function filterAttBySearch(q) {
   renderAttendanceSummary(filtered, month);
 }
 
-// ── Excel export（サマリー + メンバー別シート） ────────────
+// ── Excel export（ExcelJS / 書式付き） ────────────────────
 
-export function exportExcel() {
+export async function exportExcel() {
   const records = _cachedAttendance;
   if (!records.length) { alert('出力するデータがありません'); return; }
 
-  const XLSX = window.XLSX;
-  if (!XLSX) { alert('Excelライブラリが読み込まれていません'); return; }
+  const ExcelJS = window.ExcelJS;
+  if (!ExcelJS) { alert('ExcelJSライブラリが読み込まれていません'); return; }
 
   const month = document.getElementById('att-month')?.value || new Date().toISOString().slice(0, 7);
   const DOW   = ['日', '月', '火', '水', '木', '金', '土'];
 
-  const wb = XLSX.utils.book_new();
+  // ── カラーパレット ────────────────────────────────────────
+  const C_NAVY   = { argb: 'FF1E3A5F' };
+  const C_WHITE  = { argb: 'FFFFFFFF' };
+  const C_SAT    = { argb: 'FFDBEAFE' }; // 土曜：薄青
+  const C_SUN    = { argb: 'FFFEE2E2' }; // 日曜：薄赤
+  const C_ABSENT = { argb: 'FFF1F5F9' }; // 欠勤：薄グレー
+  const C_TOTAL  = { argb: 'FFEFF6FF' }; // 合計行：薄ネイビー
+  const C_ALT    = { argb: 'FFF8FAFC' }; // 偶数行：ごく薄グレー
 
-  // メンバーごとにグループ化
+  const border = {
+    top:    { style: 'thin', color: { argb: 'FFE2E8F0' } },
+    bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+    left:   { style: 'thin', color: { argb: 'FFE2E8F0' } },
+    right:  { style: 'thin', color: { argb: 'FFE2E8F0' } },
+  };
+  const borderTotal = {
+    top:    { style: 'medium', color: { argb: 'FF2563EB' } },
+    bottom: { style: 'medium', color: { argb: 'FF2563EB' } },
+    left:   { style: 'thin',   color: { argb: 'FFE2E8F0' } },
+    right:  { style: 'thin',   color: { argb: 'FFE2E8F0' } },
+  };
+
+  const applyBorder = (cell, b = border) => { cell.border = b; };
+
+  // メンバーグループ化
   const memberMap = {};
   records.forEach(r => {
-    const name = r.name || '不明';
-    if (!memberMap[name]) memberMap[name] = [];
-    memberMap[name].push(r);
+    const key = r.name || '不明';
+    if (!memberMap[key]) memberMap[key] = [];
+    memberMap[key].push(r);
   });
   const sortedNames = Object.keys(memberMap).sort((a, b) => a.localeCompare(b, 'ja'));
 
-  // ── シート1: 全体サマリー ────────────────────────────────
-  const summaryHeader = ['氏名', '出勤日数', '欠勤日数', '総勤務時間(h)', '残業時間(h)', '交通費合計(円)'];
-  const summaryRows = sortedNames.map(name => {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'RegalCast Management';
+
+  // ── シート1: サマリー ─────────────────────────────────────
+  const ws1 = wb.addWorksheet('サマリー');
+  ws1.columns = [
+    { width: 18 }, { width: 10 }, { width: 10 },
+    { width: 16 }, { width: 14 }, { width: 16 },
+  ];
+
+  // タイトル行
+  ws1.mergeCells('A1:F1');
+  const t1 = ws1.getCell('A1');
+  t1.value     = `勤怠サマリー　${month}`;
+  t1.font      = { bold: true, size: 14, color: C_NAVY };
+  t1.alignment = { horizontal: 'left', vertical: 'middle' };
+  t1.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
+  ws1.getRow(1).height = 30;
+  ws1.addRow([]);
+
+  // ヘッダー行
+  const sh = ws1.addRow(['氏名', '出勤日数', '欠勤日数', '総勤務時間(h)', '残業時間(h)', '交通費合計(円)']);
+  sh.height = 22;
+  sh.eachCell(cell => {
+    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: C_NAVY };
+    cell.font      = { bold: true, color: C_WHITE, size: 11 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyBorder(cell);
+  });
+
+  // データ行
+  const summaryTotals = [0, 0, 0, 0, 0];
+  sortedNames.forEach((name, i) => {
     const rs        = memberMap[name];
     const workDays  = rs.filter(r => !r.absent && (r.clockIn || r.shiftStart)).length;
-    const absentDays = rs.filter(r => r.absent).length;
-    const totalHours = rs.reduce((s, r) => s + (calcHours(r) || 0), 0);
-    const totalOT    = rs.reduce((s, r) => s + (calcOvertime(r) || 0), 0);
-    const totalFare  = rs.reduce((s, r) => s + (r.fare || 0), 0);
-    return [name, workDays, absentDays, parseFloat(totalHours.toFixed(2)), parseFloat(totalOT.toFixed(2)), totalFare];
+    const absDays   = rs.filter(r => r.absent).length;
+    const totHours  = rs.reduce((s, r) => s + (calcHours(r) || 0), 0);
+    const totOT     = rs.reduce((s, r) => s + (calcOvertime(r) || 0), 0);
+    const totFare   = rs.reduce((s, r) => s + (r.fare || 0), 0);
+    summaryTotals[0] += workDays;
+    summaryTotals[1] += absDays;
+    summaryTotals[2] += totHours;
+    summaryTotals[3] += totOT;
+    summaryTotals[4] += totFare;
+
+    const row = ws1.addRow([name, workDays, absDays,
+      parseFloat(totHours.toFixed(2)), parseFloat(totOT.toFixed(2)), totFare]);
+    row.height = 20;
+    const bg = i % 2 === 0 ? C_WHITE : C_ALT;
+    row.eachCell(cell => {
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: bg };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      applyBorder(cell);
+    });
+    row.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+    row.getCell(4).numFmt    = '0.00"h"';
+    row.getCell(5).numFmt    = '0.00"h"';
+    row.getCell(6).numFmt    = '¥#,##0';
+    row.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
   });
-  const totalRow = ['合計',
-    summaryRows.reduce((s, r) => s + r[1], 0),
-    summaryRows.reduce((s, r) => s + r[2], 0),
-    parseFloat(summaryRows.reduce((s, r) => s + r[3], 0).toFixed(2)),
-    parseFloat(summaryRows.reduce((s, r) => s + r[4], 0).toFixed(2)),
-    summaryRows.reduce((s, r) => s + r[5], 0)
-  ];
 
-  const wsSummary = XLSX.utils.aoa_to_sheet([
-    [`勤怠サマリー ${month}`], [],
-    summaryHeader,
-    ...summaryRows,
-    [],
-    totalRow
+  // 合計行
+  ws1.addRow([]);
+  const sr = ws1.addRow([
+    '月次合計',
+    summaryTotals[0], summaryTotals[1],
+    parseFloat(summaryTotals[2].toFixed(2)),
+    parseFloat(summaryTotals[3].toFixed(2)),
+    summaryTotals[4],
   ]);
-  wsSummary['!cols'] = [
-    { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 14 }
-  ];
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'サマリー');
+  sr.height = 24;
+  sr.eachCell(cell => {
+    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: C_TOTAL };
+    cell.font      = { bold: true, size: 11, color: C_NAVY };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    applyBorder(cell, borderTotal);
+  });
+  sr.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+  sr.getCell(4).numFmt    = '0.00"h"';
+  sr.getCell(5).numFmt    = '0.00"h"';
+  sr.getCell(6).numFmt    = '¥#,##0';
+  sr.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
 
-  // ── 個人別シート ─────────────────────────────────────────
+  // ── 個人別シート ──────────────────────────────────────────
+  const detailCols = [
+    { width: 13 }, { width: 5  }, { width: 8  }, { width: 8  }, { width: 8  },
+    { width: 11 }, { width: 9  },
+    { width: 16 }, { width: 16 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 13 },
+    { width: 10 }, { width: 28 },
+  ];
   const detailHeaders = [
-    '日付', '曜日', '出勤', '退勤', '休憩(分)', '勤務時間(h)', '残業(h)',
-    '乗車駅', '降車駅', '往路(円)', '復路(円)', 'その他(円)', '交通費合計(円)',
-    'メンタル', 'メモ'
+    '日付', '曜日', '出勤', '退勤', '休憩(分)', '勤務(h)', '残業(h)',
+    '乗車駅', '降車駅', '往路(円)', '復路(円)', 'その他(円)', '交通費計(円)',
+    'メンタル', 'メモ',
   ];
 
-  sortedNames.forEach(name => {
-    const rs = memberMap[name].slice().sort((a, b) => a.date.localeCompare(b.date));
+  for (const name of sortedNames) {
+    const ws = wb.addWorksheet(name.slice(0, 31));
+    ws.columns = detailCols;
 
-    const rows = rs.map(r => {
+    // タイトル行
+    ws.mergeCells('A1:O1');
+    const tc = ws.getCell('A1');
+    tc.value     = `${name}　勤怠表　${month}`;
+    tc.font      = { bold: true, size: 14, color: C_NAVY };
+    tc.alignment = { horizontal: 'left', vertical: 'middle' };
+    tc.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
+    ws.getRow(1).height = 30;
+    ws.addRow([]);
+
+    // ヘッダー行
+    const dh = ws.addRow(detailHeaders);
+    dh.height = 22;
+    dh.eachCell(cell => {
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: C_NAVY };
+      cell.font      = { bold: true, color: C_WHITE, size: 10 };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      applyBorder(cell);
+    });
+
+    const rs = memberMap[name].slice().sort((a, b) => a.date.localeCompare(b.date));
+    const sums = { hours: 0, ot: 0, fareIn: 0, fareOut: 0, fareOther: 0, fare: 0 };
+
+    rs.forEach(r => {
       const hours = calcHours(r);
       const ot    = calcOvertime(r);
-      const dow   = DOW[new Date(r.date + 'T00:00:00+09:00').getDay()];
-      return [
-        r.date,
-        dow,
+      const d     = new Date(r.date + 'T00:00:00+09:00');
+      const dow   = DOW[d.getDay()];
+      const isSat = d.getDay() === 6;
+      const isSun = d.getDay() === 0;
+
+      if (!r.absent) {
+        sums.hours    += hours    || 0;
+        sums.ot       += ot       || 0;
+        sums.fareIn   += r.fareIn   || 0;
+        sums.fareOut  += r.fareOut  || 0;
+        sums.fareOther += r.fareOther || 0;
+        sums.fare     += r.fare     || 0;
+      }
+
+      const row = ws.addRow([
+        r.date, dow,
         r.absent ? '欠勤' : formatClockIn(r.clockIn),
         r.absent ? ''     : formatClockOut(r.clockOut),
         r.absent ? ''     : (r.breakMinutes ?? 60),
         r.absent ? ''     : (hours != null ? parseFloat(hours.toFixed(2)) : ''),
-        r.absent ? ''     : (ot != null ? parseFloat(ot.toFixed(2)) : 0),
-        r.stationFrom || '',
-        r.stationTo   || '',
-        r.fareIn      || 0,
-        r.fareOut     || 0,
-        r.fareOther   || 0,
-        r.fare        || 0,
+        r.absent ? ''     : (ot    != null ? parseFloat(ot.toFixed(2))    : 0),
+        r.stationFrom  || '',
+        r.stationTo    || '',
+        r.fareIn       || 0,
+        r.fareOut      || 0,
+        r.fareOther    || 0,
+        r.fare         || 0,
         r.mentalWeather || '',
-        r.note || ''
-      ];
+        r.note         || '',
+      ]);
+      row.height = 20;
+
+      const bg        = r.absent ? C_ABSENT : isSun ? C_SUN : isSat ? C_SAT : C_WHITE;
+      const textColor = r.absent
+        ? { argb: 'FF94A3B8' }
+        : isSun ? { argb: 'FFDC2626' }
+        : isSat ? { argb: 'FF2563EB' }
+        : { argb: 'FF0F172A' };
+
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: bg };
+        cell.font  = { size: 10, color: textColor };
+        cell.alignment = { vertical: 'middle' };
+        applyBorder(cell);
+      });
+
+      // 中央揃え
+      [2, 3, 4, 5, 6, 7, 14].forEach(c => {
+        row.getCell(c).alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+      // 右揃え（金額）
+      [10, 11, 12, 13].forEach(c => {
+        row.getCell(c).numFmt    = '¥#,##0';
+        row.getCell(c).alignment = { horizontal: 'right', vertical: 'middle' };
+      });
+      row.getCell(6).numFmt = '0.00"h"';
+      row.getCell(7).numFmt = '0.00"h"';
     });
 
-    const sumHours     = rs.reduce((s, r) => s + (calcHours(r)    || 0), 0);
-    const sumOT        = rs.reduce((s, r) => s + (calcOvertime(r) || 0), 0);
-    const sumFareIn    = rs.reduce((s, r) => s + (r.fareIn    || 0), 0);
-    const sumFareOut   = rs.reduce((s, r) => s + (r.fareOut   || 0), 0);
-    const sumFareOther = rs.reduce((s, r) => s + (r.fareOther || 0), 0);
-    const sumFare      = rs.reduce((s, r) => s + (r.fare      || 0), 0);
-
-    const sumRow = [
-      '合計', '', '', '', '',
-      parseFloat(sumHours.toFixed(2)),
-      parseFloat(sumOT.toFixed(2)),
+    // 合計行
+    ws.addRow([]);
+    const sumRow = ws.addRow([
+      '月次合計', '', '', '', '',
+      parseFloat(sums.hours.toFixed(2)),
+      parseFloat(sums.ot.toFixed(2)),
       '', '',
-      sumFareIn, sumFareOut, sumFareOther, sumFare,
-      '', ''
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet([
-      [`${name} 勤怠表 ${month}`], [],
-      detailHeaders,
-      ...rows,
-      [],
-      sumRow
+      sums.fareIn, sums.fareOut, sums.fareOther, sums.fare,
+      '', '',
     ]);
-    ws['!cols'] = [
-      { wch: 12 }, { wch: 5  }, { wch: 8  }, { wch: 8  }, { wch: 8  },
-      { wch: 10 }, { wch: 8  },
-      { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-      { wch: 10 }, { wch: 24 }
-    ];
+    sumRow.height = 24;
+    sumRow.eachCell({ includeEmpty: true }, cell => {
+      cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: C_TOTAL };
+      cell.font  = { bold: true, size: 10, color: C_NAVY };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      applyBorder(cell, borderTotal);
+    });
+    sumRow.getCell(6).numFmt  = '0.00"h"';
+    sumRow.getCell(7).numFmt  = '0.00"h"';
+    [10, 11, 12, 13].forEach(c => {
+      sumRow.getCell(c).numFmt    = '¥#,##0';
+      sumRow.getCell(c).alignment = { horizontal: 'right', vertical: 'middle' };
+    });
+  }
 
-    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  // ダウンロード
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-
-  XLSX.writeFile(wb, `勤怠表_${month}.xlsx`);
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = `勤怠表_${month}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── CSV export ────────────────────────────────────────────
