@@ -489,18 +489,23 @@ export async function deleteShift(shiftId) {
 
 async function createAbsentIrregular(uid, name, date) {
   const irregularId = `irr-absent-${uid}-${date}`;
-  await setDoc(doc(db, 'irregulars', irregularId), {
-    staffId: uid,
-    date,
-    type: '欠勤',
-    deductionMinutes: 480,
-    reason: `欠勤（勤怠管理より自動登録）`,
-    isPaid: false,
-    isDeductible: true,
-    status: '申請中',
-    autoCreated: true,
-    createdAt: new Date().toISOString(),
-  });
+  try {
+    await setDoc(doc(db, 'irregulars', irregularId), {
+      staffId: uid,
+      date,
+      type: '欠勤',
+      deductionMinutes: 480,
+      reason: '欠勤（勤怠管理より自動登録）',
+      isPaid: false,
+      isDeductible: true,
+      status: '申請中',
+      autoCreated: true,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error('irregulars書き込みエラー:', e);
+    alert(`イレギュラー自動登録に失敗しました\n${e.message}`);
+  }
 }
 
 async function deleteAbsentIrregular(uid, date) {
