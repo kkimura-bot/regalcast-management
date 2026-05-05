@@ -487,6 +487,27 @@ export async function deleteShift(shiftId) {
 
 // ── Absent ────────────────────────────────────────────────
 
+async function createAbsentIrregular(uid, name, date) {
+  const irregularId = `irr-absent-${uid}-${date}`;
+  await setDoc(doc(db, 'irregulars', irregularId), {
+    staffId: uid,
+    date,
+    type: '欠勤',
+    deductionMinutes: 480,
+    reason: `欠勤（勤怠管理より自動登録）`,
+    isPaid: false,
+    isDeductible: true,
+    status: '申請中',
+    autoCreated: true,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+async function deleteAbsentIrregular(uid, date) {
+  const irregularId = `irr-absent-${uid}-${date}`;
+  await deleteDoc(doc(db, 'irregulars', irregularId)).catch(() => {});
+}
+
 export async function markAbsentFromTable(uid, encodedName, date) {
   const name = decodeURIComponent(encodedName);
   if (!confirm(`${name} さんを ${date} の欠勤として記録しますか？\n\n※ 入店報告漏れから欠勤に変更します`)) return;
@@ -500,6 +521,7 @@ export async function markAbsentFromTable(uid, encodedName, date) {
     absentRecordedBy: RC.currentUserData?.name || 'admin',
     autoRecorded: false
   }, { merge: true });
+  await createAbsentIrregular(uid, name, date);
   await window.loadMonthlyAttendance?.(true);
 }
 
@@ -515,6 +537,7 @@ export async function markAbsent(uid, encodedName, date) {
     absentRecordedBy: RC.currentUserData?.name || 'admin',
     autoRecorded: false
   }, { merge: true });
+  await createAbsentIrregular(uid, name, date);
   window.loadDailyCheck?.();
   window.loadDailyCheckM?.();
   window.loadMonthlyAttendance?.(true);
@@ -528,6 +551,7 @@ export async function cancelAbsent(uid, date) {
     absentRecordedAt: null,
     absentRecordedBy: null
   });
+  await deleteAbsentIrregular(uid, date);
   window.loadDailyCheck?.();
   window.loadDailyCheckM?.();
   window.loadMonthlyAttendance?.(true);
