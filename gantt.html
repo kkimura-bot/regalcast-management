@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>全社実行ガント — RegalCast</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F8FAFC; --surface: #FFFFFF; --surface2: #F1F5F9;
+      --border: #E2E8F0; --ink: #0F172A; --ink2: #334155; --ink3: #94A3B8;
+      --blue: #2563EB; --accent2: #059669; --accent: #EF4444; --warn: #D97706;
+      --r-sm: 6px; --r: 10px; --r-lg: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07),0 2px 4px -1px rgba(0,0,0,0.04);
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--bg); color:var(--ink); font-family:'Inter','Noto Sans JP',-apple-system,sans-serif; min-height:100vh; -webkit-font-smoothing:antialiased; }
+
+    /* ── Header ── */
+    .g-header {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 20px; height: 56px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: var(--shadow);
+    }
+    .g-back { display:flex; align-items:center; gap:5px; color:var(--blue); font-size:13px; font-weight:500; cursor:pointer; text-decoration:none; padding:6px 10px; border-radius:var(--r-sm); transition:background .15s; }
+    .g-back:hover { background:rgba(37,99,235,.06); }
+    .g-title { flex:1; font-size:15px; font-weight:700; }
+    .g-updated { font-size:11px; color:var(--ink3); font-family:'DM Mono',monospace; }
+    .g-badge { font-size:11px; font-weight:600; background:var(--surface2); border:1px solid var(--border); padding:3px 10px; border-radius:20px; color:var(--ink2); }
+
+    /* ── Loading / Error ── */
+    .g-loading { display:flex; align-items:center; justify-content:center; height:60vh; font-size:14px; color:var(--ink3); }
+
+    /* ── Main container ── */
+    .g-main { max-width:1400px; margin:0 auto; padding:24px 20px 60px; }
+
+    /* ── 判断待ちカード ── */
+    .decision-section { margin-bottom: 32px; }
+    .decision-section h2 { font-size:13px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.08em; font-family:'DM Mono',monospace; margin-bottom:12px; }
+    .decision-cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:12px; }
+    .d-card {
+      background: var(--surface); border-radius: var(--r-lg);
+      border-left: 4px solid var(--border);
+      padding: 14px 16px; box-shadow: var(--shadow);
+      transition: box-shadow .15s;
+    }
+    .d-card:hover { box-shadow: var(--shadow-md); }
+    .d-card.red   { border-left-color: var(--accent); }
+    .d-card.yellow{ border-left-color: var(--warn); }
+    .d-card.green { border-left-color: var(--accent2); }
+    .d-card.done  { border-left-color: var(--ink3); opacity: .6; }
+    .d-card-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .d-priority { font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; }
+    .red   .d-priority { background:rgba(239,68,68,.1); color:var(--accent); }
+    .yellow .d-priority { background:rgba(217,119,6,.1); color:var(--warn); }
+    .green .d-priority { background:rgba(5,150,105,.1); color:var(--accent2); }
+    .done  .d-priority { background:var(--surface2); color:var(--ink3); }
+    .d-deadline { font-size:11px; color:var(--ink3); font-family:'DM Mono',monospace; margin-left:auto; }
+    .d-title { font-size:13px; font-weight:600; line-height:1.4; margin-bottom:4px; }
+    .d-desc { font-size:11px; color:var(--ink2); line-height:1.6; }
+    .d-blocker { font-size:10px; color:var(--ink3); margin-top:6px; padding-top:6px; border-top:1px solid var(--border); }
+
+    /* ── 今月フォーカス ── */
+    .focus-section { margin-bottom:32px; }
+    .focus-section h2 { font-size:13px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.08em; font-family:'DM Mono',monospace; margin-bottom:12px; }
+    .focus-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:10px; }
+    .f-item {
+      background:var(--surface); border:1px solid var(--border); border-radius:var(--r);
+      padding:12px 14px; display:flex; align-items:center; gap:10px; font-size:13px;
+    }
+    .f-item.done-item { opacity:.5; }
+    .f-status { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; }
+    .f-status.todo  { border:2px solid var(--border); background:transparent; }
+    .f-status.wip   { background:rgba(37,99,235,.12); color:var(--blue); font-size:12px; }
+    .f-status.done  { background:rgba(5,150,105,.12); color:var(--accent2); font-size:12px; }
+    .f-label { flex:1; line-height:1.4; }
+    .f-owner { font-size:10px; color:var(--ink3); }
+
+    /* ── ガントチャート ── */
+    .gantt-section { margin-bottom:32px; }
+    .gantt-section h2 { font-size:13px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.08em; font-family:'DM Mono',monospace; margin-bottom:12px; }
+    .gantt-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); box-shadow:var(--shadow); overflow:hidden; }
+    .gantt-scroll { overflow-x:auto; }
+    .gantt-inner { min-width:800px; }
+
+    /* 月ヘッダー */
+    .gantt-months { display:flex; border-bottom:1px solid var(--border); }
+    .gantt-label-col { width:160px; flex-shrink:0; border-right:1px solid var(--border); }
+    .gantt-bars-col { flex:1; position:relative; display:flex; }
+    .gantt-month {
+      flex:1; padding:8px 6px; font-size:10px; font-weight:700; color:var(--ink2);
+      font-family:'DM Mono',monospace; text-align:center; letter-spacing:.05em;
+      border-right:1px solid var(--border); background:var(--surface2);
+    }
+    .gantt-month:last-child { border-right:none; }
+
+    /* 今日マーカー */
+    .today-line { position:absolute; top:0; bottom:0; width:2px; background:rgba(239,68,68,.5); z-index:5; pointer-events:none; }
+    .today-label { position:absolute; top:0; font-size:9px; font-weight:700; color:var(--accent); font-family:'DM Mono',monospace; transform:translateX(-50%); padding:2px 4px; background:rgba(239,68,68,.1); border-radius:3px; }
+
+    /* セクション行 */
+    .gantt-section-header {
+      display:flex; align-items:center; border-bottom:1px solid var(--border);
+      background:var(--surface2);
+    }
+    .gantt-section-label {
+      width:160px; flex-shrink:0; padding:6px 12px;
+      font-size:11px; font-weight:700; color:var(--ink2);
+      border-right:1px solid var(--border);
+    }
+    .gantt-section-bar-area { flex:1; height:20px; position:relative; }
+
+    /* タスク行 */
+    .gantt-task-row { display:flex; border-bottom:1px solid var(--border); }
+    .gantt-task-row:last-child { border-bottom:none; }
+    .gantt-task-label {
+      width:160px; flex-shrink:0; padding:5px 12px 5px 20px;
+      font-size:11px; color:var(--ink2); border-right:1px solid var(--border);
+      display:flex; align-items:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .gantt-task-area { flex:1; height:28px; position:relative; }
+    .gantt-bar {
+      position:absolute; top:5px; height:18px; border-radius:4px;
+      display:flex; align-items:center; padding:0 6px;
+      font-size:9px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden;
+      cursor:default; transition:opacity .15s;
+    }
+    .gantt-bar:hover { opacity:.85; }
+    .gantt-bar.crit    { background:var(--accent); }
+    .gantt-bar.active  { background:var(--blue); }
+    .gantt-bar.done    { background:var(--ink3); }
+    .gantt-bar.success { background:var(--accent2); }
+    .gantt-bar.pending { background:#8B5CF6; }
+
+    /* milestone */
+    .gantt-milestone {
+      position:absolute; top:4px; width:16px; height:16px;
+      background:var(--warn); border-radius:3px; transform:rotate(45deg);
+      cursor:default;
+    }
+
+    /* グリッド線 */
+    .gantt-grid-lines { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; display:flex; }
+    .gantt-grid-line { border-right:1px dashed var(--border); }
+
+    /* ── 進捗テーブル ── */
+    .progress-section { margin-bottom:32px; }
+    .progress-section h2 { font-size:13px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.08em; font-family:'DM Mono',monospace; margin-bottom:12px; }
+    .progress-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:10px; }
+    .p-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:var(--r);
+      padding:12px 14px;
+    }
+    .p-dept { font-size:12px; font-weight:700; margin-bottom:8px; }
+    .p-bar-wrap { height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; margin-bottom:4px; }
+    .p-bar { height:100%; border-radius:3px; background:var(--blue); transition:width .4s ease; }
+    .p-stats { font-size:10px; color:var(--ink3); font-family:'DM Mono',monospace; }
+  </style>
+</head>
+<body>
+
+<div id="g-loading" class="g-loading">認証確認中...</div>
+
+<div id="g-app" style="display:none">
+  <!-- Header -->
+  <header class="g-header">
+    <a class="g-back" href="/index.html">← ダッシュボード</a>
+    <div class="g-title">📊 全社実行ガント</div>
+    <div class="g-updated" id="g-updated"></div>
+    <div class="g-badge" id="g-user-badge"></div>
+  </header>
+
+  <main class="g-main">
+
+    <!-- 判断待ちカード -->
+    <section class="decision-section">
+      <h2>🚨 Koya 判断待ち</h2>
+      <div class="decision-cards" id="decision-cards"></div>
+    </section>
+
+    <!-- 今月フォーカス -->
+    <section class="focus-section">
+      <h2>📅 今月のフォーカス（2026年5月）</h2>
+      <div class="focus-grid" id="focus-grid"></div>
+    </section>
+
+    <!-- 進捗ハイライト -->
+    <section class="progress-section">
+      <h2>📈 進捗ハイライト</h2>
+      <div class="progress-grid" id="progress-grid"></div>
+    </section>
+
+    <!-- ガントチャート -->
+    <section class="gantt-section">
+      <h2>🗓️ 全社ガント（2026年5月〜12月）</h2>
+      <div class="gantt-wrap">
+        <div class="gantt-scroll">
+          <div class="gantt-inner" id="gantt-inner"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCzzyVqRLG_G9kU2qjQ3yx0aznQBKuK4Vg",
+  authDomain: "regalcast-app.firebaseapp.com",
+  projectId: "regalcast-app",
+  storageBucket: "regalcast-app.firebasestorage.app",
+  messagingSenderId: "937984277929",
+  appId: "1:937984277929:web:e923791a191d1ffe8718b8",
+};
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+// ── Auth ──────────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href = '/index.html'; return; }
+  const snap = await getDoc(doc(db, 'users', user.uid));
+  const data = snap.data();
+  if (!data) { window.location.href = '/index.html'; return; }
+
+  const role = data.role || 'member';
+  if (role !== 'admin' && role !== 'leader') {
+    document.getElementById('g-loading').innerHTML =
+      '<div style="text-align:center"><div style="font-size:32px;margin-bottom:12px">🔒</div><div style="font-size:14px;color:var(--ink2);font-weight:600">リーダー以上のみ閲覧できます</div></div>';
+    return;
+  }
+
+  document.getElementById('g-loading').style.display = 'none';
+  document.getElementById('g-app').style.display = 'block';
+  document.getElementById('g-user-badge').textContent = data.name || '—';
+  document.getElementById('g-updated').textContent = '更新：2026-05-09';
+
+  renderAll();
+});
+
+// ── データ定義 ────────────────────────────────────────────
+
+const DECISIONS = [
+  { priority:'red',    label:'VAULT管理部 — 7月採用確定', desc:'Koyaが現在担当。7月採用の1人に業務を引き継ぎ。', deadline:'採用：7月着任', blocker:'SUMMON：採用要件を6月末までに設計', status:'done' },
+  { priority:'done',   label:'アライアンス管理 — STRATAGEM確定', desc:'STRATAGEMが一元管理。児島さんと連携し稼働・業績・契約を数字で管理。', deadline:'7月〜運用開始', blocker:'STRATAGEM', status:'done' },
+  { priority:'yellow', label:'アライアンス採用チャネル', desc:'自社採用と別ルートが必要。既存チャネルの有無も含めて。', deadline:'2026-06-15', blocker:'SUMMON', status:'open' },
+  { priority:'yellow', label:'増員人件費の予算上限', desc:'ACADEMIA講師・TAVERN店舗・配布パートの採用予算上限。', deadline:'2026-06-15', blocker:'SUMMON × STRATAGEM', status:'open' },
+  { priority:'green',  label:'リファラル報酬の単価と予算枠', desc:'制度設計はSUMMON×VAULTで進行可能。Koyaの予算承認のみ。', deadline:'2026-06-30', blocker:'SUMMON', status:'open' },
+];
+
+const FOCUS_MAY = [
+  { label:'キックオフ会議で全部門アクション確定', owner:'AIKATA', status:'done' },
+  { label:'VAULT増員・アライアンス窓口を即決', owner:'Koya', status:'done' },
+  { label:'体験→入塾の実績集計（KPI再設定起点）', owner:'STRATAGEM×ACADEMIA', status:'wip' },
+  { label:'チラシ最新版制作着手', owner:'BEACON', status:'wip' },
+  { label:'採用チャネル・予算上限の判断', owner:'Koya', status:'todo' },
+  { label:'宿題リスト回収開始（全部門）', owner:'STRATAGEM', status:'wip' },
+  { label:'アライアンス採用チャネル設計', owner:'SUMMON', status:'todo' },
+];
+
+const PROGRESS = [
+  { dept:'🏫 ACADEMIA',  done:1, total:7 },
+  { dept:'⚔️ DOJO',     done:0, total:5 },
+  { dept:'🎮 ARENA',    done:0, total:5 },
+  { dept:'🏪 BAZAAR',   done:0, total:4 },
+  { dept:'🔥 BEACON',   done:1, total:5 },
+  { dept:'🍻 TAVERN',   done:0, total:4 },
+  { dept:'🪖 STRATAGEM',done:1, total:5 },
+  { dept:'🪄 SUMMON',   done:0, total:5 },
+  { dept:'💎 VAULT',    done:0, total:4 },
+];
+
+// ガント定義
+const GANTT_START = new Date('2026-05-01');
+const GANTT_END   = new Date('2026-12-31');
+const GANTT_DAYS  = dayDiff(GANTT_START, GANTT_END);
+
+const MONTHS = [
+  { label:'5月', days:31 }, { label:'6月', days:30 },
+  { label:'7月', days:31 }, { label:'8月', days:31 },
+  { label:'9月', days:30 }, { label:'10月', days:31 },
+  { label:'11月', days:30 }, { label:'12月', days:31 },
+];
+
+const GANTT_SECTIONS = [
+  {
+    section:'判断', color:'#EF4444',
+    tasks:[
+      { label:'VAULT採用(7月着任)', start:'2026-05-09', end:'2026-07-01', type:'success' },
+      { label:'アライアンス管理確定', start:'2026-05-09', end:'2026-05-10', type:'success' },
+      { label:'採用チャネル/予算', start:'2026-05-15', end:'2026-06-15', type:'crit' },
+      { label:'リファラル予算枠', start:'2026-06-01', end:'2026-06-30', type:'pending' },
+    ]
+  },
+  {
+    section:'ACADEMIA', color:'#8B5CF6',
+    tasks:[
+      { label:'体験→入塾実績集計', start:'2026-05-10', end:'2026-05-31', type:'active' },
+      { label:'配布パート採用', start:'2026-05-15', end:'2026-06-15', type:'active' },
+      { label:'中学生eスポカリキュラム', start:'2026-05-15', end:'2026-06-30', type:'active' },
+      { label:'校門前配布許可取得', start:'2026-06-01', end:'2026-06-30', type:'pending' },
+      { label:'業務マニュアル作成', start:'2026-06-01', end:'2026-06-30', type:'pending' },
+      { label:'講師増員求人公開', start:'2026-08-01', end:'2026-08-31', type:'pending' },
+    ]
+  },
+  {
+    section:'DOJO', color:'#0EA5E9',
+    tasks:[
+      { label:'研修商品仕様2本', start:'2026-05-10', end:'2026-06-30', type:'active' },
+      { label:'単価/原価試算', start:'2026-05-15', end:'2026-06-30', type:'active' },
+      { label:'法人LP・事例集', start:'2026-06-15', end:'2026-07-15', type:'pending' },
+      { label:'BAZAAR連携営業', start:'2026-07-01', end:'2026-09-30', type:'pending' },
+    ]
+  },
+  {
+    section:'ARENA', color:'#F59E0B',
+    tasks:[
+      { label:'大会スケジュール確定', start:'2026-05-10', end:'2026-06-30', type:'active' },
+      { label:'スポンサーメニュー', start:'2026-05-15', end:'2026-06-30', type:'active' },
+      { label:'配信体制確定', start:'2026-06-01', end:'2026-06-30', type:'pending' },
+      { label:'月4回大会本番', start:'2026-07-01', end:'2026-12-31', type:'pending' },
+    ]
+  },
+  {
+    section:'BAZAAR', color:'#10B981',
+    tasks:[
+      { label:'100社リスト作成', start:'2026-05-10', end:'2026-06-30', type:'active' },
+      { label:'アライアンス契約テンプレ', start:'2026-05-20', end:'2026-06-30', type:'active' },
+      { label:'法人/通信本番開拓', start:'2026-07-01', end:'2026-12-31', type:'pending' },
+    ]
+  },
+  {
+    section:'BEACON', color:'#F97316',
+    tasks:[
+      { label:'チラシ最新版', start:'2026-05-10', end:'2026-05-31', type:'active' },
+      { label:'コンテンツカレンダー', start:'2026-05-15', end:'2026-06-30', type:'active' },
+      { label:'LP・CTA整備', start:'2026-06-01', end:'2026-07-31', type:'pending' },
+      { label:'月12本本番運用', start:'2026-07-01', end:'2026-12-31', type:'pending' },
+    ]
+  },
+  {
+    section:'TAVERN', color:'#EC4899',
+    tasks:[
+      { label:'現状値把握', start:'2026-05-10', end:'2026-06-30', type:'active' },
+      { label:'新メニュー試作', start:'2026-06-01', end:'2026-07-31', type:'pending' },
+      { label:'店舗大会(ARENA連動)', start:'2026-07-01', end:'2026-12-31', type:'pending' },
+    ]
+  },
+  {
+    section:'STRATAGEM', color:'#6366F1',
+    tasks:[
+      { label:'全部門宿題回答', start:'2026-05-10', end:'2026-06-30', type:'active' },
+      { label:'KPIシート設計', start:'2026-05-15', end:'2026-06-30', type:'active' },
+      { label:'数字吸い上げフロー', start:'2026-06-01', end:'2026-06-30', type:'pending' },
+      { label:'KPIモニタリング本番', start:'2026-07-01', end:'2026-12-31', type:'pending' },
+    ]
+  },
+  {
+    section:'SUMMON', color:'#14B8A6',
+    tasks:[
+      { label:'リファラル制度設計', start:'2026-05-15', end:'2026-06-30', type:'active' },
+      { label:'採用ペルソナ整備', start:'2026-06-01', end:'2026-06-30', type:'pending' },
+      { label:'採用フロー本番稼働', start:'2026-07-01', end:'2026-12-31', type:'pending' },
+    ]
+  },
+  {
+    section:'VAULT', color:'#94A3B8',
+    tasks:[
+      { label:'就業規則完成', start:'2026-05-10', end:'2026-07-31', type:'active' },
+      { label:'契約書テンプレ整備', start:'2026-05-15', end:'2026-06-30', type:'active' },
+      { label:'学校配布許可フロー', start:'2026-06-01', end:'2026-06-30', type:'pending' },
+      { label:'インシデント記録運用', start:'2026-07-01', end:'2026-12-31', type:'pending' },
+    ]
+  },
+];
+
+// ── Helpers ───────────────────────────────────────────────
+function dayDiff(a, b) {
+  return Math.round((new Date(b) - new Date(a)) / 86400000);
+}
+function pct(dateStr) {
+  const d = new Date(dateStr);
+  if (d < GANTT_START) return 0;
+  if (d > GANTT_END) return 100;
+  return Math.min(100, Math.max(0, dayDiff(GANTT_START, d) / GANTT_DAYS * 100));
+}
+
+// ── Render ────────────────────────────────────────────────
+function renderAll() {
+  renderDecisions();
+  renderFocus();
+  renderProgress();
+  renderGantt();
+}
+
+function renderDecisions() {
+  const el = document.getElementById('decision-cards');
+  el.innerHTML = DECISIONS.map(d => {
+    const cls = d.status === 'done' ? 'done' : d.priority;
+    const pLabel = d.status === 'done' ? '✅ 確定' : d.priority === 'red' ? '🔴 最優先' : d.priority === 'yellow' ? '🟡 高' : '🟢 中';
+    return `
+    <div class="d-card ${cls}">
+      <div class="d-card-top">
+        <span class="d-priority">${pLabel}</span>
+        <span class="d-deadline">${d.deadline}</span>
+      </div>
+      <div class="d-title">${d.label}</div>
+      <div class="d-desc">${d.desc}</div>
+      <div class="d-blocker">担当: ${d.blocker}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderFocus() {
+  const el = document.getElementById('focus-grid');
+  el.innerHTML = FOCUS_MAY.map(f => {
+    const icon = f.status === 'done' ? '✓' : f.status === 'wip' ? '⟳' : '';
+    return `
+    <div class="f-item ${f.status === 'done' ? 'done-item' : ''}">
+      <div class="f-status ${f.status}">${icon}</div>
+      <div>
+        <div class="f-label">${f.label}</div>
+        <div class="f-owner">${f.owner}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderProgress() {
+  const el = document.getElementById('progress-grid');
+  el.innerHTML = PROGRESS.map(p => {
+    const pct = p.total ? Math.round(p.done / p.total * 100) : 0;
+    return `
+    <div class="p-card">
+      <div class="p-dept">${p.dept}</div>
+      <div class="p-bar-wrap"><div class="p-bar" style="width:${pct}%"></div></div>
+      <div class="p-stats">${p.done} / ${p.total} 完了 (${pct}%)</div>
+    </div>`;
+  }).join('');
+}
+
+function renderGantt() {
+  const el = document.getElementById('gantt-inner');
+
+  // 月ヘッダー
+  const monthCols = MONTHS.map(m => {
+    const w = m.days / GANTT_DAYS * 100;
+    return `<div class="gantt-month" style="flex:0 0 ${w}%">${m.label}</div>`;
+  }).join('');
+
+  // 今日マーカー
+  const todayPct = pct('2026-05-09');
+  const todayMarker = `
+    <div class="today-line" style="left:${todayPct}%"></div>
+    <div class="today-label" style="left:${todayPct}%">今日</div>`;
+
+  // グリッド線（月境界）
+  let gridX = 0;
+  const gridLines = MONTHS.map(m => {
+    gridX += m.days / GANTT_DAYS * 100;
+    return `<div class="gantt-grid-line" style="flex:0 0 ${m.days / GANTT_DAYS * 100}%"></div>`;
+  }).join('');
+
+  // セクション＋タスク行
+  const rows = GANTT_SECTIONS.map(sec => {
+    const taskRows = sec.tasks.map(t => {
+      const left  = pct(t.start);
+      const right = pct(t.end);
+      const width = Math.max(0.5, right - left);
+      return `
+      <div class="gantt-task-row">
+        <div class="gantt-task-label" title="${t.label}">${t.label}</div>
+        <div class="gantt-task-area" style="position:relative">
+          <div class="gantt-grid-lines">${gridLines}</div>
+          ${todayMarker}
+          <div class="gantt-bar ${t.type}" style="left:${left}%;width:${width}%" title="${t.label}"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+    <div class="gantt-section-header">
+      <div class="gantt-section-label" style="border-left:3px solid ${sec.color}">${sec.section}</div>
+      <div class="gantt-section-bar-area"></div>
+    </div>
+    ${taskRows}`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="gantt-months">
+      <div class="gantt-label-col"></div>
+      <div class="gantt-bars-col">${monthCols}</div>
+    </div>
+    ${rows}`;
+}
+
+// ── Utilities ─────────────────────────────────────────────
+function dayDiff(a, b) {
+  return Math.round((new Date(b) - new Date(a)) / 86400000);
+}
+</script>
+</body>
+</html>

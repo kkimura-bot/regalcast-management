@@ -110,6 +110,12 @@ export function showApp() {
 
   // Setup tab visibility based on role
   setupNav();
+
+  // 全社ガントボタン：リーダー以上のみ表示
+  const ganttBtn = document.getElementById('gantt-nav-btn');
+  if (ganttBtn && isLeaderOrAbove()) ganttBtn.style.display = '';
+  const ganttMypage = document.getElementById('gantt-mypage-btn');
+  if (ganttMypage) ganttMypage.style.display = isLeaderOrAbove() ? 'flex' : 'none';
 }
 
 export function showNormalLogin() {

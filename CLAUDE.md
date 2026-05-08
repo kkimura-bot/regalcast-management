@@ -1,4 +1,4 @@
-@/Users/koyakimura/Documents/Projects/regalcast-ai/CLAUDE.md
+@/Users/koyakimura/projects/regalcast-ai/CLAUDE.md
 
 # 入店退店管理アプリ — デプロイルール
 
@@ -8,7 +8,7 @@
 
 ### ステップ1: GitHubにpush
 ```bash
-cd /Users/koyakimura/Documents/Projects/regalcast-ai/agents/forge/outputs/入店退店管理アプリ-v2
+cd /Users/koyakimura/projects/regalcast-ai/agents/forge/outputs/入店退店管理アプリ-v2
 git add -A
 git commit -m "変更内容"
 git push
