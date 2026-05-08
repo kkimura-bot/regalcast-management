@@ -459,7 +459,7 @@ function renderGantt() {
   }).join('');
 
   // 今日マーカー
-  const todayPct = pct('2026-05-09');
+  const todayPct = pct(new Date().toISOString().slice(0, 10));
   const todayMarker = `
     <div class="today-line" style="left:${todayPct}%"></div>
     <div class="today-label" style="left:${todayPct}%">今日</div>`;
@@ -504,10 +504,6 @@ function renderGantt() {
     ${rows}`;
 }
 
-// ── Utilities ─────────────────────────────────────────────
-function dayDiff(a, b) {
-  return Math.round((new Date(b) - new Date(a)) / 86400000);
-}
 </script>
 </body>
 </html>
