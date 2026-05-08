@@ -212,7 +212,10 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import {
+  getFirestore, doc, getDoc,
+  collection, onSnapshot, query, orderBy
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCzzyVqRLG_G9kU2qjQ3yx0aznQBKuK4Vg",
@@ -225,6 +228,18 @@ const firebaseConfig = {
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
+
+// ── ガント共通定数 ────────────────────────────────────────
+const GANTT_START = new Date('2026-05-01');
+const GANTT_END   = new Date('2026-12-31');
+const GANTT_DAYS  = dayDiff(GANTT_START, GANTT_END);
+
+const MONTHS = [
+  { label:'5月', days:31 }, { label:'6月', days:30 },
+  { label:'7月', days:31 }, { label:'8月', days:31 },
+  { label:'9月', days:30 }, { label:'10月', days:31 },
+  { label:'11月', days:30 }, { label:'12月', days:31 },
+];
 
 // ── Auth ──────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
@@ -243,146 +258,96 @@ onAuthStateChanged(auth, async (user) => {
   document.getElementById('g-loading').style.display = 'none';
   document.getElementById('g-app').style.display = 'block';
   document.getElementById('g-user-badge').textContent = data.name || '—';
-  document.getElementById('g-updated').textContent = '更新：2026-05-09';
 
-  renderAll();
+  // Firestore からリアルタイム購読を開始
+  subscribeGanttData();
 });
 
-// ── データ定義 ────────────────────────────────────────────
+// ── Firestore リアルタイム購読 ────────────────────────────
+// コレクション構成:
+//   gantt_config/decisions  → { items: [...], updatedAt }
+//   gantt_config/focus_may  → { items: [...], updatedAt }
+//   gantt_sections/{id}     → { order, section, color, tasks: [...] }
+//
+// AIKATAは上記ドキュメントを上書きするだけでリアルタイムに反映される。
 
-const DECISIONS = [
-  { priority:'red',    label:'VAULT管理部 — 7月採用確定', desc:'Koyaが現在担当。7月採用の1人に業務を引き継ぎ。', deadline:'採用：7月着任', blocker:'SUMMON：採用要件を6月末までに設計', status:'done' },
-  { priority:'done',   label:'アライアンス管理 — STRATAGEM確定', desc:'STRATAGEMが一元管理。児島さんと連携し稼働・業績・契約を数字で管理。', deadline:'7月〜運用開始', blocker:'STRATAGEM', status:'done' },
-  { priority:'yellow', label:'アライアンス採用チャネル', desc:'自社採用と別ルートが必要。既存チャネルの有無も含めて。', deadline:'2026-06-15', blocker:'SUMMON', status:'open' },
-  { priority:'yellow', label:'増員人件費の予算上限', desc:'ACADEMIA講師・TAVERN店舗・配布パートの採用予算上限。', deadline:'2026-06-15', blocker:'SUMMON × STRATAGEM', status:'open' },
-  { priority:'green',  label:'リファラル報酬の単価と予算枠', desc:'制度設計はSUMMON×VAULTで進行可能。Koyaの予算承認のみ。', deadline:'2026-06-30', blocker:'SUMMON', status:'open' },
-];
+let DECISIONS     = [];
+let FOCUS_MAY     = [];
+let GANTT_SECTIONS = [];
+let loadedFlags   = { decisions: false, focus: false, sections: false };
+let latestUpdatedAt = '';
 
-const FOCUS_MAY = [
-  { label:'キックオフ会議で全部門アクション確定', owner:'AIKATA', status:'done' },
-  { label:'VAULT増員・アライアンス窓口を即決', owner:'Koya', status:'done' },
-  { label:'体験→入塾の実績集計（KPI再設定起点）', owner:'STRATAGEM×ACADEMIA', status:'wip' },
-  { label:'チラシ最新版制作着手', owner:'BEACON', status:'wip' },
-  { label:'採用チャネル・予算上限の判断', owner:'Koya', status:'todo' },
-  { label:'宿題リスト回収開始（全部門）', owner:'STRATAGEM', status:'wip' },
-  { label:'アライアンス採用チャネル設計', owner:'SUMMON', status:'todo' },
-];
+function checkAllLoaded() {
+  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.sections) {
+    // 更新日時表示（最新のupdatedAtを使用）
+    document.getElementById('g-updated').textContent =
+      latestUpdatedAt ? `更新：${latestUpdatedAt}` : '';
+    renderAll();
+  }
+}
 
-const PROGRESS = [
-  { dept:'🏫 ACADEMIA',  done:1, total:7 },
-  { dept:'⚔️ DOJO',     done:0, total:5 },
-  { dept:'🎮 ARENA',    done:0, total:5 },
-  { dept:'🏪 BAZAAR',   done:0, total:4 },
-  { dept:'🔥 BEACON',   done:1, total:5 },
-  { dept:'🍻 TAVERN',   done:0, total:4 },
-  { dept:'🪖 STRATAGEM',done:1, total:5 },
-  { dept:'🪄 SUMMON',   done:0, total:5 },
-  { dept:'💎 VAULT',    done:0, total:4 },
-];
+function showDataError(msg) {
+  document.getElementById('g-loading').style.display = 'flex';
+  document.getElementById('g-loading').textContent = msg;
+  document.getElementById('g-app').style.display = 'none';
+}
 
-// ガント定義
-const GANTT_START = new Date('2026-05-01');
-const GANTT_END   = new Date('2026-12-31');
-const GANTT_DAYS  = dayDiff(GANTT_START, GANTT_END);
+// 判断待ちカード
+onSnapshot(doc(db, 'gantt_config', 'decisions'), (snap) => {
+  if (!snap.exists()) {
+    // ドキュメントが存在しない場合は空配列で続行
+    DECISIONS = [];
+  } else {
+    const d = snap.data();
+    DECISIONS = d.items || [];
+    if (d.updatedAt && d.updatedAt > latestUpdatedAt) latestUpdatedAt = d.updatedAt;
+  }
+  loadedFlags.decisions = true;
+  checkAllLoaded();
+}, (err) => {
+  console.error('decisions 読み込みエラー:', err);
+  DECISIONS = [];
+  loadedFlags.decisions = true;
+  checkAllLoaded();
+});
 
-const MONTHS = [
-  { label:'5月', days:31 }, { label:'6月', days:30 },
-  { label:'7月', days:31 }, { label:'8月', days:31 },
-  { label:'9月', days:30 }, { label:'10月', days:31 },
-  { label:'11月', days:30 }, { label:'12月', days:31 },
-];
+// 今月のフォーカス
+onSnapshot(doc(db, 'gantt_config', 'focus_may'), (snap) => {
+  if (!snap.exists()) {
+    FOCUS_MAY = [];
+  } else {
+    const d = snap.data();
+    FOCUS_MAY = d.items || [];
+    if (d.updatedAt && d.updatedAt > latestUpdatedAt) latestUpdatedAt = d.updatedAt;
+  }
+  loadedFlags.focus = true;
+  checkAllLoaded();
+}, (err) => {
+  console.error('focus_may 読み込みエラー:', err);
+  FOCUS_MAY = [];
+  loadedFlags.focus = true;
+  checkAllLoaded();
+});
 
-const GANTT_SECTIONS = [
-  {
-    section:'判断', color:'#EF4444',
-    tasks:[
-      { label:'VAULT採用(7月着任)', start:'2026-05-09', end:'2026-07-01', type:'success' },
-      { label:'アライアンス管理確定', start:'2026-05-09', end:'2026-05-10', type:'success' },
-      { label:'採用チャネル/予算', start:'2026-05-15', end:'2026-06-15', type:'crit' },
-      { label:'リファラル予算枠', start:'2026-06-01', end:'2026-06-30', type:'pending' },
-    ]
-  },
-  {
-    section:'ACADEMIA', color:'#8B5CF6',
-    tasks:[
-      { label:'体験→入塾実績集計', start:'2026-05-10', end:'2026-05-31', type:'active' },
-      { label:'配布パート採用', start:'2026-05-15', end:'2026-06-15', type:'active' },
-      { label:'中学生eスポカリキュラム', start:'2026-05-15', end:'2026-06-30', type:'active' },
-      { label:'校門前配布許可取得', start:'2026-06-01', end:'2026-06-30', type:'pending' },
-      { label:'業務マニュアル作成', start:'2026-06-01', end:'2026-06-30', type:'pending' },
-      { label:'講師増員求人公開', start:'2026-08-01', end:'2026-08-31', type:'pending' },
-    ]
-  },
-  {
-    section:'DOJO', color:'#0EA5E9',
-    tasks:[
-      { label:'研修商品仕様2本', start:'2026-05-10', end:'2026-06-30', type:'active' },
-      { label:'単価/原価試算', start:'2026-05-15', end:'2026-06-30', type:'active' },
-      { label:'法人LP・事例集', start:'2026-06-15', end:'2026-07-15', type:'pending' },
-      { label:'BAZAAR連携営業', start:'2026-07-01', end:'2026-09-30', type:'pending' },
-    ]
-  },
-  {
-    section:'ARENA', color:'#F59E0B',
-    tasks:[
-      { label:'大会スケジュール確定', start:'2026-05-10', end:'2026-06-30', type:'active' },
-      { label:'スポンサーメニュー', start:'2026-05-15', end:'2026-06-30', type:'active' },
-      { label:'配信体制確定', start:'2026-06-01', end:'2026-06-30', type:'pending' },
-      { label:'月4回大会本番', start:'2026-07-01', end:'2026-12-31', type:'pending' },
-    ]
-  },
-  {
-    section:'BAZAAR', color:'#10B981',
-    tasks:[
-      { label:'100社リスト作成', start:'2026-05-10', end:'2026-06-30', type:'active' },
-      { label:'アライアンス契約テンプレ', start:'2026-05-20', end:'2026-06-30', type:'active' },
-      { label:'法人/通信本番開拓', start:'2026-07-01', end:'2026-12-31', type:'pending' },
-    ]
-  },
-  {
-    section:'BEACON', color:'#F97316',
-    tasks:[
-      { label:'チラシ最新版', start:'2026-05-10', end:'2026-05-31', type:'active' },
-      { label:'コンテンツカレンダー', start:'2026-05-15', end:'2026-06-30', type:'active' },
-      { label:'LP・CTA整備', start:'2026-06-01', end:'2026-07-31', type:'pending' },
-      { label:'月12本本番運用', start:'2026-07-01', end:'2026-12-31', type:'pending' },
-    ]
-  },
-  {
-    section:'TAVERN', color:'#EC4899',
-    tasks:[
-      { label:'現状値把握', start:'2026-05-10', end:'2026-06-30', type:'active' },
-      { label:'新メニュー試作', start:'2026-06-01', end:'2026-07-31', type:'pending' },
-      { label:'店舗大会(ARENA連動)', start:'2026-07-01', end:'2026-12-31', type:'pending' },
-    ]
-  },
-  {
-    section:'STRATAGEM', color:'#6366F1',
-    tasks:[
-      { label:'全部門宿題回答', start:'2026-05-10', end:'2026-06-30', type:'active' },
-      { label:'KPIシート設計', start:'2026-05-15', end:'2026-06-30', type:'active' },
-      { label:'数字吸い上げフロー', start:'2026-06-01', end:'2026-06-30', type:'pending' },
-      { label:'KPIモニタリング本番', start:'2026-07-01', end:'2026-12-31', type:'pending' },
-    ]
-  },
-  {
-    section:'SUMMON', color:'#14B8A6',
-    tasks:[
-      { label:'リファラル制度設計', start:'2026-05-15', end:'2026-06-30', type:'active' },
-      { label:'採用ペルソナ整備', start:'2026-06-01', end:'2026-06-30', type:'pending' },
-      { label:'採用フロー本番稼働', start:'2026-07-01', end:'2026-12-31', type:'pending' },
-    ]
-  },
-  {
-    section:'VAULT', color:'#94A3B8',
-    tasks:[
-      { label:'就業規則完成', start:'2026-05-10', end:'2026-07-31', type:'active' },
-      { label:'契約書テンプレ整備', start:'2026-05-15', end:'2026-06-30', type:'active' },
-      { label:'学校配布許可フロー', start:'2026-06-01', end:'2026-06-30', type:'pending' },
-      { label:'インシデント記録運用', start:'2026-07-01', end:'2026-12-31', type:'pending' },
-    ]
-  },
-];
+// ガントセクション（order フィールドで並び順を管理）
+onSnapshot(query(collection(db, 'gantt_sections'), orderBy('order')), (snap) => {
+  GANTT_SECTIONS = snap.docs.map(d => {
+    const data = d.data();
+    if (data.updatedAt && data.updatedAt > latestUpdatedAt) latestUpdatedAt = data.updatedAt;
+    return {
+      section: data.section,
+      color:   data.color,
+      tasks:   data.tasks || [],
+    };
+  });
+  loadedFlags.sections = true;
+  checkAllLoaded();
+}, (err) => {
+  console.error('gantt_sections 読み込みエラー:', err);
+  GANTT_SECTIONS = [];
+  loadedFlags.sections = true;
+  checkAllLoaded();
+});
 
 // ── Helpers ───────────────────────────────────────────────
 function dayDiff(a, b) {
@@ -405,6 +370,10 @@ function renderAll() {
 
 function renderDecisions() {
   const el = document.getElementById('decision-cards');
+  if (!DECISIONS.length) {
+    el.innerHTML = '<div style="color:var(--ink3);font-size:13px">判断待ちアイテムはありません</div>';
+    return;
+  }
   el.innerHTML = DECISIONS.map(d => {
     const cls = d.status === 'done' ? 'done' : d.priority;
     const pLabel = d.status === 'done' ? '✅ 確定' : d.priority === 'red' ? '🔴 最優先' : d.priority === 'yellow' ? '🟡 高' : '🟢 中';
@@ -423,6 +392,10 @@ function renderDecisions() {
 
 function renderFocus() {
   const el = document.getElementById('focus-grid');
+  if (!FOCUS_MAY.length) {
+    el.innerHTML = '<div style="color:var(--ink3);font-size:13px">フォーカスアイテムはありません</div>';
+    return;
+  }
   el.innerHTML = FOCUS_MAY.map(f => {
     const icon = f.status === 'done' ? '✓' : f.status === 'wip' ? '⟳' : '';
     return `
@@ -437,14 +410,21 @@ function renderFocus() {
 }
 
 function renderProgress() {
+  // 進捗はガントセクションのタスクから自動計算（done タイプのタスク数をカウント）
   const el = document.getElementById('progress-grid');
-  el.innerHTML = PROGRESS.map(p => {
-    const pct = p.total ? Math.round(p.done / p.total * 100) : 0;
+  if (!GANTT_SECTIONS.length) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = GANTT_SECTIONS.map(sec => {
+    const total = sec.tasks.length;
+    const done  = sec.tasks.filter(t => t.type === 'done' || t.type === 'success').length;
+    const pctVal = total ? Math.round(done / total * 100) : 0;
     return `
     <div class="p-card">
-      <div class="p-dept">${p.dept}</div>
-      <div class="p-bar-wrap"><div class="p-bar" style="width:${pct}%"></div></div>
-      <div class="p-stats">${p.done} / ${p.total} 完了 (${pct}%)</div>
+      <div class="p-dept">${sec.section}</div>
+      <div class="p-bar-wrap"><div class="p-bar" style="width:${pctVal}%"></div></div>
+      <div class="p-stats">${done} / ${total} 完了 (${pctVal}%)</div>
     </div>`;
   }).join('');
 }
@@ -465,11 +445,14 @@ function renderGantt() {
     <div class="today-label" style="left:${todayPct}%">今日</div>`;
 
   // グリッド線（月境界）
-  let gridX = 0;
   const gridLines = MONTHS.map(m => {
-    gridX += m.days / GANTT_DAYS * 100;
     return `<div class="gantt-grid-line" style="flex:0 0 ${m.days / GANTT_DAYS * 100}%"></div>`;
   }).join('');
+
+  if (!GANTT_SECTIONS.length) {
+    el.innerHTML = '<div class="g-loading">ガントデータがありません</div>';
+    return;
+  }
 
   // セクション＋タスク行
   const rows = GANTT_SECTIONS.map(sec => {

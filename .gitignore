@@ -11,6 +11,10 @@ functions/node_modules/
 functions/.env
 *.env
 
+# Firebase Admin サービスアカウントキー（絶対にコミットしない）
+serviceAccount.json
+scripts/serviceAccount.json
+
 # Firebase
 .firebase/
 .firebaserc

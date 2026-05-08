@@ -50,6 +50,27 @@ service cloud.firestore {
     //     && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     // }
 
+    // ── ガントチャート設定（判断待ち・フォーカス）: リーダー以上のみ読み取り ──
+    // AIKATA（会社経営AI）が書き込み、リーダー/管理者が閲覧する。
+    match /gantt_config/{docId} {
+      allow read: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'leader'];
+      allow write: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ── ガントセクション: リーダー以上のみ読み取り ──
+    match /gantt_sections/{sectionId} {
+      allow read: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'leader'];
+      allow write: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // ── LINE Bot（認証なし）: allowed_dm_users 読み取り可 ──
     match /allowed_dm_users/{userId} {
       allow read: if true;
