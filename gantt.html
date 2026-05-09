@@ -304,65 +304,74 @@ function showDataError(msg) {
   document.getElementById('g-app').style.display = 'none';
 }
 
-// 判断待ちカード
-onSnapshot(doc(db, 'gantt_config', 'decisions'), (snap) => {
-  if (!snap.exists()) {
-    // ドキュメントが存在しない場合は空配列で続行
+// Firestoreリスナーはここで一度だけ張る（認証後に呼ばれる）
+function subscribeGanttData() {
+  // 判断待ちカード
+  onSnapshot(doc(db, 'gantt_config', 'decisions'), (snap) => {
+    if (!snap.exists()) {
+      // ドキュメントが存在しない場合は空配列で続行
+      DECISIONS = [];
+    } else {
+      const d = snap.data();
+      DECISIONS = d.items || [];
+      if (d.updatedAt && d.updatedAt > latestUpdatedAt) latestUpdatedAt = d.updatedAt;
+    }
+    loadedFlags.decisions = true;
+    checkAllLoaded();
+  }, (err) => {
+    console.error('decisions 読み込みエラー:', err);
     DECISIONS = [];
-  } else {
-    const d = snap.data();
-    DECISIONS = d.items || [];
-    if (d.updatedAt && d.updatedAt > latestUpdatedAt) latestUpdatedAt = d.updatedAt;
-  }
-  loadedFlags.decisions = true;
-  checkAllLoaded();
-}, (err) => {
-  console.error('decisions 読み込みエラー:', err);
-  DECISIONS = [];
-  loadedFlags.decisions = true;
-  checkAllLoaded();
-});
-
-// 今月のフォーカス
-onSnapshot(doc(db, 'gantt_config', 'focus_may'), (snap) => {
-  if (!snap.exists()) {
-    FOCUS_MAY = [];
-  } else {
-    const d = snap.data();
-    FOCUS_MAY = d.items || [];
-    if (d.updatedAt && d.updatedAt > latestUpdatedAt) latestUpdatedAt = d.updatedAt;
-  }
-  loadedFlags.focus = true;
-  checkAllLoaded();
-}, (err) => {
-  console.error('focus_may 読み込みエラー:', err);
-  FOCUS_MAY = [];
-  loadedFlags.focus = true;
-  checkAllLoaded();
-});
-
-// ガントセクション（order フィールドで並び順を管理）
-onSnapshot(query(collection(db, 'gantt_sections'), orderBy('order')), (snap) => {
-  GANTT_SECTIONS = snap.docs.map(d => {
-    const data = d.data();
-    if (data.updatedAt && data.updatedAt > latestUpdatedAt) latestUpdatedAt = data.updatedAt;
-    return {
-      section: data.section,
-      color:   data.color,
-      tasks:   data.tasks || [],
-    };
+    loadedFlags.decisions = true;
+    checkAllLoaded();
   });
-  loadedFlags.sections = true;
-  checkAllLoaded();
-}, (err) => {
-  console.error('gantt_sections 読み込みエラー:', err);
-  GANTT_SECTIONS = [];
-  loadedFlags.sections = true;
-  checkAllLoaded();
-});
+
+  // 今月のフォーカス
+  onSnapshot(doc(db, 'gantt_config', 'focus_may'), (snap) => {
+    if (!snap.exists()) {
+      FOCUS_MAY = [];
+    } else {
+      const d = snap.data();
+      FOCUS_MAY = d.items || [];
+      if (d.updatedAt && d.updatedAt > latestUpdatedAt) latestUpdatedAt = d.updatedAt;
+    }
+    loadedFlags.focus = true;
+    checkAllLoaded();
+  }, (err) => {
+    console.error('focus_may 読み込みエラー:', err);
+    FOCUS_MAY = [];
+    loadedFlags.focus = true;
+    checkAllLoaded();
+  });
+
+  // ガントセクション（order フィールドで並び順を管理）
+  onSnapshot(query(collection(db, 'gantt_sections'), orderBy('order')), (snap) => {
+    GANTT_SECTIONS = snap.docs.map(d => {
+      const data = d.data();
+      if (data.updatedAt && data.updatedAt > latestUpdatedAt) latestUpdatedAt = data.updatedAt;
+      return {
+        section: data.section,
+        color:   data.color,
+        tasks:   data.tasks || [],
+      };
+    });
+    loadedFlags.sections = true;
+    checkAllLoaded();
+  }, (err) => {
+    console.error('gantt_sections 読み込みエラー:', err);
+    GANTT_SECTIONS = [];
+    loadedFlags.sections = true;
+    checkAllLoaded();
+  });
+}
 
 // ── Render ────────────────────────────────────────────────
 function renderAll() {
+  // 描画前に各コンテナを明示的にクリア（onSnapshot が複数回発火しても重複しない）
+  document.getElementById('decision-cards').innerHTML = '';
+  document.getElementById('focus-grid').innerHTML = '';
+  document.getElementById('progress-grid').innerHTML = '';
+  document.getElementById('gantt-inner').innerHTML = '';
+
   renderDecisions();
   renderFocus();
   renderProgress();
