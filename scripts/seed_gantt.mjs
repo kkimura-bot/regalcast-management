@@ -209,6 +209,15 @@ const GANTT_SECTIONS = [
 // 実行
 // ────────────────────────────────────────────────────────────
 async function seed() {
+  // 既存の gantt_sections を全削除してから再投入（古いドキュメントが残らないように）
+  const existing = await db.collection('gantt_sections').get();
+  const deleteBatch = db.batch();
+  existing.docs.forEach(d => deleteBatch.delete(d.ref));
+  if (!existing.empty) {
+    await deleteBatch.commit();
+    console.log(`🗑  既存 gantt_sections ${existing.size} 件を削除`);
+  }
+
   const batch = db.batch();
 
   // gantt_config/decisions
