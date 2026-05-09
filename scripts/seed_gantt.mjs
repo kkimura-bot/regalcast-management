@@ -27,18 +27,10 @@
  *   - updatedAt フィールドを "YYYY-MM-DD" 形式で更新すること
  */
 
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore }        from 'firebase-admin/firestore';
-import { createRequire }       from 'module';
-import { fileURLToPath }       from 'url';
-import { dirname, join }       from 'path';
+import { initializeApp, applicationDefault } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const require   = createRequire(import.meta.url);
-
-const serviceAccount = require(join(__dirname, 'serviceAccount.json'));
-
-initializeApp({ credential: cert(serviceAccount) });
+initializeApp({ credential: applicationDefault(), projectId: 'regalcast-app' });
 const db = getFirestore();
 
 const TODAY = new Date().toISOString().slice(0, 10);
