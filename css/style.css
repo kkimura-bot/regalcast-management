@@ -273,7 +273,7 @@ body {
 .tab-dropdown-item {
   padding: 10px 16px !important;
   border-bottom: none !important;
-  display: block !important;
+  display: block;
   border-radius: 0 !important;
   font-size: 13px;
 }
