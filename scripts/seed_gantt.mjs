@@ -20,16 +20,14 @@
  */
 
 import { readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { resolve } from 'path';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 initializeApp({ credential: applicationDefault(), projectId: 'regalcast-app' });
 const db = getFirestore();
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_FILE = resolve(__dirname, 'gantt_data.json');
+const DATA_FILE = resolve('/Users/koyakimura/projects/会社経営/agents/aikata/gantt_tasks.json');
 const data = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
 
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -72,7 +70,7 @@ async function seed() {
   console.log(`   decisions : ${data.decisions.length} items`);
   console.log(`   focus_may : ${data.focus_may.length} items`);
   console.log(`   sections  : ${data.sections.length} sections`);
-  console.log(`   データソース: scripts/gantt_data.json`);
+  console.log(`   データソース: /会社経営/agents/aikata/gantt_tasks.json`);
 }
 
 seed().catch(err => {
