@@ -25,6 +25,13 @@
  *   - decisions/focus_may はドキュメント全体を setDoc で上書き
  *   - gantt_sections はセクションIDのドキュメントを setDoc で上書き
  *   - updatedAt フィールドを "YYYY-MM-DD" 形式で更新すること
+ *
+ * 【⚠️ FORGEへのルール（厳守）】
+ *   seed_gantt.mjs を再実行する前に、必ず以下を確認すること：
+ *   1. AIKATAの最新依頼ファイル（/会社経営/agents/aikata/outputs/）を読む
+ *   2. 確定済みステータス（success/done）が全て反映されているか確認する
+ *   3. 古い crit/pending が残ったまま実行すると確定済み判断が上書きされて消える
+ *   再実行 = 全データ上書きなので、最新状態を把握してから実行すること
  */
 
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
@@ -108,10 +115,11 @@ const GANTT_SECTIONS = [
     id: 'hanidan', order: 0, section: '判断', color: '#EF4444',
     updatedAt: TODAY,
     tasks: [
-      { label: 'VAULT採用(7月着任)',     start: '2026-05-09', end: '2026-07-01', type: 'success' },
-      { label: 'アライアンス管理確定',   start: '2026-05-09', end: '2026-05-10', type: 'success' },
-      { label: '採用チャネル/予算',      start: '2026-05-15', end: '2026-06-15', type: 'crit'    },
-      { label: 'リファラル予算枠',       start: '2026-06-01', end: '2026-06-30', type: 'pending' },
+      { label: 'VAULT採用(7月着任)',          start: '2026-05-09', end: '2026-07-01', type: 'success' },
+      { label: 'アライアンス管理確定',        start: '2026-05-09', end: '2026-05-10', type: 'success' },
+      { label: 'アライアンス採用チャネル確定', start: '2026-05-10', end: '2026-05-10', type: 'success' },
+      { label: '増員人件費上限確定',          start: '2026-05-10', end: '2026-05-10', type: 'success' },
+      { label: 'リファラル報酬確定',          start: '2026-05-10', end: '2026-05-10', type: 'success' },
     ],
   },
   {
