@@ -115,7 +115,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'academia', order: 1, section: 'ACADEMIA', color: '#8B5CF6',
+    id: 'academia', order: 1, section: 'ACADEMIA｜教育事業部', color: '#8B5CF6',
     updatedAt: TODAY,
     tasks: [
       { label: '体験→入塾実績集計',        start: '2026-05-10', end: '2026-05-31', type: 'active'  },
@@ -127,7 +127,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'dojo', order: 2, section: 'DOJO', color: '#0EA5E9',
+    id: 'dojo', order: 2, section: 'DOJO｜研修事業部', color: '#0EA5E9',
     updatedAt: TODAY,
     tasks: [
       { label: '研修商品仕様2本',    start: '2026-05-10', end: '2026-06-30', type: 'active'  },
@@ -137,7 +137,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'arena', order: 3, section: 'ARENA', color: '#F59E0B',
+    id: 'arena', order: 3, section: 'ARENA｜eスポーツ事業部', color: '#F59E0B',
     updatedAt: TODAY,
     tasks: [
       { label: '大会スケジュール確定', start: '2026-05-10', end: '2026-06-30', type: 'active'  },
@@ -147,7 +147,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'bazaar', order: 4, section: 'BAZAAR', color: '#10B981',
+    id: 'bazaar', order: 4, section: 'BAZAAR｜営業事業部', color: '#10B981',
     updatedAt: TODAY,
     tasks: [
       { label: '100社リスト作成',          start: '2026-05-10', end: '2026-06-30', type: 'active'  },
@@ -156,7 +156,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'beacon', order: 5, section: 'BEACON', color: '#F97316',
+    id: 'beacon', order: 5, section: 'BEACON｜マーケティング部', color: '#F97316',
     updatedAt: TODAY,
     tasks: [
       { label: 'チラシ最新版',          start: '2026-05-10', end: '2026-05-31', type: 'active'  },
@@ -166,7 +166,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'tavern', order: 6, section: 'TAVERN', color: '#EC4899',
+    id: 'tavern', order: 6, section: 'TAVERN｜飲食事業部', color: '#EC4899',
     updatedAt: TODAY,
     tasks: [
       { label: '現状値把握',            start: '2026-05-10', end: '2026-06-30', type: 'active'  },
@@ -175,7 +175,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'stratagem', order: 7, section: 'STRATAGEM', color: '#6366F1',
+    id: 'stratagem', order: 7, section: 'STRATAGEM｜経営企画室', color: '#6366F1',
     updatedAt: TODAY,
     tasks: [
       { label: '全部門宿題回答',         start: '2026-05-10', end: '2026-06-30', type: 'active'  },
@@ -185,7 +185,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'summon', order: 8, section: 'SUMMON', color: '#14B8A6',
+    id: 'summon', order: 8, section: 'SUMMON｜採用部', color: '#14B8A6',
     updatedAt: TODAY,
     tasks: [
       { label: 'リファラル制度設計',    start: '2026-05-15', end: '2026-06-30', type: 'active'  },
@@ -194,7 +194,7 @@ const GANTT_SECTIONS = [
     ],
   },
   {
-    id: 'vault', order: 9, section: 'VAULT', color: '#94A3B8',
+    id: 'vault', order: 9, section: 'VAULT｜管理部', color: '#94A3B8',
     updatedAt: TODAY,
     tasks: [
       { label: '就業規則完成',            start: '2026-05-10', end: '2026-07-31', type: 'active'  },
