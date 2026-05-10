@@ -128,18 +128,15 @@
     }
     .gantt-section-bar-area { flex:1; height:20px; position:relative; }
 
-    /* ツールチップ（JS制御・body直下に表示してoverflowクリップを回避） */
+    /* ツールチップ */
     #g-tooltip {
       position:fixed; z-index:9999; pointer-events:none;
-      background:rgba(15,23,42,.88); color:#fff;
+      background:rgba(15,23,42,.9); color:#fff;
       font-size:11px; font-weight:500; line-height:1.5;
-      padding:5px 10px; border-radius:6px;
-      white-space:normal; max-width:220px; word-break:break-all;
-      box-shadow:0 4px 12px rgba(0,0,0,.25);
-      opacity:0; transition:opacity .15s;
-      display:none;
+      padding:6px 10px; border-radius:6px;
+      max-width:220px; word-break:break-all;
+      box-shadow:0 4px 14px rgba(0,0,0,.3);
     }
-    #g-tooltip.show { display:block; opacity:1; }
 
     /* タスク行 */
     .gantt-task-row { display:flex; border-bottom:1px solid var(--border); }
@@ -554,31 +551,27 @@ function renderGantt(sections) {
     ${rows}`;
 }
 
-  // ── ツールチップ（data-tip属性） ──────────────────────────────────────────
+  // ── ツールチップ ──────────────────────────────────────────────────────────
   const gTip = document.getElementById('g-tooltip');
-  let tipTimer;
+  gTip.hidden = true;
 
   document.addEventListener('mouseover', e => {
     const el = e.target.closest('[data-tip]');
-    if (!el) return;
-    clearTimeout(tipTimer);
+    if (!el) { gTip.hidden = true; return; }
     gTip.textContent = el.dataset.tip;
-    gTip.classList.add('show');
+    gTip.hidden = false;
+    gTip.style.left = (e.clientX + 14) + 'px';
+    gTip.style.top  = (e.clientY + 14) + 'px';
   });
 
   document.addEventListener('mousemove', e => {
-    if (!gTip.classList.contains('show')) return;
-    const x = e.clientX + 14;
-    const y = e.clientY - 10;
-    const right = x + gTip.offsetWidth;
-    gTip.style.left = (right > window.innerWidth ? e.clientX - gTip.offsetWidth - 14 : x) + 'px';
-    gTip.style.top  = Math.max(4, Math.min(y, window.innerHeight - gTip.offsetHeight - 4)) + 'px';
+    if (gTip.hidden) return;
+    gTip.style.left = (e.clientX + 14) + 'px';
+    gTip.style.top  = (e.clientY + 14) + 'px';
   });
 
   document.addEventListener('mouseout', e => {
-    const el = e.target.closest('[data-tip]');
-    if (!el) return;
-    tipTimer = setTimeout(() => gTip.classList.remove('show'), 80);
+    if (e.target.closest('[data-tip]')) gTip.hidden = true;
   });
 
 </script>
