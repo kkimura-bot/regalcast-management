@@ -1,237 +1,41 @@
 /**
  * seed_gantt.mjs
  *
- * ガントチャート初期データを Firestore に投入するスクリプト。
- * 既存データを上書きするため、2回目以降の実行でも使える（べき等）。
+ * gantt_data.json を読み込んで Firestore に投入する。
+ * タスクの追加・編集は gantt_data.json を直接編集してから実行すればOK。
+ * FORGEへの依頼は不要。
  *
  * 【使い方】
- * 1. firebase-admin をインストール（初回のみ）
- *    npm install firebase-admin
- *
- * 2. Firebase Console → プロジェクト設定 → サービスアカウント
- *    → 「新しい秘密鍵を生成」でJSONをダウンロード
- *    → このファイルと同じフォルダに置いて serviceAccount.json に名前変更
- *    ※ 絶対に git commit しないこと！.gitignore に含めること
- *
- * 3. 実行
- *    node scripts/seed_gantt.mjs
+ *   node scripts/seed_gantt.mjs
  *
  * 【コレクション構成】
  *   gantt_config/decisions  → 判断待ちカード（items 配列）
  *   gantt_config/focus_may  → 今月のフォーカス（items 配列）
  *   gantt_sections/{id}     → ガントセクション（1ドキュメント = 1部門）
  *
- * 【AIKATAが更新するとき】
- *   - decisions/focus_may はドキュメント全体を setDoc で上書き
- *   - gantt_sections はセクションIDのドキュメントを setDoc で上書き
- *   - updatedAt フィールドを "YYYY-MM-DD" 形式で更新すること
- *
- * 【⚠️ FORGEへのルール（厳守）】
- *   seed_gantt.mjs を再実行する前に、必ず以下を確認すること：
- *   1. AIKATAの最新依頼ファイル（/会社経営/agents/aikata/outputs/）を読む
- *   2. 確定済みステータス（success/done）が全て反映されているか確認する
- *   3. 古い crit/pending が残ったまま実行すると確定済み判断が上書きされて消える
- *   再実行 = 全データ上書きなので、最新状態を把握してから実行すること
+ * 【⚠️ 実行前確認ルール】
+ *   1. gantt_data.json の全ステータスが最新か確認する
+ *   2. 確定済み（success/done）が正しく反映されているか確認する
+ *   3. 再実行 = 全データ上書き（べき等）
  */
 
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 initializeApp({ credential: applicationDefault(), projectId: 'regalcast-app' });
 const db = getFirestore();
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_FILE = resolve(__dirname, 'gantt_data.json');
+const data = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+
 const TODAY = new Date().toISOString().slice(0, 10);
 
-// ────────────────────────────────────────────────────────────
-// 1. 判断待ちカード
-// ────────────────────────────────────────────────────────────
-const DECISIONS = {
-  updatedAt: TODAY,
-  items: [
-    {
-      priority: 'red',
-      label:    'VAULT管理部 — 7月採用確定',
-      desc:     'Koyaが現在担当。7月採用の1人に業務を引き継ぎ。',
-      deadline: '採用：7月着任',
-      blocker:  'SUMMON：採用要件を6月末までに設計',
-      status:   'done',
-    },
-    {
-      priority: 'done',
-      label:    'アライアンス管理 — STRATAGEM確定',
-      desc:     'STRATAGEMが一元管理。児島さんと連携し稼働・業績・契約を数字で管理。',
-      deadline: '7月〜運用開始',
-      blocker:  'STRATAGEM',
-      status:   'done',
-    },
-    {
-      priority: 'done',
-      label:    'アライアンス採用チャネル確定',
-      desc:     '短期：求人媒体（Indeed・スタンバイ）月上限10万。中期：BAZAARテレアポ。',
-      deadline: '確定済み（2026-05-10）',
-      blocker:  'SUMMON',
-      status:   'done',
-    },
-    {
-      priority: 'done',
-      label:    '増員人件費上限確定',
-      desc:     'ACADEMIA配布パート・講師・TAVERN 各3万円/月。',
-      deadline: '確定済み（2026-05-10）',
-      blocker:  'SUMMON × STRATAGEM',
-      status:   'done',
-    },
-    {
-      priority: 'done',
-      label:    'リファラル報酬確定',
-      desc:     '10万円/紹介・月上限20万円（2件/月）。',
-      deadline: '確定済み（2026-05-10）',
-      blocker:  'SUMMON',
-      status:   'done',
-    },
-  ],
-};
-
-// ────────────────────────────────────────────────────────────
-// 2. 今月のフォーカス
-// ────────────────────────────────────────────────────────────
-const FOCUS_MAY = {
-  updatedAt: TODAY,
-  items: [
-    { label: 'キックオフ会議で全部門アクション確定',    owner: 'AIKATA',            status: 'done' },
-    { label: 'VAULT増員・アライアンス窓口を即決',       owner: 'Koya',              status: 'done' },
-    { label: '体験→入塾の実績集計（KPI再設定起点）',   owner: 'STRATAGEM×ACADEMIA', status: 'wip'  },
-    { label: 'チラシ最新版制作着手',                   owner: 'BEACON',             status: 'wip'  },
-    { label: '採用チャネル・予算上限の判断',            owner: 'Koya',              status: 'done' },
-    { label: '宿題リスト回収開始（全部門）',            owner: 'STRATAGEM',          status: 'wip'  },
-    { label: 'アライアンス採用チャネル設計',            owner: 'SUMMON',             status: 'todo' },
-  ],
-};
-
-// ────────────────────────────────────────────────────────────
-// 3. ガントセクション（order で表示順を管理）
-// ────────────────────────────────────────────────────────────
-const GANTT_SECTIONS = [
-  {
-    id: 'hanidan', order: 0, section: '判断', color: '#EF4444',
-    updatedAt: TODAY,
-    tasks: [
-      { label: 'VAULT採用(7月着任)',          start: '2026-05-09', end: '2026-07-01', type: 'success' },
-      { label: 'アライアンス管理確定',        start: '2026-05-09', end: '2026-05-10', type: 'success' },
-      { label: 'アライアンス採用チャネル確定', start: '2026-05-10', end: '2026-05-10', type: 'success' },
-      { label: '増員人件費上限確定',          start: '2026-05-10', end: '2026-05-10', type: 'success' },
-      { label: 'リファラル報酬確定',          start: '2026-05-10', end: '2026-05-10', type: 'success' },
-    ],
-  },
-  {
-    id: 'academia', order: 1, section: 'ACADEMIA｜教育事業部', color: '#8B5CF6',
-    updatedAt: TODAY,
-    tasks: [
-      { label: '体験→入塾実績集計',                 start: '2026-05-10', end: '2026-05-31', type: 'active'  },
-      { label: '配布パート採用',                     start: '2026-05-15', end: '2026-06-15', type: 'active'  },
-      { label: '中学生eスポカリキュラム',            start: '2026-05-15', end: '2026-06-30', type: 'active'  },
-      { label: 'Instagram運用（Voxel Academy）',     start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: '紙芝居イベント 内容確定',            start: '2026-05-10', end: '2026-06-01', type: 'crit'    },
-      { label: '校門前配布許可取得',                 start: '2026-06-01', end: '2026-06-30', type: 'pending' },
-      { label: '業務マニュアル作成',                 start: '2026-06-01', end: '2026-06-30', type: 'pending' },
-      { label: '講師増員求人公開',                   start: '2026-08-01', end: '2026-08-31', type: 'pending' },
-    ],
-  },
-  {
-    id: 'dojo', order: 2, section: 'DOJO｜研修事業部', color: '#0EA5E9',
-    updatedAt: TODAY,
-    tasks: [
-      { label: '研修商品仕様2本',          start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: '単価/原価試算',            start: '2026-05-15', end: '2026-06-30', type: 'active'  },
-      { label: '児島とKGI/MVV合意MTG',    start: '2026-05-10', end: '2026-06-30', type: 'crit'    },
-      { label: '大小田・森本 求心力研修',  start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: '法人LP・事例集',           start: '2026-06-15', end: '2026-07-15', type: 'pending' },
-      { label: 'BAZAAR連携営業',           start: '2026-07-01', end: '2026-09-30', type: 'pending' },
-    ],
-  },
-  {
-    id: 'arena', order: 3, section: 'ARENA｜eスポーツ事業部', color: '#F59E0B',
-    updatedAt: TODAY,
-    tasks: [
-      { label: '大会スケジュール確定',               start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: 'スポンサーメニュー',                 start: '2026-05-15', end: '2026-06-30', type: 'active'  },
-      { label: '横山とビジョン・ゴール合意',         start: '2026-05-10', end: '2026-05-17', type: 'crit'    },
-      { label: 'eスポーツアカデミー PCアカウント管理表', start: '2026-05-10', end: '2026-05-31', type: 'pending' },
-      { label: '配信体制確定',                       start: '2026-06-01', end: '2026-06-30', type: 'pending' },
-      { label: '月4回大会本番',                      start: '2026-07-01', end: '2026-12-31', type: 'pending' },
-    ],
-  },
-  {
-    id: 'bazaar', order: 4, section: 'BAZAAR｜営業事業部', color: '#10B981',
-    updatedAt: TODAY,
-    tasks: [
-      { label: '100社リスト作成',          start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: 'アライアンス契約テンプレ', start: '2026-05-20', end: '2026-06-30', type: 'active'  },
-      { label: 'KGI/MVV設定',             start: '2026-05-10', end: '2026-06-30', type: 'crit'    },
-      { label: '法人/通信本番開拓',        start: '2026-07-01', end: '2026-12-31', type: 'pending' },
-    ],
-  },
-  {
-    id: 'beacon', order: 5, section: 'BEACON｜マーケティング部', color: '#F97316',
-    updatedAt: TODAY,
-    tasks: [
-      { label: 'チラシ最新版',                start: '2026-05-10', end: '2026-05-31', type: 'active'  },
-      { label: 'コンテンツカレンダー',         start: '2026-05-15', end: '2026-06-30', type: 'active'  },
-      { label: 'ママメイトSNS運用管理',        start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: 'KGI/KPI設定（全社マーケ）',   start: '2026-05-10', end: '2026-06-30', type: 'pending' },
-      { label: 'LP・CTA整備',                 start: '2026-06-01', end: '2026-07-31', type: 'pending' },
-      { label: '月12本本番運用',               start: '2026-07-01', end: '2026-12-31', type: 'pending' },
-    ],
-  },
-  {
-    id: 'tavern', order: 6, section: 'TAVERN｜飲食事業部', color: '#EC4899',
-    updatedAt: TODAY,
-    tasks: [
-      { label: '現状値把握',                      start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: '店長候補採用開始',                start: '2026-05-10', end: '2026-06-30', type: 'pending' },
-      { label: '新メニュー試作',                  start: '2026-06-01', end: '2026-07-31', type: 'pending' },
-      { label: '店舗大会(ARENA連動)',              start: '2026-07-01', end: '2026-12-31', type: 'pending' },
-      { label: '移転 or 売却 or 継続 最終判断',   start: '2026-10-01', end: '2026-10-31', type: 'crit'    },
-    ],
-  },
-  {
-    id: 'stratagem', order: 7, section: 'STRATAGEM｜経営企画室', color: '#6366F1',
-    updatedAt: TODAY,
-    tasks: [
-      { label: '全部門宿題回答',         start: '2026-05-10', end: '2026-06-30', type: 'active'  },
-      { label: 'KPIシート設計',         start: '2026-05-15', end: '2026-06-30', type: 'active'  },
-      { label: '数字吸い上げフロー',    start: '2026-06-01', end: '2026-06-30', type: 'pending' },
-      { label: 'KPIモニタリング本番',   start: '2026-07-01', end: '2026-12-31', type: 'pending' },
-    ],
-  },
-  {
-    id: 'summon', order: 8, section: 'SUMMON｜採用部', color: '#14B8A6',
-    updatedAt: TODAY,
-    tasks: [
-      { label: 'リファラル制度設計',                  start: '2026-05-15', end: '2026-06-30', type: 'active'  },
-      { label: 'エンジニア採用 求人公開',             start: '2026-05-10', end: '2026-05-31', type: 'crit'    },
-      { label: 'regalcast-recruit 運用すり合わせ',   start: '2026-05-10', end: '2026-05-17', type: 'crit'    },
-      { label: 'TAVERN店長候補 求人公開',             start: '2026-05-10', end: '2026-06-30', type: 'pending' },
-      { label: '採用ペルソナ整備',                    start: '2026-06-01', end: '2026-06-30', type: 'pending' },
-      { label: '採用フロー本番稼働',                  start: '2026-07-01', end: '2026-12-31', type: 'pending' },
-    ],
-  },
-  {
-    id: 'vault', order: 9, section: 'VAULT｜管理部', color: '#94A3B8',
-    updatedAt: TODAY,
-    tasks: [
-      { label: '就業規則完成',            start: '2026-05-10', end: '2026-07-31', type: 'active'  },
-      { label: '契約書テンプレ整備',      start: '2026-05-15', end: '2026-06-30', type: 'active'  },
-      { label: '学校配布許可フロー',      start: '2026-06-01', end: '2026-06-30', type: 'pending' },
-      { label: 'インシデント記録運用',    start: '2026-07-01', end: '2026-12-31', type: 'pending' },
-    ],
-  },
-];
-
-// ────────────────────────────────────────────────────────────
-// 実行
-// ────────────────────────────────────────────────────────────
 async function seed() {
-  // 既存の gantt_sections を全削除してから再投入（古いドキュメントが残らないように）
+  // 既存の gantt_sections を全削除してから再投入
   const existing = await db.collection('gantt_sections').get();
   const deleteBatch = db.batch();
   existing.docs.forEach(d => deleteBatch.delete(d.ref));
@@ -243,22 +47,32 @@ async function seed() {
   const batch = db.batch();
 
   // gantt_config/decisions
-  batch.set(db.collection('gantt_config').doc('decisions'), DECISIONS);
+  batch.set(db.collection('gantt_config').doc('decisions'), {
+    updatedAt: TODAY,
+    items: data.decisions,
+  });
 
   // gantt_config/focus_may
-  batch.set(db.collection('gantt_config').doc('focus_may'), FOCUS_MAY);
+  batch.set(db.collection('gantt_config').doc('focus_may'), {
+    updatedAt: TODAY,
+    items: data.focus_may,
+  });
 
-  // gantt_sections（各セクション）
-  for (const sec of GANTT_SECTIONS) {
-    const { id, ...data } = sec;
-    batch.set(db.collection('gantt_sections').doc(id), data);
+  // gantt_sections
+  for (const sec of data.sections) {
+    const { id, ...rest } = sec;
+    batch.set(db.collection('gantt_sections').doc(id), {
+      ...rest,
+      updatedAt: TODAY,
+    });
   }
 
   await batch.commit();
-  console.log(`✅ Firestore 初期データ投入完了 (${TODAY})`);
-  console.log(`   gantt_config/decisions  : ${DECISIONS.items.length} items`);
-  console.log(`   gantt_config/focus_may  : ${FOCUS_MAY.items.length} items`);
-  console.log(`   gantt_sections          : ${GANTT_SECTIONS.length} sections`);
+  console.log(`✅ Firestore 投入完了 (${TODAY})`);
+  console.log(`   decisions : ${data.decisions.length} items`);
+  console.log(`   focus_may : ${data.focus_may.length} items`);
+  console.log(`   sections  : ${data.sections.length} sections`);
+  console.log(`   データソース: scripts/gantt_data.json`);
 }
 
 seed().catch(err => {
