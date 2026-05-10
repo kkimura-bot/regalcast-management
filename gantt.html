@@ -134,7 +134,8 @@
       background:rgba(15,23,42,.9); color:#fff;
       font-size:11px; font-weight:500; line-height:1.5;
       padding:6px 10px; border-radius:6px;
-      max-width:220px; word-break:break-all;
+      max-width:260px; word-break:break-all;
+      white-space:pre-wrap;
       box-shadow:0 4px 14px rgba(0,0,0,.3);
     }
 
@@ -526,11 +527,11 @@ function renderGantt(sections) {
       const width = Math.max(0.5, right - left);
       return `
       <div class="gantt-task-row">
-        <div class="gantt-task-label" data-tip="${t.label}">${t.label}</div>
+        <div class="gantt-task-label" data-tip="${t.label}${t.notes ? '\n\n' + t.notes : ''}">${t.label}</div>
         <div class="gantt-task-area" style="position:relative">
           <div class="gantt-grid-lines">${gridLines}</div>
           ${todayMarker}
-          <div class="gantt-bar ${t.type}" style="left:${left}%;width:${width}%" data-tip="${t.label}"></div>
+          <div class="gantt-bar ${t.type}" style="left:${left}%;width:${width}%" data-tip="${t.label}${t.notes ? '\n\n' + t.notes : ''}"></div>
         </div>
       </div>`;
     }).join('');
