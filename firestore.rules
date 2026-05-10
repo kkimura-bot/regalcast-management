@@ -73,6 +73,19 @@ service cloud.firestore {
       allow write: if false; // seedスクリプト（Admin SDK）のみ。クライアント側書き込み禁止
     }
 
+    // ── ガント進捗オーバーレイ（gantt_progress）: AIKATAが書き込む ──
+    // 【管轄】AIKATAのスクリプト（Admin SDK）が書き込む。seedを再実行してもここは消えない。
+    // 【読み取り】リーダー以上のみ（gantt_sectionsと同じ権限）
+    // 【書き込み】Admin SDKはルールをバイパスするため、クライアント側はadminのみ許可
+    match /gantt_progress/{docId} {
+      allow read: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'leader'];
+      allow write: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // ── LINE Bot（認証なし）: allowed_dm_users 読み取り可 ──
     match /allowed_dm_users/{userId} {
       allow read: if true;

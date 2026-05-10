@@ -286,16 +286,32 @@ onAuthStateChanged(auth, async (user) => {
 let DECISIONS     = [];
 let FOCUS_MAY     = [];
 let GANTT_SECTIONS = [];
-let loadedFlags   = { decisions: false, focus: false, sections: false };
+let GANTT_PROGRESS = {}; // { [sectionId]: { tasks: [{taskId, status, updatedAt}] } }
+let loadedFlags   = { decisions: false, focus: false, sections: false, progress: false };
 let latestUpdatedAt = '';
 
 function checkAllLoaded() {
-  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.sections) {
+  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.sections && loadedFlags.progress) {
     // 更新日時表示（最新のupdatedAtを使用）
     document.getElementById('g-updated').textContent =
       latestUpdatedAt ? `更新：${latestUpdatedAt}` : '';
     renderAll();
   }
+}
+
+// gantt_progress のオーバーレイを gantt_sections に適用したビューを返す
+function getMergedSections() {
+  return GANTT_SECTIONS.map(sec => {
+    const overrides = (GANTT_PROGRESS[sec.id] || {}).tasks || [];
+    if (!overrides.length) return sec;
+    return {
+      ...sec,
+      tasks: sec.tasks.map((task, i) => {
+        const override = overrides.find(o => o.taskId === i || o.taskId === task.label);
+        return override ? { ...task, type: override.status } : task;
+      }),
+    };
+  });
 }
 
 function showDataError(msg) {
@@ -349,6 +365,7 @@ function subscribeGanttData() {
       const data = d.data();
       if (data.updatedAt && data.updatedAt > latestUpdatedAt) latestUpdatedAt = data.updatedAt;
       return {
+        id:      d.id,
         section: data.section,
         color:   data.color,
         tasks:   data.tasks || [],
@@ -362,6 +379,19 @@ function subscribeGanttData() {
     loadedFlags.sections = true;
     checkAllLoaded();
   });
+
+  // ガント進捗オーバーレイ（AIKATAが書き込む・seedを再実行しても消えない）
+  onSnapshot(collection(db, 'gantt_progress'), (snap) => {
+    GANTT_PROGRESS = {};
+    snap.docs.forEach(d => { GANTT_PROGRESS[d.id] = d.data(); });
+    loadedFlags.progress = true;
+    checkAllLoaded();
+  }, (err) => {
+    console.error('gantt_progress 読み込みエラー:', err);
+    GANTT_PROGRESS = {};
+    loadedFlags.progress = true;
+    checkAllLoaded();
+  });
 }
 
 // ── Render ────────────────────────────────────────────────
@@ -372,10 +402,11 @@ function renderAll() {
   document.getElementById('progress-grid').innerHTML = '';
   document.getElementById('gantt-inner').innerHTML = '';
 
+  const mergedSections = getMergedSections();
   renderDecisions();
   renderFocus();
-  renderProgress();
-  renderGantt();
+  renderProgress(mergedSections);
+  renderGantt(mergedSections);
 }
 
 function renderDecisions() {
@@ -419,14 +450,14 @@ function renderFocus() {
   }).join('');
 }
 
-function renderProgress() {
+function renderProgress(sections) {
   // 進捗はガントセクションのタスクから自動計算（done タイプのタスク数をカウント）
   const el = document.getElementById('progress-grid');
-  if (!GANTT_SECTIONS.length) {
+  if (!sections.length) {
     el.innerHTML = '';
     return;
   }
-  el.innerHTML = GANTT_SECTIONS.map(sec => {
+  el.innerHTML = sections.map(sec => {
     const total = sec.tasks.length;
     const done  = sec.tasks.filter(t => t.type === 'done' || t.type === 'success').length;
     const pctVal = total ? Math.round(done / total * 100) : 0;
@@ -439,7 +470,7 @@ function renderProgress() {
   }).join('');
 }
 
-function renderGantt() {
+function renderGantt(sections) {
   const el = document.getElementById('gantt-inner');
 
   // 月ヘッダー
@@ -459,13 +490,13 @@ function renderGantt() {
     return `<div class="gantt-grid-line" style="flex:0 0 ${m.days / GANTT_DAYS * 100}%"></div>`;
   }).join('');
 
-  if (!GANTT_SECTIONS.length) {
+  if (!sections.length) {
     el.innerHTML = '<div class="g-loading">ガントデータがありません</div>';
     return;
   }
 
   // セクション＋タスク行
-  const rows = GANTT_SECTIONS.map(sec => {
+  const rows = sections.map(sec => {
     const taskRows = sec.tasks.map(t => {
       const left  = pct(t.start);
       const right = pct(t.end);
