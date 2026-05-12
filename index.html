@@ -236,14 +236,15 @@
             </div>
           </details>
 
-          <!-- 残業申請 -->
-          <div id="m-ot-request-area" style="display:none;margin-top:14px">
-            <button onclick="openOvertimeModal()"
-              style="width:100%;min-height:56px;padding:14px;border-radius:var(--r-sm);border:2px solid var(--warn);background:transparent;color:var(--warn);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
-              ⏰ 残業申請
-            </button>
-          </div>
         </div><!-- /m-clockout-form -->
+
+        <!-- 残業申請（clockout-form の外に置く：退勤後も表示できるように） -->
+        <div id="m-ot-request-area" style="display:none;margin-top:14px">
+          <button onclick="openOvertimeModal()"
+            style="width:100%;min-height:56px;padding:14px;border-radius:var(--r-sm);border:2px solid var(--warn);background:transparent;color:var(--warn);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px">
+            ⏰ 残業申請
+          </button>
+        </div>
       </div><!-- /m-att-card -->
 
       <!-- ── 今月の目標ウィジェット ── -->
