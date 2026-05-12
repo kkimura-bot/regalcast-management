@@ -497,6 +497,39 @@ export async function loadMonthlyAttendance(force = false, explicitMonth = null)
       }
       return r;
     });
+
+    // シフトはあるが attendance ドキュメントが存在しない日 → 合成行として追加（報告漏れ表示のため）
+    const existingKeys = new Set(_cachedAttendance.map(r => `${r.uid}_${r.date}`));
+    let scopeUid = null;
+    if (isAdmin()) {
+      const mf = document.getElementById('att-member-filter')?.value;
+      if (mf) scopeUid = mf;
+    } else {
+      scopeUid = RC.currentUser?.uid || null;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const noRecordRows = [];
+    Object.entries(shiftMap).forEach(([key, sh]) => {
+      if (sh.type === 'off') return;
+      if (existingKeys.has(key)) return;
+      if (scopeUid && sh.uid !== scopeUid) return;
+      if (sh.date > today) return;
+      const member = (RC._cachedMembers || []).find(m => m.id === sh.uid);
+      noRecordRows.push({
+        id: `norecord_${key}`,
+        uid: sh.uid,
+        name: sh.name || member?.name || '',
+        date: sh.date,
+        shiftStart: sh.startTime,
+        shiftEnd: sh.endTime,
+        clockIn: null,
+        clockOut: null,
+      });
+    });
+    if (noRecordRows.length) {
+      _cachedAttendance = [..._cachedAttendance, ...noRecordRows]
+        .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    }
   } catch(e) {
     console.warn('シフトデータの突合に失敗しました（スキップ）:', e);
   }
