@@ -493,6 +493,10 @@
       <div id="m-paid-leave-content"></div>
     </div>
 
+    <div class="mobile-view" id="m-view-overtime">
+      <div id="m-overtime-content"></div>
+    </div>
+
     <div class="mobile-view" id="m-view-mypage">
       <div style="font-weight:700;font-size:15px;margin-bottom:16px">👤 マイページ</div>
 
@@ -607,6 +611,10 @@
         <div class="mnav-icon" style="position:relative"><i data-lucide="palmtree"></i><span id="m-paid-leave-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
         <div class="mnav-label">有給申請</div>
       </div>
+      <div class="mnav-item" onclick="switchMobile('overtime',this);loadOvertimeRequests()" data-roles="admin,leader,member">
+        <div class="mnav-icon" style="position:relative"><i data-lucide="clock-alert"></i><span id="m-ot-nav-badge" class="notif-badge" style="display:none;background:var(--warn)"></span></div>
+        <div class="mnav-label">残業申請</div>
+      </div>
       <div class="mnav-item" onclick="switchMobile('mypage',this)" data-roles="admin,leader,member">
         <div class="mnav-icon"><i data-lucide="user-round"></i></div><div class="mnav-label">マイページ</div>
       </div>
@@ -658,6 +666,9 @@
 
     <!-- 有給申請 -->
     <div class="tab" data-tab="paid-leave" data-roles="admin,leader,member" onclick="loadPaidLeave()">🌴 有給申請 <span id="paid-leave-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
+
+    <!-- 残業申請 -->
+    <div class="tab" data-tab="overtime" data-roles="admin,leader,member" onclick="loadOvertimeRequests()">⏰ 残業申請 <span id="ot-nav-badge" class="notif-badge" style="display:none;background:var(--warn)"></span></div>
 
     <!-- 管理グループ -->
     <div class="tab-group" id="tabgroup-kanri">
@@ -1220,6 +1231,10 @@
     <!-- PAID LEAVE -->
     <div id="view-paid-leave" class="view">
       <div id="paid-leave-content"></div>
+    </div>
+
+    <div id="view-overtime" class="view">
+      <div id="overtime-content"></div>
     </div>
 
   </div><!-- /content -->

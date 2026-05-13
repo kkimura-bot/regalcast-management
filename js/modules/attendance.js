@@ -1416,12 +1416,19 @@ export async function submitMissedCorrection(docId, dateStr) {
 // ── Overtime ──────────────────────────────────────────────
 
 export function openOvertimeModal() {
+  const OT_STEP = 15, OT_MAX = 120;
+  const opts = [];
+  for (let m = OT_STEP; m <= OT_MAX; m += OT_STEP) {
+    const h = Math.floor(m / 60), min = m % 60;
+    opts.push(`<option value="${m}">${h > 0 ? h + '時間' : ''}${min > 0 ? min + '分' : ''}</option>`);
+  }
   document.getElementById('modal-title-text').textContent = '⏰ 残業申請';
   document.getElementById('modal-body').innerHTML = `
-    <div class="form-row"><label class="form-label">残業時間（分）</label>
-      <input type="number" class="form-input" id="ot-minutes" placeholder="例：30" min="0"></div>
-    <div class="form-row"><label class="form-label">理由</label>
-      <input class="form-input" id="ot-reason" placeholder="例：納期対応"></div>
+    <div class="form-row"><label class="form-label">残業時間（15分単位・上限2時間）</label>
+      <select class="form-input" id="ot-minutes">${opts.join('')}</select></div>
+    <div class="form-row"><label class="form-label">理由 <span style="color:var(--accent);font-size:11px">*必須</span></label>
+      <input class="form-input" id="ot-reason" placeholder="例：イベント対応、棚卸し作業など"></div>
+    <div id="ot-error" style="color:var(--accent);font-size:12px;min-height:16px"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-primary" onclick="submitOvertimeRequest()">申請する</button>
@@ -1432,20 +1439,27 @@ export function openOvertimeModal() {
 export async function submitOvertimeRequest() {
   const minutes = parseInt(document.getElementById('ot-minutes').value) || 0;
   const reason  = document.getElementById('ot-reason').value.trim();
-  if (!minutes) { alert('残業時間を入力してください'); return; }
+  const errEl   = document.getElementById('ot-error');
+  if (!reason) { errEl.textContent = '理由を入力してください'; return; }
 
   const today = todayJST();
-  await addDoc(collection(db,'overtimeRequests'), {
-    uid: RC.currentUser.uid,
+  const uid   = RC.currentUser.uid;
+  await addDoc(collection(db, 'overtimeRequests'), {
+    uid,
     name: RC.currentUserData.name,
     dept: RC.currentUserData.dept || '',
     date: today,
     minutes, reason,
-    status: '未承認',
-    createdAt: serverTimestamp()
+    status: 'pending',
+    createdAt: new Date().toISOString(),
   });
+  // 申請中フラグを attendance に書き込む
+  await setDoc(doc(db, 'attendance', `${uid}_${today}`), {
+    overtimePendingMinutes: minutes,
+  }, { merge: true });
   closeModal();
   alert('✅ 残業申請を提出しました');
+  if (typeof window.updateOvertimeBadge === 'function') window.updateOvertimeBadge();
 }
 
 // ── Bulk generate attendance from shifts ──────────────────
