@@ -660,11 +660,26 @@ export function renderAttendanceTable(records) {
       <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockIn?'var(--accent)':'var(--accent2)'}">${noClockIn?missedLabel:formatClockIn(r.clockIn)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockOut?'var(--accent)':'var(--blue)'}">${noClockOut?'⚠ 退店漏れ':formatClockOut(r.clockOut)}</td>
-      <td style="font-size:11px;color:var(--ink3)">${r.breakMinutes ?? 60}分</td>
+      <td style="font-size:11px;color:var(--ink3)">
+        ${isAdmin() && !r.id.startsWith('norecord_')
+          ? `<span onclick="startInlineBreakEdit('${r.id}',this)" title="クリックで編集" style="border-bottom:1px dashed var(--ink3);cursor:pointer">${r.breakMinutes ?? 60}分</span>`
+          : `${r.breakMinutes ?? 60}分`
+        }
+      </td>
       <td style="font-family:'DM Mono',monospace;font-size:11px">${hours!==null&&hours>0?hours.toFixed(1)+'h':r.absent?'<span style="color:var(--ink3);font-weight:700">欠勤</span>':'—'}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${overtime>0?'var(--warn)':'var(--ink3)'}">${overtime>0?overtime.toFixed(1)+'h':'—'}</td>
-      <td style="font-size:11px;color:var(--ink3)">${r.stationFrom&&r.stationTo?r.stationFrom+'→'+r.stationTo:r.stationFrom||r.stationTo||'—'}</td>
-      <td style="font-size:11px;font-family:'DM Mono',monospace">${r.fare?'¥'+r.fare.toLocaleString():'—'}</td>
+      <td style="font-size:11px;color:var(--ink3)">
+        ${isAdmin() && !r.id.startsWith('norecord_')
+          ? `<span onclick="startInlineStationEdit('${r.id}',this)" title="クリックで編集" style="border-bottom:1px dashed var(--ink3);cursor:pointer">${r.stationFrom&&r.stationTo?r.stationFrom+'→'+r.stationTo:r.stationFrom||r.stationTo||'—'}</span>`
+          : (r.stationFrom&&r.stationTo?r.stationFrom+'→'+r.stationTo:r.stationFrom||r.stationTo||'—')
+        }
+      </td>
+      <td style="font-size:11px;font-family:'DM Mono',monospace;${isAdmin()&&!r.id.startsWith('norecord_')?'cursor:pointer;':(r.fare?'':'')}">
+        ${isAdmin() && !r.id.startsWith('norecord_')
+          ? `<span onclick="startInlineFareEdit('${r.id}',this,${r.fare||0})" title="クリックで編集" style="display:inline-block;min-width:40px;border-bottom:1px dashed var(--ink3)">${r.fare?'¥'+r.fare.toLocaleString():'—'}</span>`
+          : (r.fare?'¥'+r.fare.toLocaleString():'—')
+        }
+      </td>
       <td style="font-size:12px">${mw?`<span title="${r.mentalWeather}">${mw.icon} ${r.mentalWeather}</span>`:'—'}</td>
       <td style="font-size:11px;color:var(--ink3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(r.note||'')}">${r.note||''}</td>
       <td style="font-size:10px;color:var(--ink3)">${r.clockInLat?`<a href="https://www.google.com/maps?q=${r.clockInLat},${r.clockInLng}" target="_blank" style="color:var(--blue)">📍</a>`:'—'}</td>
@@ -769,7 +784,11 @@ export function setAttDetailFilter(filter) {
   });
   const filtered = filter === 'missed'
     ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && (!r.clockIn || !r.clockOut))
-    : _cachedAttendance;
+    : filter === 'checkin_missed'
+      ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && !r.clockIn)
+      : filter === 'checkout_missed'
+        ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && r.clockIn && !r.clockOut)
+        : _cachedAttendance;
   renderAttendanceTable(filtered);
   renderAttMobileCards(filtered);
 }
@@ -1106,6 +1125,118 @@ export function exportCSV() {
 }
 
 // ── Edit attendance modal ─────────────────────────────────
+
+export function startInlineFareEdit(id, spanEl, currentFare) {
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = currentFare || 0;
+  input.min = 0;
+  input.style.cssText = 'width:72px;font-size:11px;font-family:inherit;padding:2px 4px;border:1px solid var(--accent2);border-radius:4px;text-align:right';
+  spanEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const save = async () => {
+    const newFare = parseInt(input.value) || 0;
+    if (newFare === (currentFare || 0)) {
+      loadMonthlyAttendance(true);
+      return;
+    }
+    try {
+      const r = _cachedAttendance.find(x => x.id === id);
+      await updateDoc(doc(db, 'attendance', id), { fare: newFare });
+      if (r) r.fare = newFare;
+      loadMonthlyAttendance(true);
+    } catch(e) {
+      alert('保存失敗: ' + e.message);
+      loadMonthlyAttendance(true);
+    }
+  };
+
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } if (e.key === 'Escape') loadMonthlyAttendance(true); });
+  input.addEventListener('blur', save);
+}
+
+export function startInlineBreakEdit(id, spanEl) {
+  const r = _cachedAttendance.find(x => x.id === id);
+  if (!r) return;
+  const current = r.breakMinutes ?? 60;
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = current;
+  input.min = 0;
+  input.style.cssText = 'width:52px;font-size:11px;font-family:inherit;padding:2px 4px;border:1px solid var(--accent2);border-radius:4px;text-align:right';
+  spanEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const save = async () => {
+    const breakMinutes = parseInt(input.value);
+    const val = isNaN(breakMinutes) ? 60 : breakMinutes;
+    if (val === current) { loadMonthlyAttendance(true); return; }
+    try {
+      await updateDoc(doc(db, 'attendance', id), { breakMinutes: val });
+      if (r) r.breakMinutes = val;
+      loadMonthlyAttendance(true);
+    } catch(e) {
+      alert('保存失敗: ' + e.message);
+      loadMonthlyAttendance(true);
+    }
+  };
+
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } if (e.key === 'Escape') loadMonthlyAttendance(true); });
+  input.addEventListener('blur', save);
+}
+
+export function startInlineStationEdit(id, spanEl) {
+  const r = _cachedAttendance.find(x => x.id === id);
+  if (!r) return;
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;align-items:center;gap:3px';
+
+  const mkInput = (val, placeholder, width) => {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = val || '';
+    inp.placeholder = placeholder;
+    inp.style.cssText = `width:${width}px;font-size:10px;padding:2px 4px;border:1px solid var(--accent2);border-radius:4px`;
+    return inp;
+  };
+
+  const fromInput = mkInput(r.stationFrom, '乗車駅', 58);
+  const arrow = Object.assign(document.createElement('span'), { textContent: '→' });
+  arrow.style.cssText = 'font-size:10px;color:var(--ink3);flex-shrink:0';
+  const toInput = mkInput(r.stationTo, '降車駅', 58);
+
+  wrapper.append(fromInput, arrow, toInput);
+  spanEl.replaceWith(wrapper);
+  fromInput.focus();
+
+  let saved = false;
+  const save = async () => {
+    if (saved) return;
+    saved = true;
+    const stationFrom = fromInput.value.trim();
+    const stationTo   = toInput.value.trim();
+    if (stationFrom === (r.stationFrom || '') && stationTo === (r.stationTo || '')) {
+      loadMonthlyAttendance(true); return;
+    }
+    try {
+      await updateDoc(doc(db, 'attendance', id), { stationFrom, stationTo });
+      if (r) { r.stationFrom = stationFrom; r.stationTo = stationTo; }
+      loadMonthlyAttendance(true);
+    } catch(e) {
+      alert('保存失敗: ' + e.message);
+      loadMonthlyAttendance(true);
+    }
+  };
+
+  const onKey = e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } if (e.key === 'Escape') { saved = true; loadMonthlyAttendance(true); } };
+  fromInput.addEventListener('keydown', onKey);
+  toInput.addEventListener('keydown', onKey);
+  wrapper.addEventListener('focusout', e => { if (!wrapper.contains(e.relatedTarget)) save(); });
+}
 
 export function openEditAttendanceModal(id) {
   const r = _cachedAttendance.find(x => x.id === id);
@@ -1504,6 +1635,9 @@ window.exportCSV                  = exportCSV;
 window.exportExcel                = exportExcel;
 window.openEditAttendanceModal    = openEditAttendanceModal;
 window.saveAttendanceEdit         = saveAttendanceEdit;
+window.startInlineFareEdit        = startInlineFareEdit;
+window.startInlineBreakEdit       = startInlineBreakEdit;
+window.startInlineStationEdit     = startInlineStationEdit;
 window.confirmDeleteAttendance    = confirmDeleteAttendance;
 window.openAddAttendanceModal     = openAddAttendanceModal;
 window.saveAddAttendance          = saveAddAttendance;

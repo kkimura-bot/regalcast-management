@@ -332,8 +332,10 @@
       <!-- 勤怠詳細カード一覧 -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="section-title" style="font-size:12px;margin-bottom:0">勤怠詳細</div>
-        <div id="att-detail-filter-btns-m" style="display:none;gap:4px">
-          <button class="mini-btn att-detail-filter-m active" data-filter="missed" onclick="setAttDetailFilter('missed')" style="font-size:10px">🚨 漏れのみ</button>
+        <div id="att-detail-filter-btns-m" style="display:none;gap:4px;flex-wrap:wrap">
+          <button class="mini-btn att-detail-filter-m active" data-filter="missed" onclick="setAttDetailFilter('missed')" style="font-size:10px">🚨 漏れ全件</button>
+          <button class="mini-btn att-detail-filter-m" data-filter="checkin_missed" onclick="setAttDetailFilter('checkin_missed')" style="font-size:10px">⚠️ 入店漏れ</button>
+          <button class="mini-btn att-detail-filter-m" data-filter="checkout_missed" onclick="setAttDetailFilter('checkout_missed')" style="font-size:10px">⚠️ 退店漏れ</button>
           <button class="mini-btn att-detail-filter-m" data-filter="all" onclick="setAttDetailFilter('all')" style="font-size:10px">全件</button>
         </div>
       </div>
@@ -885,8 +887,10 @@
       <!-- Table -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="section-title" style="margin-bottom:0">勤怠詳細</div>
-        <div id="att-detail-filter-btns" style="display:none;gap:4px">
-          <button class="mini-btn att-detail-filter active" data-filter="missed" onclick="setAttDetailFilter('missed')" style="font-size:11px">🚨 報告漏れのみ</button>
+        <div id="att-detail-filter-btns" style="display:none;gap:4px;flex-wrap:wrap">
+          <button class="mini-btn att-detail-filter active" data-filter="missed" onclick="setAttDetailFilter('missed')" style="font-size:11px">🚨 漏れ全件</button>
+          <button class="mini-btn att-detail-filter" data-filter="checkin_missed" onclick="setAttDetailFilter('checkin_missed')" style="font-size:11px">⚠️ 入店漏れのみ</button>
+          <button class="mini-btn att-detail-filter" data-filter="checkout_missed" onclick="setAttDetailFilter('checkout_missed')" style="font-size:11px">⚠️ 退店漏れのみ</button>
           <button class="mini-btn att-detail-filter" data-filter="all" onclick="setAttDetailFilter('all')" style="font-size:11px">全件表示</button>
         </div>
       </div>
