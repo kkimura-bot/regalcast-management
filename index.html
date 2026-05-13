@@ -923,11 +923,15 @@
             <col style="width:80px"><!-- 修正 -->
           </colgroup>
           <thead><tr>
-            <th>日付</th>
-            <th id="att-th-member">メンバー</th>
-            <th>出勤</th><th>退勤</th><th>休憩</th><th>勤務時間</th><th>残業</th>
+            <th class="att-sortable" data-col="date" onclick="sortAttendanceBy('date')" style="cursor:pointer;user-select:none">日付 <span id="att-sort-date" class="att-sort-icon"></span></th>
+            <th id="att-th-member" class="att-sortable" data-col="name" onclick="sortAttendanceBy('name')" style="cursor:pointer;user-select:none">メンバー <span id="att-sort-name" class="att-sort-icon"></span></th>
+            <th class="att-sortable" data-col="clockIn" onclick="sortAttendanceBy('clockIn')" style="cursor:pointer;user-select:none">出勤 <span id="att-sort-clockIn" class="att-sort-icon"></span></th>
+            <th class="att-sortable" data-col="clockOut" onclick="sortAttendanceBy('clockOut')" style="cursor:pointer;user-select:none">退勤 <span id="att-sort-clockOut" class="att-sort-icon"></span></th>
+            <th>休憩</th>
+            <th class="att-sortable" data-col="hours" onclick="sortAttendanceBy('hours')" style="cursor:pointer;user-select:none">勤務時間 <span id="att-sort-hours" class="att-sort-icon"></span></th>
+            <th>残業</th>
             <th>最寄駅 → 降車駅</th>
-            <th>交通費</th>
+            <th class="att-sortable" data-col="fare" onclick="sortAttendanceBy('fare')" style="cursor:pointer;user-select:none">交通費 <span id="att-sort-fare" class="att-sort-icon"></span></th>
             <th>🌤 メンタル</th>
             <th>メモ</th>
             <th>位置情報</th>

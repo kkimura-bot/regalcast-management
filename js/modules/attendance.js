@@ -13,6 +13,7 @@ import { todayJST, getMonthEnd, fmtDate, escHtml } from '../utils/helpers.js';
 // ── State ─────────────────────────────────────────────────
 let _cachedAttendance = [];
 let _attDetailFilter  = 'all';
+let _attSort = { col: 'date', dir: 'asc' };
 let _clockInCooldown  = false;
 let _clockOutCooldown = false;
 let _lastAttLoad      = 0;
@@ -534,6 +535,8 @@ export async function loadMonthlyAttendance(force = false, explicitMonth = null)
     console.warn('シフトデータの突合に失敗しました（スキップ）:', e);
   }
 
+  _attSort = { col: 'date', dir: 'asc' };
+  updateSortIcons();
   renderAttendanceTable(_cachedAttendance);
   renderAttendanceSummary(_cachedAttendance, month);
   renderAttMobileCards(_cachedAttendance);
@@ -781,6 +784,64 @@ function renderAttMobileCards(records) {
 
 // ── Filter ────────────────────────────────────────────────
 
+function getSortValue(r, col) {
+  switch (col) {
+    case 'date':    return r.date || '';
+    case 'name':    return r.name || '';
+    case 'clockIn': return r.clockIn || '';
+    case 'clockOut':return r.clockOut || '';
+    case 'hours':   return calcHours(r) ?? -1;
+    case 'fare':    return r.fare || 0;
+    default:        return '';
+  }
+}
+
+function applySortAndFilter(records) {
+  const { col, dir } = _attSort;
+  const sorted = [...records].sort((a, b) => {
+    const av = getSortValue(a, col), bv = getSortValue(b, col);
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+  return sorted;
+}
+
+function updateSortIcons() {
+  ['date','name','clockIn','clockOut','hours','fare'].forEach(col => {
+    const el = document.getElementById(`att-sort-${col}`);
+    if (!el) return;
+    if (_attSort.col === col) {
+      el.textContent = _attSort.dir === 'asc' ? '▲' : '▼';
+      el.style.color = 'var(--accent2)';
+    } else {
+      el.textContent = '⇅';
+      el.style.color = 'var(--ink3)';
+      el.style.opacity = '0.4';
+    }
+  });
+}
+
+export function sortAttendanceBy(col) {
+  if (_attSort.col === col) {
+    _attSort.dir = _attSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _attSort.col = col;
+    _attSort.dir = col === 'date' ? 'asc' : 'desc';
+  }
+  updateSortIcons();
+  const base = _attDetailFilter === 'missed'
+    ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && (!r.clockIn || !r.clockOut))
+    : _attDetailFilter === 'checkin_missed'
+      ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && !r.clockIn)
+      : _attDetailFilter === 'checkout_missed'
+        ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && r.clockIn && !r.clockOut)
+        : _cachedAttendance;
+  const sorted = applySortAndFilter(base);
+  renderAttendanceTable(sorted);
+  renderAttMobileCards(sorted);
+}
+
 export function setAttDetailFilter(filter) {
   _attDetailFilter = filter;
   document.querySelectorAll('.att-detail-filter, .att-detail-filter-m').forEach(b => {
@@ -793,8 +854,9 @@ export function setAttDetailFilter(filter) {
       : filter === 'checkout_missed'
         ? _cachedAttendance.filter(r => !r.absent && !r._syntheticPaidLeave && r.clockIn && !r.clockOut)
         : _cachedAttendance;
-  renderAttendanceTable(filtered);
-  renderAttMobileCards(filtered);
+  const sorted = applySortAndFilter(filtered);
+  renderAttendanceTable(sorted);
+  renderAttMobileCards(sorted);
 }
 
 export function filterAttByMember(val) {
@@ -1646,6 +1708,7 @@ window.loadMonthlyAttendance      = loadMonthlyAttendance;
 window.renderAttendanceTable      = renderAttendanceTable;
 window.renderAttendanceSummary    = renderAttendanceSummary;
 window.setAttDetailFilter         = setAttDetailFilter;
+window.sortAttendanceBy           = sortAttendanceBy;
 window.filterAttByMember          = filterAttByMember;
 window.resetAttFilter             = resetAttFilter;
 window.filterAttBySearch          = filterAttBySearch;
