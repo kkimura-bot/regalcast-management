@@ -672,7 +672,12 @@ export function renderAttendanceTable(records) {
         }
       </td>
       <td style="font-family:'DM Mono',monospace;font-size:11px">${hours!==null&&hours>0?hours.toFixed(1)+'h':r.absent?'<span style="color:var(--ink3);font-weight:700">欠勤</span>':'—'}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${overtime>0?'var(--warn)':'var(--ink3)'}">${overtime>0?overtime.toFixed(1)+'h':'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;color:${overtime>0?'var(--warn)':'var(--ink3)'}">
+        ${isAdmin() && !r.id.startsWith('norecord_')
+          ? `<span onclick="startInlineOvertimeEdit('${r.id}',this)" title="クリックで編集（分単位）" style="border-bottom:1px dashed ${overtime>0?'var(--warn)':'var(--ink3)'};cursor:pointer">${overtime>0?overtime.toFixed(1)+'h':'—'}</span>`
+          : (overtime>0?overtime.toFixed(1)+'h':'—')
+        }
+      </td>
       <td style="font-size:11px;color:var(--ink3)">
         ${isAdmin() && !r.id.startsWith('norecord_')
           ? `<span onclick="startInlineStationEdit('${r.id}',this)" title="クリックで編集" style="border-bottom:1px dashed var(--ink3);cursor:pointer">${r.stationFrom&&r.stationTo?r.stationFrom+'→'+r.stationTo:r.stationFrom||r.stationTo||'—'}</span>`
@@ -1304,6 +1309,38 @@ export function startInlineStationEdit(id, spanEl) {
   wrapper.addEventListener('focusout', e => { if (!wrapper.contains(e.relatedTarget)) save(); });
 }
 
+export function startInlineOvertimeEdit(id, spanEl) {
+  const r = _cachedAttendance.find(x => x.id === id);
+  if (!r) return;
+  const current = r.approvedOvertimeMinutes || 0;
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.value = current;
+  input.min = 0;
+  input.placeholder = '分';
+  input.title = '残業時間（分単位）';
+  input.style.cssText = 'width:60px;font-size:11px;font-family:inherit;padding:2px 4px;border:1px solid var(--warn);border-radius:4px;text-align:right';
+  spanEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const save = async () => {
+    const minutes = parseInt(input.value) || 0;
+    if (minutes === current) { loadMonthlyAttendance(true); return; }
+    try {
+      await updateDoc(doc(db, 'attendance', id), { approvedOvertimeMinutes: minutes });
+      if (r) r.approvedOvertimeMinutes = minutes;
+      loadMonthlyAttendance(true);
+    } catch(e) {
+      alert('保存失敗: ' + e.message);
+      loadMonthlyAttendance(true);
+    }
+  };
+
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } if (e.key === 'Escape') loadMonthlyAttendance(true); });
+  input.addEventListener('blur', save);
+}
+
 export function openEditAttendanceModal(id) {
   const r = _cachedAttendance.find(x => x.id === id);
   if (!r) return;
@@ -1719,6 +1756,7 @@ window.saveAttendanceEdit         = saveAttendanceEdit;
 window.startInlineFareEdit        = startInlineFareEdit;
 window.startInlineBreakEdit       = startInlineBreakEdit;
 window.startInlineStationEdit     = startInlineStationEdit;
+window.startInlineOvertimeEdit    = startInlineOvertimeEdit;
 window.confirmDeleteAttendance    = confirmDeleteAttendance;
 window.openAddAttendanceModal     = openAddAttendanceModal;
 window.saveAddAttendance          = saveAddAttendance;
