@@ -697,6 +697,18 @@ tr:hover td { background: #F8FAFC; }
   font-family: 'DM Mono', monospace;
 }
 .tab { position: relative; }
+/* PCタブ内のインラインバッジ（有給・残業） */
+.tab .notif-badge {
+  position: static;
+  display: none;
+  margin-left: 6px;
+  width: auto;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  vertical-align: middle;
+}
 
 /* ============================================================
    GANTT CHART

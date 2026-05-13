@@ -762,13 +762,13 @@ export async function updatePaidLeaveBadges() {
     const pcBadge = document.getElementById('paid-leave-nav-badge');
     if (pcBadge) {
       pcBadge.textContent = count > 0 ? String(count) : '';
-      pcBadge.style.display = (isAdmin() && count > 0) ? '' : 'none';
+      pcBadge.style.display = (isAdmin() && count > 0) ? 'flex' : 'none';
     }
     // モバイルナビ
     const mBadge = document.getElementById('m-paid-leave-nav-badge');
     if (mBadge) {
       mBadge.textContent = count > 0 ? String(count) : '';
-      mBadge.style.display = (isAdmin() && count > 0) ? '' : 'none';
+      mBadge.style.display = (isAdmin() && count > 0) ? 'flex' : 'none';
     }
     // Dashboard count用に RC に保存
     window.RC._paidLeavePendingCount = count;

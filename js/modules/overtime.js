@@ -244,7 +244,7 @@ export async function updateOvertimeBadge() {
       const el = document.getElementById(id);
       if (!el) return;
       el.textContent = count;
-      el.style.display = count > 0 ? '' : 'none';
+      el.style.display = count > 0 ? 'flex' : 'none';
     });
   } catch (e) { /* silent */ }
 }
