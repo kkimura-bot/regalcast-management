@@ -72,6 +72,8 @@ export function postLoginSetup() {
 
   // 有給申請バッジ（全ロール呼び出すが、管理者だけ件数表示される仕組み）
   window.updatePaidLeaveBadges?.();
+  // 残業申請バッジ
+  window.updateOvertimeBadge?.();
 
   if (isAdmin()) {
     window.updateReportBadge?.();

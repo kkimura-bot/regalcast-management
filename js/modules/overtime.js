@@ -21,9 +21,12 @@ let _adminTab = 'pending';
 
 const STATUS_META = {
   pending:  { label: '承認待ち', icon: '⏳', bg: 'rgba(217,119,6,.10)',  color: '#D97706' },
+  '未承認': { label: '承認待ち', icon: '⏳', bg: 'rgba(217,119,6,.10)',  color: '#D97706' },
   approved: { label: '承認済み', icon: '✅', bg: 'rgba(5,150,105,.10)',  color: '#059669' },
   rejected: { label: '却下',     icon: '❌', bg: 'rgba(239,68,68,.10)',  color: '#EF4444' },
 };
+
+const isPending = r => r.status === 'pending' || r.status === '未承認';
 
 function fmtMinutes(m) {
   const h = Math.floor(m / 60), min = m % 60;
@@ -95,9 +98,9 @@ export async function loadOvertimeRequests() {
 // ---- Admin view -------------------------------------------
 function renderAdmin() {
   const TABS = [
-    { key: 'pending',  label: '承認待ち', items: _cachedRequests.filter(r => r.status === 'pending')  },
-    { key: 'approved', label: '承認済み', items: _cachedRequests.filter(r => r.status === 'approved') },
-    { key: 'rejected', label: '却下',     items: _cachedRequests.filter(r => r.status === 'rejected') },
+    { key: 'pending',  label: '承認待ち', items: _cachedRequests.filter(isPending)                     },
+    { key: 'approved', label: '承認済み', items: _cachedRequests.filter(r => r.status === 'approved')  },
+    { key: 'rejected', label: '却下',     items: _cachedRequests.filter(r => r.status === 'rejected')  },
     { key: 'all',      label: '全件',     items: _cachedRequests },
   ];
   const activeItems = (TABS.find(t => t.key === _adminTab) || TABS[0]).items;
@@ -128,7 +131,7 @@ function renderAdmin() {
 
 function renderAdminCard(r) {
   const s = STATUS_META[r.status] || STATUS_META.pending;
-  const isPending = r.status === 'pending';
+  const needsAction = isPending(r);
   const dateStr = r.date || '—';
   const encodedName = encodeURIComponent(r.name || '');
   return `
@@ -143,7 +146,7 @@ function renderAdminCard(r) {
       ${r.reason ? `<div class="ot-meta">📝 ${escHtml(r.reason)}</div>` : ''}
       ${r.approvedBy ? `<div class="ot-meta">承認者：${escHtml(r.approvedBy)}</div>` : ''}
       ${r.rejectedBy ? `<div class="ot-meta">却下者：${escHtml(r.rejectedBy)}</div>` : ''}
-      ${isPending ? `
+      ${needsAction ? `
         <div class="ot-actions">
           <button class="ot-btn-approve" onclick="approveOvertime('${r.id}','${r.uid}','${dateStr}',${r.minutes || 0})">✅ 承認</button>
           <button class="ot-btn-reject"  onclick="rejectOvertime('${r.id}','${r.uid}','${dateStr}')">✕ 却下</button>
@@ -235,7 +238,7 @@ export async function rejectOvertime(reqId, uid, date) {
 export async function updateOvertimeBadge() {
   if (!isAdmin()) return;
   try {
-    const snap = await getDocs(query(collection(db, 'overtimeRequests'), where('status', '==', 'pending')));
+    const snap = await getDocs(query(collection(db, 'overtimeRequests'), where('status', 'in', ['pending', '未承認'])));
     const count = snap.size;
     ['ot-nav-badge', 'm-ot-nav-badge'].forEach(id => {
       const el = document.getElementById(id);
