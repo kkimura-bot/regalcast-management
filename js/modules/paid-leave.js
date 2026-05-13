@@ -458,6 +458,9 @@ function renderAdmin() {
         <div class="pl-title"><span class="pl-icon">🌴</span> 有給申請（管理）</div>
         <div class="pl-sub">メンバーからの申請を承認・否認できます</div>
       </div>
+      <button class="pl-new-btn" onclick="openPaidLeaveModal()">
+        <span style="font-size:15px">＋</span> 新規申請
+      </button>
     </div>
     <div class="pl-tabs">${tabsHtml}</div>
     <div id="pl-list">${cardsHtml}</div>
