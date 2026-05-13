@@ -655,8 +655,10 @@ export function renderAttendanceTable(records) {
       return `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:${pl.bg};color:${pl.color};font-size:10px;font-weight:700">${pl.label}</span>`;
     })() : '';
     const missedLabel = noClockIn ? '⚠ 入店未入力' : '⚠ 退店漏れ';
+    const noShift = r.clockIn && !r.shiftStart && !r.absent && !r._syntheticPaidLeave && !r.id?.startsWith('norecord_');
+    const noShiftBadge = noShift ? `<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:rgba(100,116,139,.12);color:#64748b;font-size:9px;font-weight:700;letter-spacing:0.2px">シフト外</span>` : '';
     return `<tr style="${rowStyle}">
-      <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}${plBadge}</td>
+      <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}${plBadge}${noShiftBadge}</td>
       <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockIn?'var(--accent)':'var(--accent2)'}">${noClockIn?missedLabel:formatClockIn(r.clockIn)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockOut?'var(--accent)':'var(--blue)'}">${noClockOut?'⚠ 退店漏れ':formatClockOut(r.clockOut)}</td>
@@ -758,9 +760,11 @@ function renderAttMobileCards(records) {
     const plChip = r.paidLeaveType
       ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:rgba(82,183,136,.12);color:#3a7d5a;font-size:10px;font-weight:700">${PL_TYPE_LABEL[r.paidLeaveType]}</span>`
       : '';
+    const noShiftM = r.clockIn && !r.shiftStart && !r.absent && !r._syntheticPaidLeave && !r.id?.startsWith('norecord_');
+    const noShiftChip = noShiftM ? `<span style="display:inline-block;margin-left:6px;padding:1px 5px;border-radius:4px;background:rgba(100,116,139,.12);color:#64748b;font-size:9px;font-weight:700">シフト外</span>` : '';
     return `<div class="m-card" style="${cardBorder}">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <div style="font-weight:700;font-size:12px;${isMissed?'color:var(--accent)':''}">${r.date||'—'}${plChip}</div>
+        <div style="font-weight:700;font-size:12px;${isMissed?'color:var(--accent)':''}">${r.date||'—'}${plChip}${noShiftChip}</div>
         ${showMember ? `<span class="member-chip" style="font-size:10px">${r.name||'—'}</span>` : ''}
         ${mw ? `<span style="font-size:13px">${mw.icon}</span>` : ''}
       </div>
