@@ -88,6 +88,26 @@
     }
     .toggle-done-btn:hover { background:var(--border); }
     .toggle-done-btn.active { background:var(--ink); color:#fff; border-color:var(--ink); }
+    .focus-archive-btn {
+      font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px;
+      border:1px solid var(--border); background:var(--surface2); color:var(--ink2);
+      cursor:pointer; transition:background .15s; white-space:nowrap;
+    }
+    .focus-archive-btn:hover { background:var(--border); }
+    .focus-archive-panel {
+      display:none; margin-top:12px;
+      border:1px solid var(--border); border-radius:var(--r); overflow:hidden;
+    }
+    .focus-archive-panel.open { display:block; }
+    .focus-archive-month {
+      padding:10px 14px; border-bottom:1px solid var(--border);
+      cursor:pointer; font-size:12px; font-weight:600; background:var(--surface2);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .focus-archive-month:last-child { border-bottom:none; }
+    .focus-archive-month:hover { background:var(--border); }
+    .focus-archive-items { display:none; padding:12px 14px; background:var(--surface); }
+    .focus-archive-items.open { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:8px; }
 
     /* ── 今月フォーカス ── */
     .focus-section { margin-bottom:32px; }
@@ -243,8 +263,12 @@
 
     <!-- 今月フォーカス -->
     <section class="focus-section">
-      <h2>📅 今月のフォーカス（2026年5月）</h2>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <h2 style="margin-bottom:0">📅 今月のフォーカス（2026年5月）</h2>
+        <button class="focus-archive-btn" onclick="toggleArchive()">📁 過去月</button>
+      </div>
       <div class="focus-grid" id="focus-grid"></div>
+      <div class="focus-archive-panel" id="focus-archive-panel"></div>
     </section>
 
     <!-- MTGアクション -->
@@ -349,16 +373,17 @@ onAuthStateChanged(auth, async (user) => {
 //
 // AIKATAは上記ドキュメントを上書きするだけでリアルタイムに反映される。
 
-let DECISIONS     = [];
-let FOCUS_MAY     = [];
-let MTG_ACTIONS   = null;
+let DECISIONS      = [];
+let FOCUS_MAY      = [];
+let FOCUS_ARCHIVE  = [];
+let MTG_ACTIONS    = null;
 let GANTT_SECTIONS = [];
 let GANTT_PROGRESS = {};
-let loadedFlags   = { decisions: false, focus: false, mtg: false, sections: false, progress: false };
+let loadedFlags   = { decisions: false, focus: false, archive: false, mtg: false, sections: false, progress: false };
 let latestUpdatedAt = '';
 
 function checkAllLoaded() {
-  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.mtg && loadedFlags.sections && loadedFlags.progress) {
+  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.archive && loadedFlags.mtg && loadedFlags.sections && loadedFlags.progress) {
     // 更新日時表示（最新のupdatedAtを使用）
     document.getElementById('g-updated').textContent =
       latestUpdatedAt ? `更新：${latestUpdatedAt}` : '';
@@ -426,6 +451,17 @@ function subscribeGanttData() {
     checkAllLoaded();
   });
 
+  // フォーカスアーカイブ
+  onSnapshot(doc(db, 'gantt_config', 'focus_archive'), (snap) => {
+    FOCUS_ARCHIVE = snap.exists() ? (snap.data().months || []) : [];
+    loadedFlags.archive = true;
+    checkAllLoaded();
+  }, (err) => {
+    FOCUS_ARCHIVE = [];
+    loadedFlags.archive = true;
+    checkAllLoaded();
+  });
+
   // MTGアクション
   onSnapshot(doc(db, 'gantt_config', 'mtg_actions'), (snap) => {
     MTG_ACTIONS = snap.exists() ? snap.data() : null;
@@ -482,6 +518,37 @@ function toggleDone() {
   applyHideDone();
 }
 window.toggleDone = toggleDone;
+
+function toggleArchive() {
+  const panel = document.getElementById('focus-archive-panel');
+  if (!FOCUS_ARCHIVE.length) {
+    panel.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--ink3)">過去のフォーカスはまだありません</div>';
+    panel.classList.toggle('open');
+    return;
+  }
+  if (panel.classList.contains('open')) { panel.classList.remove('open'); return; }
+  panel.innerHTML = FOCUS_ARCHIVE.slice().reverse().map((m, i) => `
+    <div class="focus-archive-month" onclick="toggleArchiveMonth(${i})">
+      <span>📅 ${m.month}のフォーカス</span><span style="font-size:10px;color:var(--ink3)">▼</span>
+    </div>
+    <div class="focus-archive-items" id="arch-${i}">
+      ${(m.items || []).map(f => {
+        const icon = f.status === 'done' ? '✓' : f.status === 'wip' ? '⟳' : '';
+        return `<div class="f-item ${f.status === 'done' ? 'done-item' : ''}">
+          <div class="f-status ${f.status}">${icon}</div>
+          <div><div class="f-label">${f.label}</div><div class="f-owner">${f.owner}</div></div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+  panel.classList.add('open');
+}
+window.toggleArchive = toggleArchive;
+
+function toggleArchiveMonth(i) {
+  const el = document.getElementById('arch-' + i);
+  if (el) el.classList.toggle('open');
+}
+window.toggleArchiveMonth = toggleArchiveMonth;
 
 function applyHideDone() {
   const btn = document.getElementById('toggle-done-btn');
