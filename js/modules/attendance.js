@@ -279,8 +279,10 @@ export async function loadAttendanceToday() {
       if (seen.has(s.uid)) return;
       seen.add(s.uid);
       merged.push({
+        shiftId:    d.id,
         name:       s.name || attMap[s.uid]?.name || '—',
         shiftStart: s.startTime || '',
+        shiftEnd:   s.endTime   || '',
         clockIn:    attMap[s.uid]?.clockIn  || null,
         clockOut:   attMap[s.uid]?.clockOut || null
       });
@@ -315,10 +317,22 @@ export async function loadAttendanceToday() {
           const due     = toMin(r.shiftStart) <= nowMin;
           const missing = due && !r.clockIn;
           const border  = missing ? 'var(--accent)' : r.clockOut ? 'var(--ink3)' : r.clockIn ? 'var(--accent2)' : 'rgba(0,0,0,.1)';
+          const shiftLabel = r.shiftStart
+            ? (r.shiftEnd ? `${r.shiftStart}〜${r.shiftEnd}` : `${r.shiftStart}〜`)
+            : '';
+          const shiftEl = r.shiftId && isAdmin() && shiftLabel
+            ? `<span
+                onclick="openShiftTimeEdit('${r.shiftId}','${r.shiftStart}','${r.shiftEnd}')"
+                title="クリックでシフト時間を変更"
+                style="color:var(--ink3);font-size:11px;border-bottom:1px dashed var(--ink3);cursor:pointer"
+              >${shiftLabel}</span>`
+            : shiftLabel
+              ? `<span style="color:var(--ink3);font-size:11px">${shiftLabel}</span>`
+              : '';
           return `<div class="att-row" style="border-left:2px solid ${border};padding-left:8px">
             <span class="att-label">${r.name}</span>
             <div style="display:flex;gap:8px;font-size:12px;font-family:'DM Mono',monospace;align-items:center;flex-wrap:wrap">
-              ${r.shiftStart ? `<span style="color:var(--ink3);font-size:11px">${r.shiftStart}〜</span>` : ''}
+              ${shiftEl}
               <span style="color:var(--accent2)">${formatTime(r.clockIn)}</span>
               <span style="color:var(--blue)">${formatTime(r.clockOut)}</span>
               ${missing ? '<span style="font-size:10px;color:var(--accent);background:rgba(200,71,42,.1);padding:1px 5px;border-radius:4px">未出勤</span>' : ''}
@@ -1861,6 +1875,47 @@ export async function fixClockInByShift(dateStr) {
 }
 
 window.fixClockInByShift = fixClockInByShift;
+
+// ── 当日シフト時間インライン編集（管理者専用） ────────────────
+export function openShiftTimeEdit(shiftId, currentStart, currentEnd) {
+  document.getElementById('modal-title-text').textContent = 'シフト時間を変更';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:12px;line-height:1.6">
+      当日のシフト時間を変更します。<br>
+      変更すると勤怠の計算時間にも即時反映されます。
+    </div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="form-label">シフト開始</label>
+        <input type="time" class="form-input" id="ste-start" value="${currentStart || ''}"></div>
+      <div class="form-row"><label class="form-label">シフト終了</label>
+        <input type="time" class="form-input" id="ste-end" value="${currentEnd || ''}"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveShiftTimeEdit('${shiftId}')">変更する</button>
+    </div>`;
+  openModal();
+}
+
+export async function saveShiftTimeEdit(shiftId) {
+  const startVal = document.getElementById('ste-start')?.value;
+  const endVal   = document.getElementById('ste-end')?.value;
+  if (!startVal || !endVal) { alert('開始・終了時刻を両方入力してください'); return; }
+  try {
+    await updateDoc(doc(db, 'shifts', shiftId), {
+      startTime: startVal,
+      endTime:   endVal,
+    });
+    closeModal();
+    loadAttendanceToday();
+    alert('✅ シフト時間を変更しました');
+  } catch(e) {
+    alert('変更失敗: ' + e.message);
+  }
+}
+
+window.openShiftTimeEdit = openShiftTimeEdit;
+window.saveShiftTimeEdit = saveShiftTimeEdit;
 
 // ── Alliance attendance ───────────────────────────────────
 
