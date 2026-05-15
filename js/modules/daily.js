@@ -45,7 +45,7 @@ export async function loadDailyCheck() {
   // Shifts for today
   const shiftSnap = await getDocs(query(collection(db,'shifts'), where('date','==',today)));
   const shiftMap  = {};
-  shiftSnap.docs.forEach(d => { const s=d.data(); shiftMap[s.uid] = s; });
+  shiftSnap.docs.forEach(d => { const s=d.data(); shiftMap[s.uid] = { ...s, _id: d.id }; });
 
   const members = RC._cachedMembers.filter(m => !m.isAlliance);
 
@@ -79,6 +79,11 @@ export async function loadDailyCheck() {
     <tbody>
       ${rows.map(({member:m, att, shift}) => {
         const shiftLabel = shift ? `${shift.startTime||'—'}〜${shift.endTime||'—'}` : '—';
+        const shiftCell  = (shift?._id && isAdmin() && shift.startTime)
+          ? `<span onclick="openShiftTimeEdit('${shift._id}','${shift.startTime||''}','${shift.endTime||''}')"
+               title="クリックでシフト時間を変更"
+               style="border-bottom:1px dashed var(--ink3);cursor:pointer">${shiftLabel}</span>`
+          : shiftLabel;
         const mental = att?.mentalWeather;
         const mw = MENTAL_WEATHER[mental];
         const isMissed = shift && !att?.clockIn && !att?.absent;
@@ -96,7 +101,7 @@ export async function loadDailyCheck() {
         return `<tr style="${rowStyle}">
           <td style="font-weight:600">${escHtml(m.name||'')}</td>
           <td style="font-size:11px;color:var(--ink3)">${escHtml(m.dept||'—')}</td>
-          <td style="font-size:11px;color:var(--ink3)">${shiftLabel}</td>
+          <td style="font-size:11px;color:var(--ink3)">${shiftCell}</td>
           <td style="font-family:'DM Mono',monospace;color:var(--accent2)">${inCell}</td>
           <td style="font-family:'DM Mono',monospace;color:var(--blue)">${toHHMM(att?.clockOut)}</td>
           <td>${mental ? `<span title="${mental}">${mw?.icon||''} ${mental}</span>` : '—'}</td>

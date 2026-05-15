@@ -1908,6 +1908,7 @@ export async function saveShiftTimeEdit(shiftId) {
     });
     closeModal();
     loadAttendanceToday();
+    window.loadDailyCheck?.();
     alert('✅ シフト時間を変更しました');
   } catch(e) {
     alert('変更失敗: ' + e.message);
