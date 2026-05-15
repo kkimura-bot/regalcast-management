@@ -440,6 +440,7 @@ function toggleDone() {
   localStorage.setItem('gantt-hide-done', hideDone);
   applyHideDone();
 }
+window.toggleDone = toggleDone;
 
 function applyHideDone() {
   const btn = document.getElementById('toggle-done-btn');
