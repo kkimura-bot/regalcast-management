@@ -56,6 +56,14 @@ async function seed() {
     items: data.focus_may,
   });
 
+  // gantt_config/mtg_actions
+  if (data.mtg_actions) {
+    batch.set(db.collection('gantt_config').doc('mtg_actions'), {
+      ...data.mtg_actions,
+      updatedAt: TODAY,
+    });
+  }
+
   // gantt_sections
   for (const sec of data.sections) {
     const { id, ...rest } = sec;

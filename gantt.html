@@ -183,6 +183,25 @@
     .gantt-grid-lines { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; display:flex; }
     .gantt-grid-line { border-right:1px dashed var(--border); }
 
+    /* ── MTGアクション ── */
+    .mtg-section { margin-bottom:32px; }
+    .mtg-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+    .mtg-header h2 { margin-bottom:0; font-size:13px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.08em; font-family:'DM Mono',monospace; }
+    .mtg-date { font-size:11px; color:var(--ink3); font-family:'DM Mono',monospace; }
+    .mtg-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:10px; }
+    .mtg-item {
+      background:var(--surface); border:1px solid var(--border); border-radius:var(--r);
+      padding:12px 14px; display:flex; gap:10px; align-items:flex-start;
+    }
+    .mtg-item.done-action { opacity:.5; }
+    .mtg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+    .mtg-dot.red    { background:var(--accent); }
+    .mtg-dot.mid    { background:var(--warn); }
+    .mtg-dot.done   { background:var(--accent2); }
+    .mtg-body { flex:1; }
+    .mtg-label { font-size:12px; font-weight:600; line-height:1.5; margin-bottom:3px; }
+    .mtg-meta { font-size:10px; color:var(--ink3); }
+
     /* ── 進捗テーブル ── */
     .progress-section { margin-bottom:32px; }
     .progress-section h2 { font-size:13px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.08em; font-family:'DM Mono',monospace; margin-bottom:12px; }
@@ -226,6 +245,15 @@
     <section class="focus-section">
       <h2>📅 今月のフォーカス（2026年5月）</h2>
       <div class="focus-grid" id="focus-grid"></div>
+    </section>
+
+    <!-- MTGアクション -->
+    <section class="mtg-section" id="mtg-section" style="display:none">
+      <div class="mtg-header">
+        <h2>📋 MTGアクション</h2>
+        <span class="mtg-date" id="mtg-date"></span>
+      </div>
+      <div class="mtg-grid" id="mtg-grid"></div>
     </section>
 
     <!-- 進捗ハイライト -->
@@ -323,13 +351,14 @@ onAuthStateChanged(auth, async (user) => {
 
 let DECISIONS     = [];
 let FOCUS_MAY     = [];
+let MTG_ACTIONS   = null;
 let GANTT_SECTIONS = [];
-let GANTT_PROGRESS = {}; // { [sectionId]: { tasks: [{taskId, status, updatedAt}] } }
-let loadedFlags   = { decisions: false, focus: false, sections: false, progress: false };
+let GANTT_PROGRESS = {};
+let loadedFlags   = { decisions: false, focus: false, mtg: false, sections: false, progress: false };
 let latestUpdatedAt = '';
 
 function checkAllLoaded() {
-  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.sections && loadedFlags.progress) {
+  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.mtg && loadedFlags.sections && loadedFlags.progress) {
     // 更新日時表示（最新のupdatedAtを使用）
     document.getElementById('g-updated').textContent =
       latestUpdatedAt ? `更新：${latestUpdatedAt}` : '';
@@ -394,6 +423,18 @@ function subscribeGanttData() {
     console.error('focus_may 読み込みエラー:', err);
     FOCUS_MAY = [];
     loadedFlags.focus = true;
+    checkAllLoaded();
+  });
+
+  // MTGアクション
+  onSnapshot(doc(db, 'gantt_config', 'mtg_actions'), (snap) => {
+    MTG_ACTIONS = snap.exists() ? snap.data() : null;
+    loadedFlags.mtg = true;
+    checkAllLoaded();
+  }, (err) => {
+    console.error('mtg_actions 読み込みエラー:', err);
+    MTG_ACTIONS = null;
+    loadedFlags.mtg = true;
     checkAllLoaded();
   });
 
@@ -467,6 +508,7 @@ function renderAll() {
   const mergedSections = getMergedSections();
   renderDecisions();
   renderFocus();
+  renderMtgActions();
   renderProgress(mergedSections);
   renderGantt(mergedSections);
   applyHideDone();
@@ -518,6 +560,27 @@ function renderFocus() {
       <div>
         <div class="f-label">${f.label}</div>
         <div class="f-owner">${f.owner}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderMtgActions() {
+  const sec = document.getElementById('mtg-section');
+  if (!MTG_ACTIONS || !MTG_ACTIONS.items || !MTG_ACTIONS.items.length) {
+    sec.style.display = 'none';
+    return;
+  }
+  sec.style.display = 'block';
+  document.getElementById('mtg-date').textContent = MTG_ACTIONS.date + '  ' + (MTG_ACTIONS.title || '');
+  document.getElementById('mtg-grid').innerHTML = MTG_ACTIONS.items.map(a => {
+    const isDone = a.status === 'done';
+    return `
+    <div class="mtg-item ${isDone ? 'done-action' : ''}">
+      <div class="mtg-dot ${isDone ? 'done' : a.priority}"></div>
+      <div class="mtg-body">
+        <div class="mtg-label">${a.label}</div>
+        <div class="mtg-meta">${a.owner}　${a.deadline}</div>
       </div>
     </div>`;
   }).join('');
