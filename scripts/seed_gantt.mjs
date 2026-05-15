@@ -56,6 +56,14 @@ async function seed() {
     items: data.focus_may,
   });
 
+  // gantt_config/program_progress
+  if (data.program_progress) {
+    batch.set(db.collection('gantt_config').doc('program_progress'), {
+      ...data.program_progress,
+      updatedAt: TODAY,
+    });
+  }
+
   // gantt_config/focus_archive
   if (data.focus_archive !== undefined) {
     batch.set(db.collection('gantt_config').doc('focus_archive'), {

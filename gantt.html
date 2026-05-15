@@ -203,6 +203,32 @@
     .gantt-grid-lines { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; display:flex; }
     .gantt-grid-line { border-right:1px dashed var(--border); }
 
+    /* ── 研修プログラム進捗 ── */
+    .program-section { margin-bottom:32px; }
+    .program-card {
+      background:linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      border-radius: var(--r-lg); padding:20px 24px; color:#fff;
+      box-shadow: 0 4px 24px rgba(239,68,68,.2);
+      border:1px solid rgba(239,68,68,.3);
+    }
+    .program-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .program-title { font-size:16px; font-weight:800; letter-spacing:.02em; }
+    .program-deadline { font-size:11px; color:rgba(255,255,255,.5); font-family:'DM Mono',monospace; }
+    .program-phases { display:flex; flex-direction:column; gap:8px; }
+    .program-phase { display:flex; align-items:center; gap:10px; }
+    .phase-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .phase-dot.done  { background:#10B981; }
+    .phase-dot.wip   { background:#EF4444; box-shadow:0 0 6px rgba(239,68,68,.8); }
+    .phase-dot.todo  { background:rgba(255,255,255,.2); }
+    .phase-label { font-size:12px; font-weight:600; flex:1; }
+    .phase-label.done { color:rgba(255,255,255,.4); text-decoration:line-through; }
+    .phase-label.wip  { color:#fff; }
+    .phase-label.todo { color:rgba(255,255,255,.3); }
+    .phase-deadline { font-size:10px; color:rgba(255,255,255,.4); font-family:'DM Mono',monospace; }
+    .phase-deadline.wip { color:rgba(239,68,68,.8); font-weight:700; }
+    .program-bar-wrap { margin-top:16px; height:4px; background:rgba(255,255,255,.1); border-radius:2px; overflow:hidden; }
+    .program-bar { height:100%; background:linear-gradient(90deg,#10B981,#3B82F6); border-radius:2px; transition:width .4s ease; }
+
     /* ── MTGアクション ── */
     .mtg-section { margin-bottom:32px; }
     .mtg-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
@@ -270,6 +296,9 @@
       <div class="focus-grid" id="focus-grid"></div>
       <div class="focus-archive-panel" id="focus-archive-panel"></div>
     </section>
+
+    <!-- 研修プログラム進捗 -->
+    <section class="program-section" id="program-section" style="display:none"></section>
 
     <!-- MTGアクション -->
     <section class="mtg-section" id="mtg-section" style="display:none">
@@ -373,17 +402,18 @@ onAuthStateChanged(auth, async (user) => {
 //
 // AIKATAは上記ドキュメントを上書きするだけでリアルタイムに反映される。
 
-let DECISIONS      = [];
-let FOCUS_MAY      = [];
-let FOCUS_ARCHIVE  = [];
-let MTG_ACTIONS    = null;
+let DECISIONS        = [];
+let FOCUS_MAY        = [];
+let FOCUS_ARCHIVE    = [];
+let MTG_ACTIONS      = null;
+let PROGRAM_PROGRESS = null;
 let GANTT_SECTIONS = [];
 let GANTT_PROGRESS = {};
-let loadedFlags   = { decisions: false, focus: false, archive: false, mtg: false, sections: false, progress: false };
+let loadedFlags   = { decisions: false, focus: false, archive: false, mtg: false, program: false, sections: false, progress: false };
 let latestUpdatedAt = '';
 
 function checkAllLoaded() {
-  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.archive && loadedFlags.mtg && loadedFlags.sections && loadedFlags.progress) {
+  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.archive && loadedFlags.mtg && loadedFlags.program && loadedFlags.sections && loadedFlags.progress) {
     // 更新日時表示（最新のupdatedAtを使用）
     document.getElementById('g-updated').textContent =
       latestUpdatedAt ? `更新：${latestUpdatedAt}` : '';
@@ -448,6 +478,17 @@ function subscribeGanttData() {
     console.error('focus_may 読み込みエラー:', err);
     FOCUS_MAY = [];
     loadedFlags.focus = true;
+    checkAllLoaded();
+  });
+
+  // 研修プログラム進捗
+  onSnapshot(doc(db, 'gantt_config', 'program_progress'), (snap) => {
+    PROGRAM_PROGRESS = snap.exists() ? snap.data() : null;
+    loadedFlags.program = true;
+    checkAllLoaded();
+  }, (err) => {
+    PROGRAM_PROGRESS = null;
+    loadedFlags.program = true;
     checkAllLoaded();
   });
 
@@ -575,6 +616,7 @@ function renderAll() {
   const mergedSections = getMergedSections();
   renderDecisions();
   renderFocus();
+  renderProgramProgress();
   renderMtgActions();
   renderProgress(mergedSections);
   renderGantt(mergedSections);
@@ -630,6 +672,33 @@ function renderFocus() {
       </div>
     </div>`;
   }).join('');
+}
+
+function renderProgramProgress() {
+  const sec = document.getElementById('program-section');
+  if (!PROGRAM_PROGRESS) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  const phases = PROGRAM_PROGRESS.phases || [];
+  const done = phases.filter(p => p.status === 'done').length;
+  const pctVal = phases.length ? Math.round(done / phases.length * 100) : 0;
+  sec.innerHTML = `
+    <div class="program-card">
+      <div class="program-header">
+        <div class="program-title">${PROGRAM_PROGRESS.title}</div>
+        <div class="program-deadline">完成期日：${PROGRAM_PROGRESS.deadline}</div>
+      </div>
+      <div class="program-phases">
+        ${phases.map(p => `
+          <div class="program-phase">
+            <div class="phase-dot ${p.status}"></div>
+            <div class="phase-label ${p.status}">${p.label}</div>
+            <div class="phase-deadline ${p.status}">${p.deadline}</div>
+          </div>`).join('')}
+      </div>
+      <div class="program-bar-wrap">
+        <div class="program-bar" style="width:${pctVal}%"></div>
+      </div>
+    </div>`;
 }
 
 function renderMtgActions() {
