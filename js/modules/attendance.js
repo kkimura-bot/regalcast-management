@@ -1389,21 +1389,43 @@ export async function saveAttendanceEdit(id) {
   const fare        = parseInt(document.getElementById('ea-fare').value) || 0;
   const note        = document.getElementById('ea-note').value.trim();
 
-  // datetime-local value is already local time (JST) — new Date() handles conversion to UTC
   const toISO = (val) => {
     if (!val) return null;
     return new Date(val).toISOString();
   };
 
-  await updateDoc(doc(db,'attendance',id), {
-    clockIn:      toISO(clockInVal),
-    clockOut:     toISO(clockOutVal),
-    breakMinutes: breakMin,
-    fare, note
-  });
-  closeModal();
-  loadMonthlyAttendance(true);
-  alert('✅ 勤怠を修正しました');
+  try {
+    if (id.startsWith('norecord_')) {
+      // 合成行（Firestoreにドキュメントなし）→ addDoc で新規作成
+      const r = _cachedAttendance.find(x => x.id === id);
+      if (!r) throw new Error('記録が見つかりません');
+      await addDoc(collection(db, 'attendance'), {
+        uid:          r.uid,
+        name:         r.name,
+        date:         r.date,
+        clockIn:      toISO(clockInVal),
+        clockOut:     toISO(clockOutVal),
+        breakMinutes: breakMin,
+        fare,
+        note,
+        createdAt:    serverTimestamp(),
+      });
+    } else {
+      // 既存ドキュメント → updateDoc で更新
+      await updateDoc(doc(db, 'attendance', id), {
+        clockIn:      toISO(clockInVal),
+        clockOut:     toISO(clockOutVal),
+        breakMinutes: breakMin,
+        fare,
+        note,
+      });
+    }
+    closeModal();
+    loadMonthlyAttendance(true);
+    alert('✅ 勤怠を修正しました');
+  } catch(e) {
+    alert('保存失敗: ' + e.message);
+  }
 }
 
 export function confirmDeleteAttendance(id) {
