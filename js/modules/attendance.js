@@ -564,10 +564,12 @@ function calcHours(r) {
     return (shiftM + (r.approvedOvertimeMinutes || 0)) / 60 || null;
   }
 
-  // 通常 → シフトベース（MF整合のため）
-  if (r.shiftStart && r.shiftEnd) {
-    const [sh, sm] = r.shiftStart.split(':').map(Number);
-    const [eh, em] = r.shiftEnd.split(':').map(Number);
+  // 通常 → シフトベース（override があれば優先）
+  const effectiveStart = r.shiftStartOverride || r.shiftStart;
+  const effectiveEnd   = r.shiftEndOverride   || r.shiftEnd;
+  if (effectiveStart && effectiveEnd) {
+    const [sh, sm] = effectiveStart.split(':').map(Number);
+    const [eh, em] = effectiveEnd.split(':').map(Number);
     const shiftM = Math.max(0, (eh * 60 + em) - (sh * 60 + sm) - breakM);
     return (shiftM + (r.approvedOvertimeMinutes || 0)) / 60 || null;
   }
@@ -660,8 +662,10 @@ export function renderAttendanceTable(records) {
     const missedLabel = noClockIn ? '⚠ 入店未入力' : '⚠ 退店漏れ';
     const noShift = r.clockIn && !r.shiftStart && !r.absent && !r._syntheticPaidLeave && !r.id?.startsWith('norecord_');
     const noShiftBadge = noShift ? `<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:rgba(100,116,139,.12);color:#64748b;font-size:9px;font-weight:700;letter-spacing:0.2px">シフト外</span>` : '';
+    const hasShiftOverride = r.shiftStartOverride || r.shiftEndOverride;
+    const shiftOverrideBadge = hasShiftOverride ? `<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:rgba(42,82,152,.1);color:#2a5298;font-size:9px;font-weight:700;letter-spacing:0.2px" title="シフト時間が手動修正されています（${r.shiftStartOverride||r.shiftStart}〜${r.shiftEndOverride||r.shiftEnd}）">⏱修正済</span>` : '';
     return `<tr style="${rowStyle}">
-      <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}${plBadge}${noShiftBadge}</td>
+      <td style="font-size:11px;${isMissed?'color:var(--accent);font-weight:700':''}">${r.date||'—'}${plBadge}${noShiftBadge}${shiftOverrideBadge}</td>
       <td style="display:${showMemberCol?'':'none'}"><span class="member-chip" style="font-size:10px">${r.name||'—'}</span></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockIn?'var(--accent)':'var(--accent2)'}">${noClockIn?missedLabel:formatClockIn(r.clockIn)}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px;color:${noClockOut?'var(--accent)':'var(--blue)'}">${noClockOut?'⚠ 退店漏れ':formatClockOut(r.clockOut)}</td>
@@ -1357,6 +1361,9 @@ export function openEditAttendanceModal(id) {
     return rounded.toLocaleString('sv-SE', { timeZone: 'Asia/Tokyo' }).slice(0, 16).replace(' ', 'T');
   };
 
+  const effectiveStart = r.shiftStartOverride || r.shiftStart || '';
+  const effectiveEnd   = r.shiftEndOverride   || r.shiftEnd   || '';
+
   document.getElementById('modal-title-text').textContent = '勤怠を修正';
   document.getElementById('modal-body').innerHTML = `
     <div style="font-size:11px;color:var(--ink3);margin-bottom:10px">📅 ${r.date} / ${r.name||'—'}</div>
@@ -1374,6 +1381,17 @@ export function openEditAttendanceModal(id) {
     </div>
     <div class="form-row"><label class="form-label">メモ</label>
       <input class="form-input" id="ea-note" value="${escHtml(r.note||'')}"></div>
+    <hr style="border:none;border-top:1px solid var(--ink5);margin:12px 0">
+    <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">
+      ⏱ シフト時間の修正（任意）<br>
+      <span style="font-size:10px;color:var(--ink4)">元のシフト計画を変えずに、この勤怠の計算時間のみ上書きします</span>
+    </div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="form-label">シフト開始</label>
+        <input type="time" class="form-input" id="ea-shift-start" value="${effectiveStart}"></div>
+      <div class="form-row"><label class="form-label">シフト終了</label>
+        <input type="time" class="form-input" id="ea-shift-end" value="${effectiveEnd}"></div>
+    </div>
     <div class="btn-row">
       ${isAdmin() ? `<button class="btn" style="background:#fee2e2;color:var(--accent);border:none" onclick="confirmDeleteAttendance('${id}')">削除</button>` : ''}
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
@@ -1383,11 +1401,13 @@ export function openEditAttendanceModal(id) {
 }
 
 export async function saveAttendanceEdit(id) {
-  const clockInVal  = document.getElementById('ea-clockin').value;
-  const clockOutVal = document.getElementById('ea-clockout').value;
-  const breakMin    = (() => { const v = parseInt(document.getElementById('ea-break').value); return isNaN(v) ? 60 : v; })();
-  const fare        = parseInt(document.getElementById('ea-fare').value) || 0;
-  const note        = document.getElementById('ea-note').value.trim();
+  const clockInVal   = document.getElementById('ea-clockin').value;
+  const clockOutVal  = document.getElementById('ea-clockout').value;
+  const breakMin     = (() => { const v = parseInt(document.getElementById('ea-break').value); return isNaN(v) ? 60 : v; })();
+  const fare         = parseInt(document.getElementById('ea-fare').value) || 0;
+  const note         = document.getElementById('ea-note').value.trim();
+  const shiftStart   = document.getElementById('ea-shift-start')?.value || null;
+  const shiftEnd     = document.getElementById('ea-shift-end')?.value   || null;
 
   const toISO = (val) => {
     if (!val) return null;
@@ -1400,24 +1420,28 @@ export async function saveAttendanceEdit(id) {
       const r = _cachedAttendance.find(x => x.id === id);
       if (!r) throw new Error('記録が見つかりません');
       await addDoc(collection(db, 'attendance'), {
-        uid:          r.uid,
-        name:         r.name,
-        date:         r.date,
-        clockIn:      toISO(clockInVal),
-        clockOut:     toISO(clockOutVal),
-        breakMinutes: breakMin,
+        uid:                r.uid,
+        name:               r.name,
+        date:               r.date,
+        clockIn:            toISO(clockInVal),
+        clockOut:           toISO(clockOutVal),
+        breakMinutes:       breakMin,
         fare,
         note,
-        createdAt:    serverTimestamp(),
+        ...(shiftStart ? { shiftStartOverride: shiftStart } : {}),
+        ...(shiftEnd   ? { shiftEndOverride:   shiftEnd   } : {}),
+        createdAt:          serverTimestamp(),
       });
     } else {
       // 既存ドキュメント → updateDoc で更新
       await updateDoc(doc(db, 'attendance', id), {
-        clockIn:      toISO(clockInVal),
-        clockOut:     toISO(clockOutVal),
-        breakMinutes: breakMin,
+        clockIn:            toISO(clockInVal),
+        clockOut:           toISO(clockOutVal),
+        breakMinutes:       breakMin,
         fare,
         note,
+        shiftStartOverride: shiftStart || null,
+        shiftEndOverride:   shiftEnd   || null,
       });
     }
     closeModal();
