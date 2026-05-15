@@ -145,11 +145,19 @@ export async function openAddShiftModal() {
     </div>
     <div class="form-row"><label class="form-label">日付</label>
       <input type="date" class="form-input" id="s-date"></div>
+    <div class="form-row">
+      <label class="form-label">勤務区分</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button type="button" class="mini-btn shift-type-btn" id="stype-full" onclick="applyShiftType('full')"   style="background:var(--blue);color:#fff;border-color:var(--blue)">通常</button>
+        <button type="button" class="mini-btn shift-type-btn" id="stype-am"   onclick="applyShiftType('am')"     >午前（10:00〜14:00）</button>
+        <button type="button" class="mini-btn shift-type-btn" id="stype-pm"   onclick="applyShiftType('pm')"     >午後（15:00〜19:00）</button>
+      </div>
+    </div>
     <div class="form-row-2">
       <div class="form-row"><label class="form-label">開始時間</label>
-        <input type="time" class="form-input" id="s-start-time" value="09:00"></div>
+        <input type="time" class="form-input" id="s-start-time" value="10:00"></div>
       <div class="form-row"><label class="form-label">終了時間</label>
-        <input type="time" class="form-input" id="s-end-time" value="18:00"></div>
+        <input type="time" class="form-input" id="s-end-time" value="19:00"></div>
     </div>
     <div class="form-row"><label class="form-label">📍 出勤場所</label>
       <input class="form-input" id="s-location" placeholder="例：渋谷オフィス、〇〇クライアント先"></div>
@@ -170,6 +178,33 @@ export function onShiftMemberChange(sel) {
   const opt = sel.options[sel.selectedIndex];
   document.getElementById('s-member-uid').value = sel.value;
   document.getElementById('s-member-name').value = opt.dataset.name;
+}
+
+export function applyShiftType(type) {
+  const presets = {
+    full: { start: '10:00', end: '19:00' },
+    am:   { start: '10:00', end: '14:00' },
+    pm:   { start: '15:00', end: '19:00' },
+  };
+  const p = presets[type];
+  if (!p) return;
+  document.getElementById('s-start-time').value = p.start;
+  document.getElementById('s-end-time').value   = p.end;
+
+  // ボタンのアクティブ状態を切り替え
+  ['full','am','pm'].forEach(t => {
+    const btn = document.getElementById(`stype-${t}`);
+    if (!btn) return;
+    if (t === type) {
+      btn.style.background = 'var(--blue)';
+      btn.style.color = '#fff';
+      btn.style.borderColor = 'var(--blue)';
+    } else {
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+    }
+  });
 }
 
 // ── Render shifts ─────────────────────────────────────────
@@ -1645,6 +1680,7 @@ export async function execSyncShiftFromOrders() {
 
 window.openAddShiftModal     = openAddShiftModal;
 window.onShiftMemberChange   = onShiftMemberChange;
+window.applyShiftType        = applyShiftType;
 window.openEditShiftModal    = openEditShiftModal;
 window.saveOffEdit           = saveOffEdit;
 window.saveShiftEdit         = saveShiftEdit;
