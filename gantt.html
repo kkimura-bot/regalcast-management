@@ -478,7 +478,17 @@ function renderDecisions() {
     el.innerHTML = '<div style="color:var(--ink3);font-size:13px">判断待ちアイテムはありません</div>';
     return;
   }
-  el.innerHTML = DECISIONS.map(d => {
+  const sorted = [...DECISIONS].sort((a, b) => {
+    const isDoneA = a.status === 'done', isDoneB = b.status === 'done';
+    if (isDoneA !== isDoneB) return isDoneA ? 1 : -1;
+    const da = Date.parse(a.deadline), db = Date.parse(b.deadline);
+    const validA = !isNaN(da), validB = !isNaN(db);
+    if (validA && validB) return da - db;
+    if (validA) return -1;
+    if (validB) return 1;
+    return 0;
+  });
+  el.innerHTML = sorted.map(d => {
     const cls = d.status === 'done' ? 'done' : d.priority;
     const pLabel = d.status === 'done' ? '✅ 確定' : d.priority === 'red' ? '🔴 最優先' : d.priority === 'yellow' ? '🟡 高' : '🟢 中';
     return `
