@@ -151,8 +151,10 @@ function _getNextMonthRange() {
   };
 }
 
+const MAX_HOLIDAY_DAYS = 3; // 1ヶ月の希望休上限
+
 function _isRequestLocked() {
-  return new Date().getDate() > 20;
+  return new Date().getDate() > 15; // 毎月15日が期日
 }
 
 export async function openRequestOffModal() {
@@ -165,8 +167,8 @@ export async function openRequestOffModal() {
     document.getElementById('modal-title-text').textContent = '🙏 希望休を申請する';
     document.getElementById('modal-body').innerHTML = `
       <div style="background:rgba(200,71,42,.08);border:1px solid rgba(200,71,42,.2);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--accent);line-height:1.7">
-        🔒 毎月20日以降は希望休の申請・変更ができません。<br>
-        <span style="font-size:11px;color:var(--ink3)">翌月分（${nextMonthLabel}）の申請は翌月1日〜20日の間にお願いします。</span>
+        🔒 毎月15日以降は希望休の申請・変更ができません。<br>
+        <span style="font-size:11px;color:var(--ink3)">翌月分（${nextMonthLabel}）の申請は毎月1日〜15日までにお願いします。</span>
       </div>
       <div class="btn-row" style="margin-top:14px">
         <button class="btn btn-secondary" onclick="closeModal()">閉じる</button>
@@ -194,28 +196,46 @@ export async function openRequestOffModal() {
   calHTML += '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
   for (let i = 0; i < firstDow; i++) calHTML += '<div></div>';
   for (let day = 1; day <= daysInMonth; day++) {
-    const pad   = String(day).padStart(2,'0');
+    const pad     = String(day).padStart(2,'0');
     const dateStr = `${yearMonth}-${pad}`;
-    const dow   = (firstDow + day - 1) % 7;
-    const isSat = dow === 5, isSun = dow === 6;
+    const dow     = (firstDow + day - 1) % 7;
+    const isSat   = dow === 5, isSun = dow === 6;
+    const isWeekend = isSat || isSun;
     const already = existingDates.has(dateStr);
-    const color = already ? 'var(--accent2)' : isSun ? '#e53935' : isSat ? '#1a73e8' : 'var(--ink)';
-    const bg    = already ? 'rgba(58,125,90,.12)' : 'var(--surface)';
+    const noMore  = remaining <= 0 && !already; // 上限到達で新規不可
+    const blocked = isWeekend || noMore;
+
+    let color, bg, sublabel = '';
+    if (already) {
+      color = 'var(--accent2)'; bg = 'rgba(58,125,90,.12)';
+      sublabel = '<div style="font-size:8px;color:var(--accent2)">申請済</div>';
+    } else if (isWeekend) {
+      color = isSun ? 'rgba(229,57,53,.3)' : 'rgba(26,115,232,.3)'; bg = 'rgba(0,0,0,.03)';
+      sublabel = `<div style="font-size:7px;color:rgba(0,0,0,.25)">${isSun?'要相談':'要相談'}</div>`;
+    } else if (noMore) {
+      color = 'rgba(0,0,0,.2)'; bg = 'rgba(0,0,0,.03)';
+    } else {
+      color = 'var(--ink)'; bg = 'var(--surface)';
+    }
+
     calHTML += `<div
       class="holiday-day${already ? ' already' : ''}"
       data-date="${dateStr}"
-      onclick="${already ? '' : 'toggleHolidayDay(this)'}"
-      style="text-align:center;padding:6px 2px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:${color};background:${bg};cursor:${already ? 'default' : 'pointer'};user-select:none;position:relative">
-      ${day}${already ? '<div style="font-size:8px;color:var(--accent2)">申請済</div>' : ''}
+      onclick="${!blocked ? 'toggleHolidayDay(this)' : ''}"
+      style="text-align:center;padding:6px 2px;border:1px solid ${blocked && !already ? 'rgba(0,0,0,.06)' : 'var(--border)'};border-radius:6px;font-size:12px;font-weight:600;color:${color};background:${bg};cursor:${blocked ? 'not-allowed' : 'pointer'};user-select:none">
+      ${day}${sublabel}
     </div>`;
   }
   calHTML += '</div>';
 
+  const usedDays = existingDates.size; // 既に申請済みの日数
+  const remaining = MAX_HOLIDAY_DAYS - usedDays;
+
   document.getElementById('modal-title-text').textContent = '🙏 希望休を申請する';
   document.getElementById('modal-body').innerHTML = `
     <div style="background:var(--surface2);padding:8px 12px;border-radius:6px;font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.6">
-      <strong>${nextMonthLabel}分</strong>　タップで複数選択できます。<br>
-      <span style="color:var(--accent)">⚠ 毎月20日以降は申請できません。</span>
+      <strong>${nextMonthLabel}分</strong>　上限 ${MAX_HOLIDAY_DAYS}日／残り <strong style="color:${remaining <= 0 ? 'var(--accent)' : 'var(--accent2)'}">${remaining}日</strong><br>
+      <span style="color:var(--ink3)">⚠ 毎月15日が提出期日　土日祝は直接相談が必要</span>
     </div>
     <div style="margin-bottom:10px">${calHTML}</div>
     <div id="off-selected" style="font-size:11px;color:var(--ink3);margin-bottom:8px">選択中：なし</div>
@@ -246,10 +266,21 @@ export function toggleHolidayDay(el) {
 
 export async function submitRequestOff() {
   const errEl = document.getElementById('off-error');
-  if (_isRequestLocked()) { if (errEl) errEl.textContent = '毎月20日以降は申請できません'; return; }
+  if (_isRequestLocked()) { if (errEl) errEl.textContent = '毎月15日以降は申請できません'; return; }
 
   const selectedDays = [...document.querySelectorAll('.holiday-day.holiday-selected')].map(d => d.dataset.date);
   if (!selectedDays.length) { if (errEl) errEl.textContent = '希望日を選択してください'; return; }
+
+  // 上限チェック（既存 + 今回の選択が3日を超えないか）
+  const { yearMonth } = _getNextMonthRange();
+  const existingSnap2 = await getDocs(query(
+    collection(db,'shifts'), where('uid','==',RC.currentUser.uid), where('month','==',yearMonth), where('type','==','off')
+  ));
+  const existingCount = existingSnap2.size;
+  if (existingCount + selectedDays.length > MAX_HOLIDAY_DAYS) {
+    if (errEl) errEl.textContent = `希望休は月${MAX_HOLIDAY_DAYS}日まで（現在${existingCount}日申請済み、あと${MAX_HOLIDAY_DAYS - existingCount}日のみ追加可能）`;
+    return;
+  }
 
   const uid  = RC.currentUser.uid;
   const name = RC.currentUserData.name;

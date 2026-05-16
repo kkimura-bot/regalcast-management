@@ -1868,7 +1868,7 @@ async function _renderAllianceHolidaySection(uid, name) {
   const sec = document.getElementById('alliance-holiday-section');
   if (!sec) return;
 
-  const locked = new Date().getDate() > 20;
+  const locked = new Date().getDate() > 15;
   const { yearMonth, min, max, label } = _allianceNextMonthRange();
 
   // 翌月の申請済み希望休を取得
@@ -1976,7 +1976,7 @@ export async function allianceSubmitHoliday() {
   const name  = RC.currentUserData?.name;
   const msgEl = document.getElementById('al-holiday-msg');
 
-  if (new Date().getDate() > 20) { if (msgEl) msgEl.textContent = '20日以降は申請できません'; return; }
+  if (new Date().getDate() > 15) { if (msgEl) msgEl.textContent = '20日以降は申請できません'; return; }
 
   const grid = document.getElementById('al-cal-grid');
   const selectedDays = grid ? [...grid.querySelectorAll('.al-holiday-day.al-selected')].map(d => d.dataset.date) : [];
