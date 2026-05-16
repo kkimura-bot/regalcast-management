@@ -194,6 +194,7 @@ export async function showAllianceLogin() {
           .filter(d => {
             if (!d.exists()) return false;
             const u = d.data();
+            if (u.isHidden) return false; // 非表示フラグ
             return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
           })
           .map(d => ({ id: d.id, ...d.data() }));
@@ -210,7 +211,7 @@ export async function showAllianceLogin() {
       ]);
       const seen = new Set();
       [...snap1.docs, ...snap2.docs].forEach(d => {
-        if (!seen.has(d.id)) { seen.add(d.id); allianceUsers.push({ id: d.id, ...d.data() }); }
+        if (!seen.has(d.id) && !d.data().isHidden) { seen.add(d.id); allianceUsers.push({ id: d.id, ...d.data() }); }
       });
     }
 
