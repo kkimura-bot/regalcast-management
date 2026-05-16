@@ -233,9 +233,11 @@ export async function openRequestOffModal() {
 
   document.getElementById('modal-title-text').textContent = '🙏 希望休を申請する';
   document.getElementById('modal-body').innerHTML = `
-    <div style="background:var(--surface2);padding:8px 12px;border-radius:6px;font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.6">
-      <strong>${nextMonthLabel}分</strong>　上限 ${MAX_HOLIDAY_DAYS}日／残り <strong style="color:${remaining <= 0 ? 'var(--accent)' : 'var(--accent2)'}">${remaining}日</strong><br>
-      <span style="color:var(--ink3)">⚠ 毎月15日が提出期日　土日祝は直接相談が必要</span>
+    <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:11px;line-height:1.9;color:var(--ink2)">
+      <div style="font-weight:700;font-size:12px;margin-bottom:4px">📋 希望休 申請ルール</div>
+      <div>📅 <strong>提出期日：</strong>毎月15日まで（翌月分）</div>
+      <div>📆 <strong>上限日数：</strong>月 ${MAX_HOLIDAY_DAYS}日まで　→　残り <strong style="color:${remaining <= 0 ? 'var(--accent)' : 'var(--accent2)'}">${remaining}日</strong></div>
+      <div>🚫 <strong>土日祝：</strong>直接選択不可。希望する場合は理由を添えて事前相談→承認後に登録</div>
     </div>
     <div style="margin-bottom:10px">${calHTML}</div>
     <div id="off-selected" style="font-size:11px;color:var(--ink3);margin-bottom:8px">選択中：なし</div>

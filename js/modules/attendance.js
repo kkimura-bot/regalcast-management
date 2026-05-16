@@ -1932,6 +1932,12 @@ async function _renderAllianceHolidaySection(uid, name) {
       <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">
         🙏 希望休の申請（${label}分）
       </div>
+      <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:11px;line-height:1.9;color:var(--ink2)">
+        <div style="font-weight:700;margin-bottom:2px">📋 申請ルール</div>
+        <div>📅 提出期日：毎月<strong>15日</strong>まで（翌月分）</div>
+        <div>📆 上限：月<strong>3日</strong>まで</div>
+        <div>🚫 土日祝：事前相談・承認が必要</div>
+      </div>
       ${lockBanner}
       ${calHTML}
       ${!locked ? `
