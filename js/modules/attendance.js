@@ -1842,7 +1842,126 @@ export async function renderAllianceAttendance() {
     </div>
     ` : ''}
     <div id="alliance-att-msg" style="font-size:12px;text-align:center;min-height:18px;color:var(--accent)"></div>
+    <div id="alliance-holiday-section"></div>
   `;
+
+  // 希望休セクションを非同期で描画
+  _renderAllianceHolidaySection(uid, name);
+}
+
+// ── アライアンス向け希望休セクション ─────────────────────────
+
+function _allianceNextMonthRange() {
+  const now  = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const last = new Date(next.getFullYear(), next.getMonth() + 1, 0);
+  const pad  = n => String(n).padStart(2, '0');
+  return {
+    yearMonth: `${next.getFullYear()}-${pad(next.getMonth() + 1)}`,
+    min: `${next.getFullYear()}-${pad(next.getMonth() + 1)}-01`,
+    max: `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(last.getDate())}`,
+    label: `${next.getFullYear()}年${next.getMonth() + 1}月`,
+  };
+}
+
+async function _renderAllianceHolidaySection(uid, name) {
+  const sec = document.getElementById('alliance-holiday-section');
+  if (!sec) return;
+
+  const locked = new Date().getDate() > 20;
+  const { yearMonth, min, max, label } = _allianceNextMonthRange();
+
+  // 翌月の申請済み希望休を取得
+  let myRequests = [];
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'shifts'),
+      where('uid', '==', uid),
+      where('month', '==', yearMonth),
+      where('type', '==', 'off'),
+    ));
+    myRequests = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.date.localeCompare(b.date));
+  } catch(e) {}
+
+  const lockBanner = locked
+    ? `<div style="font-size:11px;color:var(--accent);background:rgba(200,71,42,.08);border-radius:6px;padding:8px 10px;margin-bottom:10px">
+        🔒 毎月20日以降は申請・取消ができません
+      </div>`
+    : '';
+
+  const listHTML = myRequests.length
+    ? myRequests.map(r => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:${r.approved?'rgba(58,125,90,.08)':'rgba(249,171,0,.08)'};border:1px solid ${r.approved?'rgba(58,125,90,.2)':'rgba(249,171,0,.3)'};border-radius:6px;margin-bottom:6px;font-size:12px">
+          <span>${r.date}　<span style="font-size:10px;color:${r.approved?'var(--accent2)':'var(--warn)'}">${r.approved?'✅ 承認済':'⏳ 審査中'}</span></span>
+          ${!locked && !r.approved ? `<button onclick="allianceCancelHoliday('${r.id}')" style="font-size:10px;padding:2px 8px;border:1px solid rgba(200,71,42,.4);border-radius:4px;background:transparent;color:var(--accent);cursor:pointer">取消</button>` : ''}
+        </div>`).join('')
+    : `<div style="font-size:11px;color:var(--ink3);padding:4px 0">${label}の申請はまだありません</div>`;
+
+  sec.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:14px">
+      <div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+        🙏 希望休の申請（${label}分）
+      </div>
+      ${lockBanner}
+      ${listHTML}
+      ${!locked ? `
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:flex-end">
+        <div style="flex:1">
+          <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">希望日を選択</label>
+          <input type="date" id="al-holiday-date" min="${min}" max="${max}"
+            style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit">
+        </div>
+        <button onclick="allianceSubmitHoliday()"
+          style="padding:9px 14px;background:rgba(200,71,42,.12);color:var(--accent);border:1px solid rgba(200,71,42,.3);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+          申請する
+        </button>
+      </div>
+      <div id="al-holiday-msg" style="font-size:11px;color:var(--accent);margin-top:6px;min-height:16px"></div>
+      ` : ''}
+    </div>
+  `;
+}
+
+export async function allianceSubmitHoliday() {
+  const uid  = RC.currentUser?.uid;
+  const name = RC.currentUserData?.name;
+  const date = document.getElementById('al-holiday-date')?.value;
+  const msgEl = document.getElementById('al-holiday-msg');
+
+  if (!date) { if (msgEl) msgEl.textContent = '希望日を選択してください'; return; }
+  if (new Date().getDate() > 20) { if (msgEl) msgEl.textContent = '20日以降は申請できません'; return; }
+
+  const { yearMonth } = _allianceNextMonthRange();
+  if (!date.startsWith(yearMonth)) { if (msgEl) msgEl.textContent = '翌月の日付を選択してください'; return; }
+
+  const existing = await getDocs(query(
+    collection(db, 'shifts'), where('uid','==',uid), where('date','==',date), where('type','==','off')
+  ));
+  if (!existing.empty) { if (msgEl) msgEl.textContent = 'この日はすでに申請済みです'; return; }
+
+  try {
+    await addDoc(collection(db, 'shifts'), {
+      uid, name, date, month: date.slice(0, 7),
+      type: 'off', approved: false,
+      note: '',
+      createdAt: serverTimestamp(),
+    });
+    _renderAllianceHolidaySection(uid, name);
+  } catch(e) {
+    if (msgEl) msgEl.textContent = '申請に失敗しました: ' + e.message;
+  }
+}
+
+export async function allianceCancelHoliday(shiftId) {
+  if (!confirm('この希望休申請を取り消しますか？')) return;
+  const uid  = RC.currentUser?.uid;
+  const name = RC.currentUserData?.name;
+  try {
+    await deleteDoc(doc(db, 'shifts', shiftId));
+    _renderAllianceHolidaySection(uid, name);
+  } catch(e) {
+    alert('取消に失敗しました: ' + e.message);
+  }
 }
 
 export async function allianceClockIn() {
@@ -1919,3 +2038,5 @@ export async function allianceClockOut() {
 window.renderAllianceAttendance = renderAllianceAttendance;
 window.allianceClockIn          = allianceClockIn;
 window.allianceClockOut         = allianceClockOut;
+window.allianceSubmitHoliday    = allianceSubmitHoliday;
+window.allianceCancelHoliday    = allianceCancelHoliday;
