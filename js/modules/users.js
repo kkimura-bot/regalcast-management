@@ -564,7 +564,7 @@ export function openEditUserModal(uid) {
     </details>
     <div id="eu-error" style="font-size:12px;color:var(--accent);min-height:16px"></div>
     <div class="btn-row" style="flex-wrap:nowrap;gap:6px">
-      <button class="btn" style="background:#fee2e2;color:var(--accent);border:none;font-size:12px;padding:8px 10px" onclick="confirmDeleteUser('${uid}')">削除</button>
+      ${!(u.isAlliance || u.noAuth) ? `<button class="btn" style="background:#fee2e2;color:var(--accent);border:none;font-size:12px;padding:8px 10px" onclick="confirmDeleteUser('${uid}')">削除</button>` : ''}
       <button class="btn" style="background:var(--blue);color:#fff;border:none;font-size:12px;padding:8px 10px" onclick="closeModal();openSendMeetingRequestModal('${uid}','${escHtml(u.name||'')}','${escHtml(u.dept||'')}')">🤝 面談依頼</button>
       <button class="btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-size:12px;padding:8px 10px" onclick="closeModal();openOffboardingModal('${uid}')">🚪 退職処理</button>
       <button class="btn" style="background:#fef9c3;color:#92400e;border:1px solid #fde68a;font-size:12px;padding:8px 10px" onclick="sendPasswordReset('${uid}')">🔑 PW再設定</button>
