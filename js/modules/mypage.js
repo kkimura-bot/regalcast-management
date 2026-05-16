@@ -155,7 +155,7 @@ function _isRequestLocked() {
   return new Date().getDate() > 20;
 }
 
-export function openRequestOffModal() {
+export async function openRequestOffModal() {
   const locked = _isRequestLocked();
   const { yearMonth, min, max } = _getNextMonthRange();
   const [y, m] = yearMonth.split('-');

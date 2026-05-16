@@ -1901,7 +1901,7 @@ async function _renderAllianceHolidaySection(uid, name) {
 
   let calHTML = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">`;
   DOW.forEach(d => { calHTML += `<div style="text-align:center;font-size:10px;color:var(--ink3);font-weight:700;padding:2px 0">${d}</div>`; });
-  calHTML += '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
+  calHTML += '</div><div id="al-cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
   for (let i = 0; i < firstDow; i++) calHTML += '<div></div>';
   for (let day = 1; day <= daysInMonth; day++) {
     const pad = String(day).padStart(2,'0');
@@ -1914,15 +1914,14 @@ async function _renderAllianceHolidaySection(uid, name) {
     const baseColor = isSun ? '#e53935' : isSat ? '#1a73e8' : 'var(--ink)';
     const color = approved ? 'var(--accent2)' : already ? 'var(--warn)' : baseColor;
     const bg    = approved ? 'rgba(58,125,90,.12)' : already ? 'rgba(249,171,0,.1)' : 'var(--surface)';
-    const sublabel = approved ? '<div style="font-size:8px;color:var(--accent2)">承認済</div>'
-                   : already  ? `<div style="font-size:8px;color:var(--warn)">${!locked ? `<span onclick="event.stopPropagation();allianceCancelHoliday('${rid}')" style="cursor:pointer;text-decoration:underline">取消</span>` : '申請中'}</div>`
+    const sublabel = approved ? '<div style="font-size:8px;color:var(--accent2);line-height:1.2">承認済</div>'
+                   : already  ? `<div style="font-size:8px;color:var(--warn);line-height:1.2">${!locked ? `<span data-cancel="${rid}" style="cursor:pointer;text-decoration:underline">取消</span>` : '申請中'}</div>`
                    : '';
-    const clickable = !already && !locked;
     calHTML += `<div
-      class="al-holiday-day${already ? '' : ''}"
+      class="al-holiday-day"
       data-date="${dateStr}"
-      onclick="${clickable ? 'allianceToggleDay(this)' : ''}"
-      style="text-align:center;padding:5px 2px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:${color};background:${bg};cursor:${clickable ? 'pointer' : 'default'};user-select:none">
+      data-selectable="${(!already && !locked) ? '1' : '0'}"
+      style="text-align:center;padding:5px 2px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:${color};background:${bg};cursor:${(!already && !locked) ? 'pointer' : 'default'};user-select:none;position:relative">
       ${day}${sublabel}
     </div>`;
   }
@@ -1937,7 +1936,7 @@ async function _renderAllianceHolidaySection(uid, name) {
       ${calHTML}
       ${!locked ? `
       <div id="al-holiday-selected" style="font-size:11px;color:var(--ink3);margin-top:8px">選択中：なし</div>
-      <button onclick="allianceSubmitHoliday()"
+      <button id="al-holiday-submit-btn"
         style="width:100%;margin-top:8px;padding:10px;background:rgba(200,71,42,.12);color:var(--accent);border:1px solid rgba(200,71,42,.3);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">
         選択した日を申請する
       </button>
@@ -1945,16 +1944,31 @@ async function _renderAllianceHolidaySection(uid, name) {
       ` : ''}
     </div>
   `;
-}
 
-export function allianceToggleDay(el) {
-  const selected = el.classList.toggle('al-selected');
-  el.style.background  = selected ? 'rgba(200,71,42,.15)' : 'var(--surface)';
-  el.style.borderColor = selected ? 'var(--accent)' : 'var(--border)';
-  el.style.fontWeight  = selected ? '800' : '600';
-  const days = [...document.querySelectorAll('.al-holiday-day.al-selected')].map(d => d.dataset.date);
-  const label = document.getElementById('al-holiday-selected');
-  if (label) label.textContent = days.length ? `選択中：${days.join('、')}` : '選択中：なし';
+  // イベント委譲でクリック処理（inline onclickを使わずに確実に動かす）
+  const grid = document.getElementById('al-cal-grid');
+  if (grid) {
+    grid.addEventListener('click', (e) => {
+      // 取消ボタン
+      const cancelEl = e.target.closest('[data-cancel]');
+      if (cancelEl) {
+        allianceCancelHoliday(cancelEl.dataset.cancel);
+        return;
+      }
+      // 日付セルのトグル
+      const cell = e.target.closest('.al-holiday-day[data-selectable="1"]');
+      if (!cell) return;
+      const selected = cell.classList.toggle('al-selected');
+      cell.style.background  = selected ? 'rgba(200,71,42,.15)' : 'var(--surface)';
+      cell.style.borderColor = selected ? 'var(--accent)' : 'var(--border)';
+      cell.style.fontWeight  = selected ? '800' : '600';
+      const days = [...grid.querySelectorAll('.al-holiday-day.al-selected')].map(d => d.dataset.date);
+      const lbl  = document.getElementById('al-holiday-selected');
+      if (lbl) lbl.textContent = days.length ? `選択中：${days.join('、')}` : '選択中：なし';
+    });
+  }
+  const submitBtn = document.getElementById('al-holiday-submit-btn');
+  if (submitBtn) submitBtn.addEventListener('click', () => allianceSubmitHoliday());
 }
 
 export async function allianceSubmitHoliday() {
@@ -1964,7 +1978,8 @@ export async function allianceSubmitHoliday() {
 
   if (new Date().getDate() > 20) { if (msgEl) msgEl.textContent = '20日以降は申請できません'; return; }
 
-  const selectedDays = [...document.querySelectorAll('.al-holiday-day.al-selected')].map(d => d.dataset.date);
+  const grid = document.getElementById('al-cal-grid');
+  const selectedDays = grid ? [...grid.querySelectorAll('.al-holiday-day.al-selected')].map(d => d.dataset.date) : [];
   if (!selectedDays.length) { if (msgEl) msgEl.textContent = '希望日を選択してください'; return; }
 
   try {
@@ -2068,6 +2083,5 @@ export async function allianceClockOut() {
 window.renderAllianceAttendance = renderAllianceAttendance;
 window.allianceClockIn          = allianceClockIn;
 window.allianceClockOut         = allianceClockOut;
-window.allianceToggleDay        = allianceToggleDay;
 window.allianceSubmitHoliday    = allianceSubmitHoliday;
 window.allianceCancelHoliday    = allianceCancelHoliday;
