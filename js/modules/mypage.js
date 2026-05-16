@@ -138,36 +138,58 @@ export async function submitMyShift() {
 
 // ── Off request ───────────────────────────────────────────
 
-export function openRequestOffModal() {
-  const adminMode  = isAdmin();
-  const memberOpts = adminMode
-    ? RC._cachedMembers.map(u => `<option value="${u.id}" data-name="${u.name}">${u.name}</option>`).join('')
-    : '';
+// ── 希望休の申請可否チェック ──────────────────────────────
+function _getNextMonthRange() {
+  const now  = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const last = new Date(next.getFullYear(), next.getMonth() + 1, 0);
+  const pad  = n => String(n).padStart(2, '0');
+  return {
+    yearMonth: `${next.getFullYear()}-${pad(next.getMonth() + 1)}`,
+    min: `${next.getFullYear()}-${pad(next.getMonth() + 1)}-01`,
+    max: `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(last.getDate())}`,
+  };
+}
 
-  document.getElementById('modal-title-text').textContent = adminMode ? '🙏 希望休を登録する（管理者）' : '🙏 希望休を申請する';
+function _isRequestLocked() {
+  return new Date().getDate() > 20;
+}
+
+export function openRequestOffModal() {
+  const locked = _isRequestLocked();
+  const { yearMonth, min, max } = _getNextMonthRange();
+  const [y, m] = yearMonth.split('-');
+  const nextMonthLabel = `${y}年${Number(m)}月`;
+
+  if (locked) {
+    document.getElementById('modal-title-text').textContent = '🙏 希望休を申請する';
+    document.getElementById('modal-body').innerHTML = `
+      <div style="background:rgba(200,71,42,.08);border:1px solid rgba(200,71,42,.2);border-radius:8px;padding:14px 16px;font-size:13px;color:var(--accent);line-height:1.7">
+        🔒 毎月20日以降は希望休の申請・変更ができません。<br>
+        <span style="font-size:11px;color:var(--ink3)">翌月分（${nextMonthLabel}）の申請は翌月1日〜20日の間にお願いします。</span>
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn btn-secondary" onclick="closeModal()">閉じる</button>
+      </div>`;
+    window.openModal();
+    return;
+  }
+
+  document.getElementById('modal-title-text').textContent = '🙏 希望休を申請する';
   document.getElementById('modal-body').innerHTML = `
-    ${adminMode ? `
-    <div class="form-row"><label class="form-label">対象メンバー <span style="color:var(--accent)">*</span></label>
-      <select class="form-input" id="off-member-select" onchange="onOffMemberChange(this)">${memberOpts}</select>
-      <input type="hidden" id="off-uid">
-      <input type="hidden" id="off-name">
-    </div>` : `
     <div style="background:var(--surface2);padding:10px 14px;border-radius:6px;font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.7">
-      希望休を申請します。承認・不承認は管理者が判断します。
-    </div>`}
+      <strong>${nextMonthLabel}分</strong>の希望休を申請します。承認・却下は管理者が行います。<br>
+      <span style="color:var(--accent)">⚠ 毎月20日以降は申請できません。</span>
+    </div>
     <div class="form-row"><label class="form-label">希望日 <span style="color:var(--accent)">*</span></label>
-      <input type="date" class="form-input" id="off-date"></div>
+      <input type="date" class="form-input" id="off-date" min="${min}" max="${max}"></div>
     <div class="form-row"><label class="form-label">理由・メモ（任意）</label>
       <input class="form-input" id="off-note" placeholder="例：私用のため"></div>
     <div id="off-error" style="font-size:12px;color:var(--accent);min-height:16px"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="submitRequestOff()">${adminMode ? '登録する' : '申請する'}</button>
+      <button class="btn btn-primary" onclick="submitRequestOff()">申請する</button>
     </div>`;
-  if (adminMode && RC._cachedMembers.length) {
-    document.getElementById('off-uid').value  = RC._cachedMembers[0].id;
-    document.getElementById('off-name').value = RC._cachedMembers[0].name;
-  }
   window.openModal();
 }
 
@@ -182,8 +204,15 @@ export async function submitRequestOff() {
   const errEl = document.getElementById('off-error');
   if (!date) { errEl.textContent = '希望日を選択してください'; return; }
 
-  const uid  = isAdmin() ? (document.getElementById('off-uid')?.value  || RC.currentUser.uid)  : RC.currentUser.uid;
-  const name = isAdmin() ? (document.getElementById('off-name')?.value || RC.currentUserData.name) : RC.currentUserData.name;
+  // 20日以降はロック
+  if (_isRequestLocked()) { errEl.textContent = '毎月20日以降は申請できません'; return; }
+
+  // 翌月の日付かチェック
+  const { yearMonth } = _getNextMonthRange();
+  if (!date.startsWith(yearMonth)) { errEl.textContent = `翌月（${yearMonth}）の日付を選択してください`; return; }
+
+  const uid  = RC.currentUser.uid;
+  const name = RC.currentUserData.name;
 
   const existing = await getDocs(query(
     collection(db,'shifts'), where('uid','==',uid), where('date','==',date), where('type','==','off')
@@ -198,10 +227,11 @@ export async function submitRequestOff() {
   });
   window.closeModal();
   window.loadShifts?.();
-  alert('✅ ' + date + ' の希望休を登録しました（' + name + '）');
+  alert('✅ ' + date + ' の希望休を申請しました');
 }
 
 export function confirmDeleteOwnOff(shiftId, dateStr) {
+  if (_isRequestLocked()) { alert('毎月20日以降は申請の取り消しができません'); return; }
   if (!confirm(`${dateStr} の希望休申請を取り消しますか？`)) return;
   deleteDoc(doc(db,'shifts',shiftId)).then(() => window.loadShifts?.());
 }
@@ -217,13 +247,61 @@ export async function updateOffRequestBadge() {
 }
 
 export async function approveOffRequest(shiftId) {
-  await updateDoc(doc(db,'shifts',shiftId), { approved: true, approvedBy: RC.currentUserData.name, approvedAt: new Date().toISOString() });
+  const shiftSnap = await getDoc(doc(db, 'shifts', shiftId));
+  if (!shiftSnap.exists()) return;
+  const { uid, date } = shiftSnap.data();
+  const yearMonth = date.slice(0, 7);
+
+  // shifts を承認済みに更新
+  await updateDoc(doc(db,'shifts',shiftId), {
+    approved: true,
+    approvedBy: RC.currentUserData.name,
+    approvedAt: new Date().toISOString()
+  });
+
+  // users.holidayRequests に同期（受注管理アプリが参照するフィールド）
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (userSnap.exists()) {
+      const requests = (userSnap.data().holidayRequests || []).map(r => ({ ...r, dates: [...r.dates] }));
+      const idx = requests.findIndex(r => r.yearMonth === yearMonth);
+      if (idx >= 0) {
+        if (!requests[idx].dates.includes(date)) requests[idx].dates.push(date);
+      } else {
+        requests.push({ yearMonth, dates: [date] });
+      }
+      await updateDoc(doc(db, 'users', uid), { holidayRequests: requests });
+    }
+  } catch(e) {
+    console.warn('[approveOffRequest] holidayRequests同期エラー:', e);
+  }
+
   window.loadShifts?.();
   updateOffRequestBadge();
 }
 
 export async function rejectOffRequest(shiftId) {
   if (!confirm('この希望休申請を却下しますか？')) return;
+
+  // 却下前に uid/date を取得して holidayRequests から削除
+  try {
+    const shiftSnap = await getDoc(doc(db, 'shifts', shiftId));
+    if (shiftSnap.exists()) {
+      const { uid, date } = shiftSnap.data();
+      const yearMonth = date.slice(0, 7);
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      if (userSnap.exists()) {
+        const requests = (userSnap.data().holidayRequests || []).map(r => ({
+          ...r,
+          dates: r.yearMonth === yearMonth ? r.dates.filter(d => d !== date) : [...r.dates]
+        })).filter(r => r.dates.length > 0);
+        await updateDoc(doc(db, 'users', uid), { holidayRequests: requests });
+      }
+    }
+  } catch(e) {
+    console.warn('[rejectOffRequest] holidayRequests同期エラー:', e);
+  }
+
   await deleteDoc(doc(db,'shifts',shiftId));
   window.loadShifts?.();
   updateOffRequestBadge();

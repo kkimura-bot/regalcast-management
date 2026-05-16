@@ -75,6 +75,12 @@ export function postLoginSetup() {
   // 残業申請バッジ
   window.updateOvertimeBadge?.();
 
+  // 希望休申請ボタン：メンバー・リーダー向けに表示（20日以降はボタン自体はあるがモーダル内でロック）
+  const requestOffBtn = document.getElementById('request-off-btn');
+  if (requestOffBtn && !isAdmin()) requestOffBtn.style.display = '';
+  // 管理者は承認バッジを更新（ボタン表示は受注管理アプリ側に移譲）
+  if (isAdmin()) window.updateOffRequestBadge?.();
+
   if (isAdmin()) {
     window.updateReportBadge?.();
     window.updateAlertBadge?.();
