@@ -194,7 +194,8 @@ export async function showAllianceLogin() {
           .filter(d => {
             if (!d.exists()) return false;
             const u = d.data();
-            if (u.isHidden) return false; // 非表示フラグ
+            if (u.isRetired) return false; // 退職済みは非表示
+            if (u.isHidden)  return false; // 一時非表示フラグ
             return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
           })
           .map(d => ({ id: d.id, ...d.data() }));
@@ -211,7 +212,10 @@ export async function showAllianceLogin() {
       ]);
       const seen = new Set();
       [...snap1.docs, ...snap2.docs].forEach(d => {
-        if (!seen.has(d.id) && !d.data().isHidden) { seen.add(d.id); allianceUsers.push({ id: d.id, ...d.data() }); }
+        const u = d.data();
+        if (!seen.has(d.id) && !u.isHidden && !u.isRetired) {
+          seen.add(d.id); allianceUsers.push({ id: d.id, ...u });
+        }
       });
     }
 
