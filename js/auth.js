@@ -179,23 +179,39 @@ export async function showAllianceLogin() {
 
     let allianceUsers = [];
 
-    // 今週シフトがあるUIDのみ表示（フォールバックなし）
-    const shiftSnap = await getDocs(query(
-      collection(db, 'shifts'),
-      where('date', '>=', weekStart),
-      where('date', '<=', weekEnd)
-    ));
-    const activeUids = [...new Set(shiftSnap.docs.map(d => d.data().uid).filter(Boolean))];
+    try {
+      // 今週シフトがあるUIDのみ表示
+      const shiftSnap = await getDocs(query(
+        collection(db, 'shifts'),
+        where('date', '>=', weekStart),
+        where('date', '<=', weekEnd)
+      ));
+      const activeUids = [...new Set(shiftSnap.docs.map(d => d.data().uid).filter(Boolean))];
 
-    if (activeUids.length) {
-      const userDocs = await Promise.all(activeUids.map(uid => getDoc(doc(db, 'users', uid))));
-      allianceUsers = userDocs
-        .filter(d => {
-          if (!d.exists()) return false;
-          const u = d.data();
-          return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
-        })
-        .map(d => ({ id: d.id, ...d.data() }));
+      if (activeUids.length) {
+        const userDocs = await Promise.all(activeUids.map(uid => getDoc(doc(db, 'users', uid))));
+        allianceUsers = userDocs
+          .filter(d => {
+            if (!d.exists()) return false;
+            const u = d.data();
+            return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
+          })
+          .map(d => ({ id: d.id, ...d.data() }));
+      }
+    } catch(e) {
+      console.warn('シフトフィルター失敗、全メンバーにフォールバック:', e);
+    }
+
+    // シフト取得失敗時は全アライアンスメンバーを表示
+    if (!allianceUsers.length) {
+      const [snap1, snap2] = await Promise.all([
+        getDocs(query(collection(db, 'users'), where('isAlliance', '==', true))),
+        getDocs(query(collection(db, 'users'), where('noAuth', '==', true))),
+      ]);
+      const seen = new Set();
+      [...snap1.docs, ...snap2.docs].forEach(d => {
+        if (!seen.has(d.id)) { seen.add(d.id); allianceUsers.push({ id: d.id, ...d.data() }); }
+      });
     }
 
     // 名前順でソート

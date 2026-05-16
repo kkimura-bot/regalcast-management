@@ -91,9 +91,12 @@ service cloud.firestore {
       allow read: if true;
     }
 
-    // ── アライアンスメンバー（認証なし）: attendance のみ読み書き可 ──
+    // ── アライアンスメンバー（認証なし）: attendance・shifts 読み取り可 ──
     match /attendance/{docId} {
       allow read, write: if true;
+    }
+    match /shifts/{docId} {
+      allow read: if true; // アライアンスログイン画面での今週シフト取得
     }
 
     // ── LINE Bot（認証なし）: academy系コレクション読み書き可 ──
