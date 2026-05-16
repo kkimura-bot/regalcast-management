@@ -1889,13 +1889,44 @@ async function _renderAllianceHolidaySection(uid, name) {
       </div>`
     : '';
 
-  const listHTML = myRequests.length
-    ? myRequests.map(r => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:${r.approved?'rgba(58,125,90,.08)':'rgba(249,171,0,.08)'};border:1px solid ${r.approved?'rgba(58,125,90,.2)':'rgba(249,171,0,.3)'};border-radius:6px;margin-bottom:6px;font-size:12px">
-          <span>${r.date}　<span style="font-size:10px;color:${r.approved?'var(--accent2)':'var(--warn)'}">${r.approved?'✅ 承認済':'⏳ 審査中'}</span></span>
-          ${!locked && !r.approved ? `<button onclick="allianceCancelHoliday('${r.id}')" style="font-size:10px;padding:2px 8px;border:1px solid rgba(200,71,42,.4);border-radius:4px;background:transparent;color:var(--accent);cursor:pointer">取消</button>` : ''}
-        </div>`).join('')
-    : `<div style="font-size:11px;color:var(--ink3);padding:4px 0">${label}の申請はまだありません</div>`;
+  // カレンダーグリッドを生成（申請済みの日は選択不可・取消ボタン表示）
+  const existingSet = new Set(myRequests.map(r => r.date));
+  const approvedSet = new Set(myRequests.filter(r => r.approved).map(r => r.date));
+  const idMap = Object.fromEntries(myRequests.map(r => [r.date, r.id]));
+
+  const [ny, nm] = yearMonth.split('-').map(Number);
+  const daysInMonth = new Date(ny, nm, 0).getDate();
+  const firstDow    = (new Date(ny, nm - 1, 1).getDay() + 6) % 7;
+  const DOW = ['月','火','水','木','金','土','日'];
+
+  let calHTML = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">`;
+  DOW.forEach(d => { calHTML += `<div style="text-align:center;font-size:10px;color:var(--ink3);font-weight:700;padding:2px 0">${d}</div>`; });
+  calHTML += '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
+  for (let i = 0; i < firstDow; i++) calHTML += '<div></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const pad = String(day).padStart(2,'0');
+    const dateStr = `${yearMonth}-${pad}`;
+    const dow = (firstDow + day - 1) % 7;
+    const isSat = dow === 5, isSun = dow === 6;
+    const already = existingSet.has(dateStr);
+    const approved = approvedSet.has(dateStr);
+    const rid = idMap[dateStr];
+    const baseColor = isSun ? '#e53935' : isSat ? '#1a73e8' : 'var(--ink)';
+    const color = approved ? 'var(--accent2)' : already ? 'var(--warn)' : baseColor;
+    const bg    = approved ? 'rgba(58,125,90,.12)' : already ? 'rgba(249,171,0,.1)' : 'var(--surface)';
+    const sublabel = approved ? '<div style="font-size:8px;color:var(--accent2)">承認済</div>'
+                   : already  ? `<div style="font-size:8px;color:var(--warn)">${!locked ? `<span onclick="event.stopPropagation();allianceCancelHoliday('${rid}')" style="cursor:pointer;text-decoration:underline">取消</span>` : '申請中'}</div>`
+                   : '';
+    const clickable = !already && !locked;
+    calHTML += `<div
+      class="al-holiday-day${already ? '' : ''}"
+      data-date="${dateStr}"
+      onclick="${clickable ? 'allianceToggleDay(this)' : ''}"
+      style="text-align:center;padding:5px 2px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:${color};background:${bg};cursor:${clickable ? 'pointer' : 'default'};user-select:none">
+      ${day}${sublabel}
+    </div>`;
+  }
+  calHTML += '</div>';
 
   sec.innerHTML = `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-top:14px">
@@ -1903,49 +1934,48 @@ async function _renderAllianceHolidaySection(uid, name) {
         🙏 希望休の申請（${label}分）
       </div>
       ${lockBanner}
-      ${listHTML}
+      ${calHTML}
       ${!locked ? `
-      <div style="margin-top:10px;display:flex;gap:8px;align-items:flex-end">
-        <div style="flex:1">
-          <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">希望日を選択</label>
-          <input type="date" id="al-holiday-date" min="${min}" max="${max}"
-            style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit">
-        </div>
-        <button onclick="allianceSubmitHoliday()"
-          style="padding:9px 14px;background:rgba(200,71,42,.12);color:var(--accent);border:1px solid rgba(200,71,42,.3);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-          申請する
-        </button>
-      </div>
-      <div id="al-holiday-msg" style="font-size:11px;color:var(--accent);margin-top:6px;min-height:16px"></div>
+      <div id="al-holiday-selected" style="font-size:11px;color:var(--ink3);margin-top:8px">選択中：なし</div>
+      <button onclick="allianceSubmitHoliday()"
+        style="width:100%;margin-top:8px;padding:10px;background:rgba(200,71,42,.12);color:var(--accent);border:1px solid rgba(200,71,42,.3);border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">
+        選択した日を申請する
+      </button>
+      <div id="al-holiday-msg" style="font-size:11px;color:var(--accent);margin-top:6px;min-height:14px"></div>
       ` : ''}
     </div>
   `;
 }
 
+export function allianceToggleDay(el) {
+  const selected = el.classList.toggle('al-selected');
+  el.style.background  = selected ? 'rgba(200,71,42,.15)' : 'var(--surface)';
+  el.style.borderColor = selected ? 'var(--accent)' : 'var(--border)';
+  el.style.fontWeight  = selected ? '800' : '600';
+  const days = [...document.querySelectorAll('.al-holiday-day.al-selected')].map(d => d.dataset.date);
+  const label = document.getElementById('al-holiday-selected');
+  if (label) label.textContent = days.length ? `選択中：${days.join('、')}` : '選択中：なし';
+}
+
 export async function allianceSubmitHoliday() {
-  const uid  = RC.currentUser?.uid;
-  const name = RC.currentUserData?.name;
-  const date = document.getElementById('al-holiday-date')?.value;
+  const uid   = RC.currentUser?.uid;
+  const name  = RC.currentUserData?.name;
   const msgEl = document.getElementById('al-holiday-msg');
 
-  if (!date) { if (msgEl) msgEl.textContent = '希望日を選択してください'; return; }
   if (new Date().getDate() > 20) { if (msgEl) msgEl.textContent = '20日以降は申請できません'; return; }
 
-  const { yearMonth } = _allianceNextMonthRange();
-  if (!date.startsWith(yearMonth)) { if (msgEl) msgEl.textContent = '翌月の日付を選択してください'; return; }
-
-  const existing = await getDocs(query(
-    collection(db, 'shifts'), where('uid','==',uid), where('date','==',date), where('type','==','off')
-  ));
-  if (!existing.empty) { if (msgEl) msgEl.textContent = 'この日はすでに申請済みです'; return; }
+  const selectedDays = [...document.querySelectorAll('.al-holiday-day.al-selected')].map(d => d.dataset.date);
+  if (!selectedDays.length) { if (msgEl) msgEl.textContent = '希望日を選択してください'; return; }
 
   try {
-    await addDoc(collection(db, 'shifts'), {
-      uid, name, date, month: date.slice(0, 7),
-      type: 'off', approved: false,
-      note: '',
-      createdAt: serverTimestamp(),
-    });
+    await Promise.all(selectedDays.map(date =>
+      addDoc(collection(db, 'shifts'), {
+        uid, name, date, month: date.slice(0, 7),
+        type: 'off', approved: false,
+        note: '',
+        createdAt: serverTimestamp(),
+      })
+    ));
     _renderAllianceHolidaySection(uid, name);
   } catch(e) {
     if (msgEl) msgEl.textContent = '申請に失敗しました: ' + e.message;
@@ -2038,5 +2068,6 @@ export async function allianceClockOut() {
 window.renderAllianceAttendance = renderAllianceAttendance;
 window.allianceClockIn          = allianceClockIn;
 window.allianceClockOut         = allianceClockOut;
+window.allianceToggleDay        = allianceToggleDay;
 window.allianceSubmitHoliday    = allianceSubmitHoliday;
 window.allianceCancelHoliday    = allianceCancelHoliday;

@@ -175,17 +175,51 @@ export function openRequestOffModal() {
     return;
   }
 
+  // 翌月カレンダーのグリッドを生成（既申請日は除外）
+  const existingSnap = await getDocs(query(
+    collection(db,'shifts'),
+    where('uid','==',RC.currentUser.uid),
+    where('month','==',yearMonth),
+    where('type','==','off'),
+  ));
+  const existingDates = new Set(existingSnap.docs.map(d => d.data().date));
+
+  const [ny, nm] = yearMonth.split('-').map(Number);
+  const daysInMonth = new Date(ny, nm, 0).getDate();
+  const firstDow    = (new Date(ny, nm - 1, 1).getDay() + 6) % 7; // 月=0
+  const DOW = ['月','火','水','木','金','土','日'];
+
+  let calHTML = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:4px">`;
+  DOW.forEach(d => { calHTML += `<div style="text-align:center;font-size:10px;color:var(--ink3);font-weight:700;padding:2px 0">${d}</div>`; });
+  calHTML += '</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">';
+  for (let i = 0; i < firstDow; i++) calHTML += '<div></div>';
+  for (let day = 1; day <= daysInMonth; day++) {
+    const pad   = String(day).padStart(2,'0');
+    const dateStr = `${yearMonth}-${pad}`;
+    const dow   = (firstDow + day - 1) % 7;
+    const isSat = dow === 5, isSun = dow === 6;
+    const already = existingDates.has(dateStr);
+    const color = already ? 'var(--accent2)' : isSun ? '#e53935' : isSat ? '#1a73e8' : 'var(--ink)';
+    const bg    = already ? 'rgba(58,125,90,.12)' : 'var(--surface)';
+    calHTML += `<div
+      class="holiday-day${already ? ' already' : ''}"
+      data-date="${dateStr}"
+      onclick="${already ? '' : 'toggleHolidayDay(this)'}"
+      style="text-align:center;padding:6px 2px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;color:${color};background:${bg};cursor:${already ? 'default' : 'pointer'};user-select:none;position:relative">
+      ${day}${already ? '<div style="font-size:8px;color:var(--accent2)">申請済</div>' : ''}
+    </div>`;
+  }
+  calHTML += '</div>';
+
   document.getElementById('modal-title-text').textContent = '🙏 希望休を申請する';
   document.getElementById('modal-body').innerHTML = `
-    <div style="background:var(--surface2);padding:10px 14px;border-radius:6px;font-size:12px;color:var(--ink3);margin-bottom:14px;line-height:1.7">
-      <strong>${nextMonthLabel}分</strong>の希望休を申請します。承認・却下は管理者が行います。<br>
+    <div style="background:var(--surface2);padding:8px 12px;border-radius:6px;font-size:12px;color:var(--ink3);margin-bottom:12px;line-height:1.6">
+      <strong>${nextMonthLabel}分</strong>　タップで複数選択できます。<br>
       <span style="color:var(--accent)">⚠ 毎月20日以降は申請できません。</span>
     </div>
-    <div class="form-row"><label class="form-label">希望日 <span style="color:var(--accent)">*</span></label>
-      <input type="date" class="form-input" id="off-date" min="${min}" max="${max}"></div>
-    <div class="form-row"><label class="form-label">理由・メモ（任意）</label>
-      <input class="form-input" id="off-note" placeholder="例：私用のため"></div>
-    <div id="off-error" style="font-size:12px;color:var(--accent);min-height:16px"></div>
+    <div style="margin-bottom:10px">${calHTML}</div>
+    <div id="off-selected" style="font-size:11px;color:var(--ink3);margin-bottom:8px">選択中：なし</div>
+    <div id="off-error" style="font-size:12px;color:var(--accent);min-height:14px"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-primary" onclick="submitRequestOff()">申請する</button>
@@ -199,35 +233,42 @@ export function onOffMemberChange(sel) {
   document.getElementById('off-name').value = opt.dataset.name;
 }
 
+export function toggleHolidayDay(el) {
+  const selected = el.classList.toggle('holiday-selected');
+  el.style.background = selected ? 'rgba(200,71,42,.15)' : 'var(--surface)';
+  el.style.borderColor = selected ? 'var(--accent)' : 'var(--border)';
+  el.style.fontWeight  = selected ? '800' : '600';
+  // 選択中の日付一覧を更新
+  const days = [...document.querySelectorAll('.holiday-day.holiday-selected')].map(d => d.dataset.date);
+  const label = document.getElementById('off-selected');
+  if (label) label.textContent = days.length ? `選択中：${days.join('、')}` : '選択中：なし';
+}
+
 export async function submitRequestOff() {
-  const date  = document.getElementById('off-date').value;
   const errEl = document.getElementById('off-error');
-  if (!date) { errEl.textContent = '希望日を選択してください'; return; }
+  if (_isRequestLocked()) { if (errEl) errEl.textContent = '毎月20日以降は申請できません'; return; }
 
-  // 20日以降はロック
-  if (_isRequestLocked()) { errEl.textContent = '毎月20日以降は申請できません'; return; }
-
-  // 翌月の日付かチェック
-  const { yearMonth } = _getNextMonthRange();
-  if (!date.startsWith(yearMonth)) { errEl.textContent = `翌月（${yearMonth}）の日付を選択してください`; return; }
+  const selectedDays = [...document.querySelectorAll('.holiday-day.holiday-selected')].map(d => d.dataset.date);
+  if (!selectedDays.length) { if (errEl) errEl.textContent = '希望日を選択してください'; return; }
 
   const uid  = RC.currentUser.uid;
   const name = RC.currentUserData.name;
 
-  const existing = await getDocs(query(
-    collection(db,'shifts'), where('uid','==',uid), where('date','==',date), where('type','==','off')
-  ));
-  if (!existing.empty) { errEl.textContent = 'この日はすでに希望休が登録済みです'; return; }
-
-  await addDoc(collection(db,'shifts'), {
-    uid, name, date, month: date.slice(0,7),
-    type: 'off', approved: false,
-    note: document.getElementById('off-note').value.trim(),
-    createdAt: serverTimestamp()
-  });
-  window.closeModal();
-  window.loadShifts?.();
-  alert('✅ ' + date + ' の希望休を申請しました');
+  try {
+    await Promise.all(selectedDays.map(date =>
+      addDoc(collection(db,'shifts'), {
+        uid, name, date, month: date.slice(0,7),
+        type: 'off', approved: false,
+        note: '',
+        createdAt: serverTimestamp(),
+      })
+    ));
+    window.closeModal();
+    window.loadShifts?.();
+    alert(`✅ ${selectedDays.length}日分の希望休を申請しました`);
+  } catch(e) {
+    if (errEl) errEl.textContent = '申請に失敗しました: ' + e.message;
+  }
 }
 
 export function confirmDeleteOwnOff(shiftId, dateStr) {
@@ -321,6 +362,7 @@ window.clearMyShiftSelection = clearMyShiftSelection;
 window.submitMyShift        = submitMyShift;
 window.openRequestOffModal  = openRequestOffModal;
 window.onOffMemberChange    = onOffMemberChange;
+window.toggleHolidayDay     = toggleHolidayDay;
 window.submitRequestOff     = submitRequestOff;
 window.confirmDeleteOwnOff  = confirmDeleteOwnOff;
 window.updateOffRequestBadge = updateOffRequestBadge;
