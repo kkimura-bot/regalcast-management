@@ -166,46 +166,36 @@ export async function showAllianceLogin() {
   sel.innerHTML = '<option value="">読み込み中...</option>';
 
   try {
-    // 当月（JST）を取得
+    // 今週の月〜日（JST）を計算
     const nowJST = new Date(new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }));
-    const currentMonth = `${nowJST.getFullYear()}-${String(nowJST.getMonth()+1).padStart(2,'0')}`;
+    const dow = nowJST.getDay(); // 0=日
+    const monday = new Date(nowJST);
+    monday.setDate(nowJST.getDate() - (dow === 0 ? 6 : dow - 1));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const weekStart = fmt(monday);
+    const weekEnd   = fmt(sunday);
 
     let allianceUsers = [];
 
-    try {
-      // 当月シフトがあるUIDを取得（Firestoreルール上読める場合）
-      const shiftSnap = await getDocs(query(
-        collection(db, 'shifts'),
-        where('month', '==', currentMonth)
-      ));
-      const activeUids = [...new Set(shiftSnap.docs.map(d => d.data().uid).filter(Boolean))];
+    // 今週シフトがあるUIDのみ表示（フォールバックなし）
+    const shiftSnap = await getDocs(query(
+      collection(db, 'shifts'),
+      where('date', '>=', weekStart),
+      where('date', '<=', weekEnd)
+    ));
+    const activeUids = [...new Set(shiftSnap.docs.map(d => d.data().uid).filter(Boolean))];
 
-      if (activeUids.length) {
-        const userDocs = await Promise.all(activeUids.map(uid => getDoc(doc(db, 'users', uid))));
-        allianceUsers = userDocs
-          .filter(d => {
-            if (!d.exists()) return false;
-            const u = d.data();
-            return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
-          })
-          .map(d => ({ id: d.id, ...d.data() }));
-      }
-    } catch(_) {
-      // shiftsが読めない場合はフォールバック
-    }
-
-    // シフトから取得できなかった場合は複数クエリで取得してマージ
-    if (!allianceUsers.length) {
-      const [snap1, snap2] = await Promise.all([
-        getDocs(query(collection(db, 'users'), where('isAlliance', '==', true))),
-        getDocs(query(collection(db, 'users'), where('noAuth', '==', true))),
-      ]);
-      const seen = new Set();
-      const merged = [];
-      [...snap1.docs, ...snap2.docs].forEach(d => {
-        if (!seen.has(d.id)) { seen.add(d.id); merged.push(d); }
-      });
-      allianceUsers = merged.map(d => ({ id: d.id, ...d.data() }));
+    if (activeUids.length) {
+      const userDocs = await Promise.all(activeUids.map(uid => getDoc(doc(db, 'users', uid))));
+      allianceUsers = userDocs
+        .filter(d => {
+          if (!d.exists()) return false;
+          const u = d.data();
+          return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
+        })
+        .map(d => ({ id: d.id, ...d.data() }));
     }
 
     // 名前順でソート
