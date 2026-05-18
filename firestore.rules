@@ -99,6 +99,11 @@ service cloud.firestore {
       allow read: if true; // アライアンスログイン画面での今週シフト取得
     }
 
+    // ── LINE Bot（認証なし）: member_tasks 読み書き可 ──
+    match /member_tasks/{taskId} {
+      allow read, write: if true;
+    }
+
     // ── LINE Bot（認証なし）: academy系コレクション読み書き可 ──
     match /academy_reports/{docId} {
       allow read, write: if true;
