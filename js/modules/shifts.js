@@ -784,12 +784,20 @@ export async function execSyncShiftFromOrders() {
     if (snap.exists()) orderMap[oid] = snap.data();
   }
 
-  // 既存 shifts（work）を削除（month で取得してクライアント側でフィルタ）
+  // 既存 shifts（work）を取得し、手動修正済みの uid+date を把握
   const existSnap = await getDocs(query(collection(db, 'shifts'), where('month', '==', month)));
-  const toDelete  = existSnap.docs.filter(d => {
+
+  // 手動修正済みの uid_date セット（新規作成もスキップするため）
+  const manualEditedKeys = new Set(
+    existSnap.docs
+      .filter(d => d.data().manualEdited)
+      .map(d => `${d.data().uid}_${d.data().date}`)
+  );
+
+  const toDelete = existSnap.docs.filter(d => {
     const data = d.data();
     if (data.type === 'off') return false;
-    if (data.manualEdited) return false;   // 手動修正済みは同期で削除しない
+    if (data.manualEdited) return false;  // 手動修正済みは削除しない
     return staffId === 'all' || data.uid === staffId;
   });
 
@@ -800,9 +808,11 @@ export async function execSyncShiftFromOrders() {
     await batch.commit();
   }
 
-  // assignments からシフトを生成
+  // assignments からシフトを生成（手動修正済みの uid+date はスキップ）
   const newShifts = [];
   for (const a of assignments) {
+    const key = `${a.staffId}_${a.date}`;
+    if (manualEditedKeys.has(key)) continue;  // 手動修正済みはスキップ
     const order = orderMap[a.orderId];
     const member = RC._cachedMembers.find(m => m.id === a.staffId);
     newShifts.push({
@@ -818,8 +828,10 @@ export async function execSyncShiftFromOrders() {
     });
   }
 
-  // internalSchedules からシフトを生成
+  // internalSchedules からシフトを生成（手動修正済みの uid+date はスキップ）
   for (const s of internalSchedules) {
+    const key = `${s.staffId}_${s.date}`;
+    if (manualEditedKeys.has(key)) continue;  // 手動修正済みはスキップ
     const member   = RC._cachedMembers.find(m => m.id === s.staffId);
     const location = s.type === 'ojt'      ? (s.targetStore   || '社内（OJT）')
                    : s.type === 'training' ? (s.location      || s.trainingName || '社内研修')
