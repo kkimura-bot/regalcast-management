@@ -1706,10 +1706,11 @@ export async function saveShiftTimeEdit(shiftId, uid, date, attId) {
         shiftEndOverride:   endVal,
       });
     } else {
-      // 勤怠レコードがまだない（出勤前）→ shifts ドキュメントを直接更新
+      // 勤怠レコードがまだない（出勤前）→ shifts ドキュメントを直接更新 + 保護フラグ
       await updateDoc(doc(db, 'shifts', shiftId), {
-        startTime: startVal,
-        endTime:   endVal,
+        startTime:    startVal,
+        endTime:      endVal,
+        manualEdited: true,
       });
     }
     closeModal();

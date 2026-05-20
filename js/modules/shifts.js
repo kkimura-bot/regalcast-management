@@ -396,7 +396,8 @@ export async function saveShiftEdit(shiftId, month) {
     date, startTime: start, endTime: end,
     month: newMonth,
     location: document.getElementById('es-location').value.trim(),
-    note
+    note,
+    manualEdited: true,
   });
   if (s.uid && note !== undefined) {
     const attDocId = s.uid + '_' + date;
@@ -787,7 +788,9 @@ export async function execSyncShiftFromOrders() {
   const existSnap = await getDocs(query(collection(db, 'shifts'), where('month', '==', month)));
   const toDelete  = existSnap.docs.filter(d => {
     const data = d.data();
-    return data.type !== 'off' && (staffId === 'all' || data.uid === staffId);
+    if (data.type === 'off') return false;
+    if (data.manualEdited) return false;   // 手動修正済みは同期で削除しない
+    return staffId === 'all' || data.uid === staffId;
   });
 
   const BATCH_SIZE = 400;
