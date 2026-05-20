@@ -80,7 +80,7 @@ export async function loadDailyCheck() {
       ${rows.map(({member:m, att, shift}) => {
         const shiftLabel = shift ? `${shift.startTime||'—'}〜${shift.endTime||'—'}` : '—';
         const shiftCell  = (shift?._id && isAdmin() && shift.startTime)
-          ? `<span onclick="openShiftTimeEdit('${shift._id}','${shift.startTime||''}','${shift.endTime||''}')"
+          ? `<span onclick="openShiftTimeEdit('${shift._id}','${m.id}','${today}','${att?._id||''}','${att?.shiftStartOverride||shift.startTime||''}','${att?.shiftEndOverride||shift.endTime||''}')"
                title="クリックでシフト時間を変更"
                style="border-bottom:1px dashed var(--ink3);cursor:pointer">${shiftLabel}</span>`
           : shiftLabel;
@@ -123,7 +123,7 @@ export async function loadDailyCheckM(force = false) {
 
   const attSnap   = await getDocs(query(collection(db,'attendance'), where('date','==',today)));
   const attMap    = {};
-  attSnap.docs.forEach(d => { const r=d.data(); attMap[r.uid] = r; });
+  attSnap.docs.forEach(d => { const r=d.data(); attMap[r.uid] = { ...r, _id: d.id }; });
 
   const shiftSnap = await getDocs(query(collection(db,'shifts'), where('date','==',today)));
   const shiftMap  = {};

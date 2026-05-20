@@ -268,7 +268,7 @@ export async function loadAttendanceToday() {
 
     // attendance を uid でマップ
     const attMap = {};
-    attSnap.docs.forEach(d => { const v = d.data(); attMap[v.uid] = v; });
+    attSnap.docs.forEach(d => { const v = d.data(); attMap[v.uid] = { ...v, _id: d.id }; });
 
     // shifts（off以外）+ attendance を統合
     const seen   = new Set();
@@ -278,13 +278,16 @@ export async function loadAttendanceToday() {
       if (s.type === 'off') return;
       if (seen.has(s.uid)) return;
       seen.add(s.uid);
+      const attRec = attMap[s.uid];
       merged.push({
         shiftId:    d.id,
-        name:       s.name || attMap[s.uid]?.name || '—',
-        shiftStart: s.startTime || '',
-        shiftEnd:   s.endTime   || '',
-        clockIn:    attMap[s.uid]?.clockIn  || null,
-        clockOut:   attMap[s.uid]?.clockOut || null
+        uid:        s.uid,
+        attId:      attRec?._id || null,
+        name:       s.name || attRec?.name || '—',
+        shiftStart: attRec?.shiftStartOverride || s.startTime || '',
+        shiftEnd:   attRec?.shiftEndOverride   || s.endTime   || '',
+        clockIn:    attRec?.clockIn  || null,
+        clockOut:   attRec?.clockOut || null
       });
     });
     // シフトにない打刻者も追加
@@ -322,7 +325,7 @@ export async function loadAttendanceToday() {
             : '';
           const shiftEl = r.shiftId && isAdmin() && shiftLabel
             ? `<span
-                onclick="openShiftTimeEdit('${r.shiftId}','${r.shiftStart}','${r.shiftEnd}')"
+                onclick="openShiftTimeEdit('${r.shiftId}','${r.uid}','${today}','${r.attId||''}','${r.shiftStart}','${r.shiftEnd}')"
                 title="クリックでシフト時間を変更"
                 style="color:var(--ink3);font-size:11px;border-bottom:1px dashed var(--ink3);cursor:pointer"
               >${shiftLabel}</span>`
@@ -1671,12 +1674,12 @@ window.autoRecordMissedClockIns   = autoRecordMissedClockIns;
 window._cachedAttendance          = _cachedAttendance;
 
 // ── 当日シフト時間インライン編集（管理者専用） ────────────────
-export function openShiftTimeEdit(shiftId, currentStart, currentEnd) {
+export function openShiftTimeEdit(shiftId, uid, date, attId, currentStart, currentEnd) {
   document.getElementById('modal-title-text').textContent = 'シフト時間を変更';
   document.getElementById('modal-body').innerHTML = `
     <div style="font-size:11px;color:var(--ink3);margin-bottom:12px;line-height:1.6">
       当日のシフト時間を変更します。<br>
-      変更すると勤怠の計算時間にも即時反映されます。
+      変更は勤怠記録に保持され、シフト同期後も上書きされません。
     </div>
     <div class="form-row-2">
       <div class="form-row"><label class="form-label">シフト開始</label>
@@ -1686,20 +1689,29 @@ export function openShiftTimeEdit(shiftId, currentStart, currentEnd) {
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveShiftTimeEdit('${shiftId}')">変更する</button>
+      <button class="btn btn-primary" onclick="saveShiftTimeEdit('${shiftId}','${uid}','${date}','${attId||''}')">変更する</button>
     </div>`;
   openModal();
 }
 
-export async function saveShiftTimeEdit(shiftId) {
+export async function saveShiftTimeEdit(shiftId, uid, date, attId) {
   const startVal = document.getElementById('ste-start')?.value;
   const endVal   = document.getElementById('ste-end')?.value;
   if (!startVal || !endVal) { alert('開始・終了時刻を両方入力してください'); return; }
   try {
-    await updateDoc(doc(db, 'shifts', shiftId), {
-      startTime: startVal,
-      endTime:   endVal,
-    });
+    if (attId) {
+      // 勤怠レコードが存在する → attendance の override フィールドに保存（同期で消えない）
+      await updateDoc(doc(db, 'attendance', attId), {
+        shiftStartOverride: startVal,
+        shiftEndOverride:   endVal,
+      });
+    } else {
+      // 勤怠レコードがまだない（出勤前）→ shifts ドキュメントを直接更新
+      await updateDoc(doc(db, 'shifts', shiftId), {
+        startTime: startVal,
+        endTime:   endVal,
+      });
+    }
     closeModal();
     loadAttendanceToday();
     window.loadDailyCheck?.();
