@@ -658,31 +658,99 @@ export async function deleteUser(uid) {
 export function openAddAllianceModal() {
   document.getElementById('modal-title-text').textContent = '🤝 業務委託メンバーを追加';
   document.getElementById('modal-body').innerHTML = `
+    <div style="background:rgba(58,125,90,.08);border:1px solid rgba(58,125,90,.25);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--accent2);margin-bottom:14px;line-height:1.7">
+      <strong>メール未入力</strong>：従来通り（業務委託として登録のみ・本人ログインなし）<br>
+      <strong>メール入力あり</strong>：Firebase Auth アカウント発行（研修管理アプリ等で本人ログイン可）
+    </div>
     <div class="form-row"><label class="form-label">名前 <span style="color:var(--accent)">*</span></label>
       <input class="form-input" id="al-name" placeholder="例：山田 花子"></div>
     <div class="form-row"><label class="form-label">所属会社名 <span style="color:var(--accent)">*</span></label>
       <input class="form-input" id="al-company" placeholder="例：株式会社〇〇"></div>
     <div class="form-row"><label class="form-label">部門（任意）</label>
       <select class="form-input" id="al-dept"><option value="">── 未設定 ──</option>${depts_options.map(d=>`<option>${d}</option>`).join('')}</select></div>
+    <div class="form-row">
+      <label class="form-label">メールアドレス（任意）</label>
+      <input type="email" class="form-input" id="al-email" placeholder="例：tanaka@example.com">
+      <div style="font-size:10px;color:var(--ink3);margin-top:4px">入力すると Firebase Auth アカウントが発行され、本人ログインが可能になります</div>
+    </div>
+    <div class="form-row" id="al-pass-row" style="display:none">
+      <label class="form-label">初期パスワード <span style="color:var(--accent)">*</span></label>
+      <input type="text" class="form-input" id="al-pass" placeholder="8文字以上（メール入力時のみ必須）" style="font-family:'DM Mono',monospace">
+    </div>
     <div id="al-error" style="font-size:12px;color:var(--accent);min-height:16px"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
-      <button class="btn btn-primary" style="background:var(--accent2)" onclick="saveAllianceMember()">追加</button>
+      <button class="btn btn-primary" id="al-save-btn" style="background:var(--accent2)" onclick="saveAllianceMember()">追加</button>
     </div>`;
   openModal();
+  // メール入力に応じてパスワード欄を表示/非表示
+  const emailEl = document.getElementById('al-email');
+  const passRow = document.getElementById('al-pass-row');
+  if (emailEl && passRow) {
+    emailEl.addEventListener('input', () => {
+      passRow.style.display = emailEl.value.trim() ? '' : 'none';
+    });
+  }
 }
 
 export async function saveAllianceMember() {
   const name    = document.getElementById('al-name').value.trim();
   const company = document.getElementById('al-company').value.trim();
   const dept    = document.getElementById('al-dept').value;
+  const email   = document.getElementById('al-email')?.value.trim() || '';
+  const pass    = document.getElementById('al-pass')?.value || '';
   const errEl   = document.getElementById('al-error');
+  const btn     = document.getElementById('al-save-btn');
   if (!name)    { errEl.textContent = '名前を入力してください'; return; }
   if (!company) { errEl.textContent = '所属会社名を入力してください'; return; }
-  const ref = doc(collection(db,'users'));
-  await setDoc(ref, { name, company, dept, role: 'member', isAlliance: true, hasSalaryInfo: true, email: '', createdAt: serverTimestamp() });
-  closeModal();
-  loadUsers();
+  if (email && pass.length < 8) {
+    errEl.textContent = 'メール入力時はパスワード（8文字以上）が必須です';
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = '追加中...'; }
+  try {
+    if (email) {
+      // ── メール入力あり: Firebase Auth アカウント発行（セカンダリインスタンス経由・admin維持） ──
+      const { initializeApp: initApp2, deleteApp: deleteApp2 } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
+      const { getAuth: getAuth2, createUserWithEmailAndPassword: createUser2, signOut: signOut2 } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+      const secondaryName = 'alliance-auth-' + Date.now();
+      const app2 = initApp2(firebaseConfig, secondaryName);
+      const auth2 = getAuth2(app2);
+      try {
+        const cred = await createUser2(auth2, email, pass);
+        const newUid = cred.user.uid;
+        await signOut2(auth2);
+        // Firebase Auth UID で users に登録（isAlliance: true は維持・email セット）
+        await setDoc(doc(db, 'users', newUid), {
+          name, company, dept, email,
+          role: 'member',
+          isAlliance: true,
+          hasSalaryInfo: true,
+          createdAt: serverTimestamp()
+        });
+      } finally {
+        await deleteApp2(app2);
+      }
+    } else {
+      // ── メール未入力: 従来通り（自動ID・email空文字） ──
+      const ref = doc(collection(db,'users'));
+      await setDoc(ref, { name, company, dept, role: 'member', isAlliance: true, hasSalaryInfo: true, email: '', createdAt: serverTimestamp() });
+    }
+    closeModal();
+    loadUsers();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '追加'; }
+    if (e.code === 'auth/email-already-in-use') {
+      errEl.textContent = 'このメールアドレスは既に使用されています';
+    } else if (e.code === 'auth/invalid-email') {
+      errEl.textContent = 'メールアドレスの形式が正しくありません';
+    } else if (e.code === 'auth/weak-password') {
+      errEl.textContent = 'パスワードが弱すぎます（8文字以上の英数字混合を推奨）';
+    } else {
+      errEl.textContent = 'エラー：' + (e?.message || e);
+    }
+  }
 }
 
 export function openAddAllianceBulkModal() {
