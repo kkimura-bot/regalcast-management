@@ -670,7 +670,7 @@ export function openAddAllianceModal() {
       <select class="form-input" id="al-dept"><option value="">── 未設定 ──</option>${depts_options.map(d=>`<option>${d}</option>`).join('')}</select></div>
     <div class="form-row">
       <label class="form-label">メールアドレス（任意）</label>
-      <input type="email" class="form-input" id="al-email" placeholder="例：tanaka@example.com">
+      <input type="email" class="form-input" id="al-email" placeholder="例：tanaka@example.com" oninput="document.getElementById('al-pass-row').style.display = this.value.trim() ? '' : 'none'">
       <div style="font-size:10px;color:var(--ink3);margin-top:4px">入力すると Firebase Auth アカウントが発行され、本人ログインが可能になります</div>
     </div>
     <div class="form-row" id="al-pass-row" style="display:none">
@@ -683,14 +683,6 @@ export function openAddAllianceModal() {
       <button class="btn btn-primary" id="al-save-btn" style="background:var(--accent2)" onclick="saveAllianceMember()">追加</button>
     </div>`;
   openModal();
-  // メール入力に応じてパスワード欄を表示/非表示
-  const emailEl = document.getElementById('al-email');
-  const passRow = document.getElementById('al-pass-row');
-  if (emailEl && passRow) {
-    emailEl.addEventListener('input', () => {
-      passRow.style.display = emailEl.value.trim() ? '' : 'none';
-    });
-  }
 }
 
 export async function saveAllianceMember() {
