@@ -155,20 +155,20 @@ export function setupNav() {
 
 // ── Alliance mode ─────────────────────────────────────────
 
-export async function showAllianceLogin() {
-  const mainBox     = document.getElementById('login-box-main');
-  const allianceBox = document.getElementById('login-box-alliance');
-  if (mainBox)     mainBox.style.display     = 'none';
-  if (allianceBox) allianceBox.style.display = '';
+async function _hashPassword(password) {
+  const data = new TextEncoder().encode(password);
+  const buf  = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
-  const sel = document.getElementById('alliance-name-select');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">読み込み中...</option>';
+// legacyメンバー（プルダウン方式）のみを取得して返す
+async function _fetchLegacyAllianceUsers() {
+  let allianceUsers = [];
 
   try {
     // 今週の月〜日（JST）を計算
     const nowJST = new Date(new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }));
-    const dow = nowJST.getDay(); // 0=日
+    const dow = nowJST.getDay();
     const monday = new Date(nowJST);
     monday.setDate(nowJST.getDate() - (dow === 0 ? 6 : dow - 1));
     const sunday = new Date(monday);
@@ -177,56 +177,68 @@ export async function showAllianceLogin() {
     const weekStart = fmt(monday);
     const weekEnd   = fmt(sunday);
 
-    let allianceUsers = [];
+    const shiftSnap = await getDocs(query(
+      collection(db, 'shifts'),
+      where('date', '>=', weekStart),
+      where('date', '<=', weekEnd)
+    ));
+    const activeUids = [...new Set(shiftSnap.docs.map(d => d.data().uid).filter(Boolean))];
 
-    try {
-      // 今週シフトがあるUIDのみ表示
-      const shiftSnap = await getDocs(query(
-        collection(db, 'shifts'),
-        where('date', '>=', weekStart),
-        where('date', '<=', weekEnd)
-      ));
-      const activeUids = [...new Set(shiftSnap.docs.map(d => d.data().uid).filter(Boolean))];
+    if (activeUids.length) {
+      const userDocs = await Promise.all(activeUids.map(uid => getDoc(doc(db, 'users', uid))));
+      allianceUsers = userDocs
+        .filter(d => {
+          if (!d.exists()) return false;
+          const u = d.data();
+          if (u.isRetired) return false;
+          if (u.isHidden)  return false;
+          if (u.loginType === 'password') return false; // 新方式メンバーはプルダウンに出さない
+          return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
+        })
+        .map(d => ({ id: d.id, ...d.data() }));
+    }
+  } catch(e) {
+    console.warn('シフトフィルター失敗、全メンバーにフォールバック:', e);
+  }
 
-      if (activeUids.length) {
-        const userDocs = await Promise.all(activeUids.map(uid => getDoc(doc(db, 'users', uid))));
-        allianceUsers = userDocs
-          .filter(d => {
-            if (!d.exists()) return false;
-            const u = d.data();
-            if (u.isRetired) return false; // 退職済みは非表示
-            if (u.isHidden)  return false; // 一時非表示フラグ
-            return u.isAlliance || u.noAuth || d.id.startsWith('alliance_');
-          })
-          .map(d => ({ id: d.id, ...d.data() }));
+  // シフト取得失敗時は全アライアンスメンバーを表示
+  if (!allianceUsers.length) {
+    const [snap1, snap2] = await Promise.all([
+      getDocs(query(collection(db, 'users'), where('isAlliance', '==', true))),
+      getDocs(query(collection(db, 'users'), where('noAuth', '==', true))),
+    ]);
+    const seen = new Set();
+    [...snap1.docs, ...snap2.docs].forEach(d => {
+      const u = d.data();
+      if (!seen.has(d.id) && !u.isHidden && !u.isRetired && u.loginType !== 'password') {
+        seen.add(d.id); allianceUsers.push({ id: d.id, ...u });
       }
-    } catch(e) {
-      console.warn('シフトフィルター失敗、全メンバーにフォールバック:', e);
-    }
+    });
+  }
 
-    // シフト取得失敗時は全アライアンスメンバーを表示
-    if (!allianceUsers.length) {
-      const [snap1, snap2] = await Promise.all([
-        getDocs(query(collection(db, 'users'), where('isAlliance', '==', true))),
-        getDocs(query(collection(db, 'users'), where('noAuth', '==', true))),
-      ]);
-      const seen = new Set();
-      [...snap1.docs, ...snap2.docs].forEach(d => {
-        const u = d.data();
-        if (!seen.has(d.id) && !u.isHidden && !u.isRetired) {
-          seen.add(d.id); allianceUsers.push({ id: d.id, ...u });
-        }
-      });
-    }
+  allianceUsers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+  return allianceUsers;
+}
 
-    // 名前順でソート
-    allianceUsers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
+export async function showAllianceLogin() {
+  const mainBox     = document.getElementById('login-box-main');
+  const allianceBox = document.getElementById('login-box-alliance');
+  if (mainBox)     mainBox.style.display     = 'none';
+  if (allianceBox) allianceBox.style.display = '';
 
+  // デフォルトでlegacyタブを表示
+  showAllianceLegacyTab();
+
+  const sel = document.getElementById('alliance-name-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">読み込み中...</option>';
+
+  try {
+    const allianceUsers = await _fetchLegacyAllianceUsers();
     if (!allianceUsers.length) {
       sel.innerHTML = '<option value="">アライアンスメンバーが登録されていません</option>';
       return;
     }
-
     sel.innerHTML = '<option value="">── 選択してください ──</option>';
     allianceUsers.forEach(u => {
       const opt = document.createElement('option');
@@ -240,6 +252,24 @@ export async function showAllianceLogin() {
     console.error('Alliance login error:', e);
     sel.innerHTML = '<option value="">読み込みに失敗しました</option>';
   }
+}
+
+export function showAllianceLegacyTab() {
+  document.getElementById('alliance-tab-legacy')?.classList.add('alliance-tab-active');
+  document.getElementById('alliance-tab-password')?.classList.remove('alliance-tab-active');
+  document.getElementById('alliance-form-legacy')?.style && (document.getElementById('alliance-form-legacy').style.display = '');
+  document.getElementById('alliance-form-password')?.style && (document.getElementById('alliance-form-password').style.display = 'none');
+  const errEl = document.getElementById('alliance-error');
+  if (errEl) errEl.textContent = '';
+}
+
+export function showAlliancePasswordTab() {
+  document.getElementById('alliance-tab-legacy')?.classList.remove('alliance-tab-active');
+  document.getElementById('alliance-tab-password')?.classList.add('alliance-tab-active');
+  document.getElementById('alliance-form-legacy')?.style && (document.getElementById('alliance-form-legacy').style.display = 'none');
+  document.getElementById('alliance-form-password')?.style && (document.getElementById('alliance-form-password').style.display = '');
+  const errEl = document.getElementById('alliance-error');
+  if (errEl) errEl.textContent = '';
 }
 
 export async function doAllianceLogin() {
@@ -256,6 +286,58 @@ export async function doAllianceLogin() {
   RC.currentRole     = 'alliance';
 
   showAllianceApp();
+}
+
+export async function doAllianceLoginWithPassword() {
+  const nameInput = document.getElementById('alliance-pw-name');
+  const passInput = document.getElementById('alliance-pw-pass');
+  const errEl     = document.getElementById('alliance-error');
+  const btn       = document.getElementById('alliance-pw-btn');
+
+  const name = nameInput?.value.trim();
+  const pass = passInput?.value;
+
+  if (!name) { if (errEl) errEl.textContent = '名前を入力してください'; return; }
+  if (!pass) { if (errEl) errEl.textContent = 'パスワードを入力してください'; return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = '確認中...'; }
+  if (errEl) errEl.textContent = '';
+
+  try {
+    // 名前でusersを検索（loginType: 'password'のメンバーのみ）
+    const snap = await getDocs(query(
+      collection(db, 'users'),
+      where('name', '==', name),
+      where('loginType', '==', 'password')
+    ));
+
+    if (snap.empty) {
+      if (errEl) errEl.textContent = '名前またはパスワードが正しくありません';
+      return;
+    }
+
+    const userDoc = snap.docs[0];
+    const userData = userDoc.data();
+
+    // パスワード照合
+    const inputHash = await _hashPassword(pass);
+    if (inputHash !== userData.passwordHash) {
+      if (errEl) errEl.textContent = '名前またはパスワードが正しくありません';
+      return;
+    }
+
+    RC._isAllianceMode = true;
+    RC.currentUser     = { uid: userDoc.id, isAlliance: true };
+    RC.currentUserData = { id: userDoc.id, name: userData.name, dept: userData.dept || '', isAlliance: true };
+    RC.currentRole     = 'alliance';
+
+    showAllianceApp();
+  } catch(e) {
+    console.error('Alliance password login error:', e);
+    if (errEl) errEl.textContent = 'ログインに失敗しました';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '入室する'; }
+  }
 }
 
 export function doAllianceLogout() {
@@ -283,15 +365,18 @@ export function showAllianceApp() {
 }
 
 // ── Expose to window ──────────────────────────────────────
-window.doLogin          = doLogin;
-window.doLogout         = doLogout;
-window.doResetPassword  = doResetPassword;
-window.showLogin        = showLogin;
-window.showApp          = showApp;
-window.showNormalLogin  = showNormalLogin;
-window.showAllianceLogin = showAllianceLogin;
-window.doAllianceLogin  = doAllianceLogin;
-window.doAllianceLogout = doAllianceLogout;
-window.showAllianceApp  = showAllianceApp;
-window.setupNav         = setupNav;
-window.initAuthListener = initAuthListener;
+window.doLogin                    = doLogin;
+window.doLogout                   = doLogout;
+window.doResetPassword            = doResetPassword;
+window.showLogin                  = showLogin;
+window.showApp                    = showApp;
+window.showNormalLogin            = showNormalLogin;
+window.showAllianceLogin          = showAllianceLogin;
+window.showAllianceLegacyTab      = showAllianceLegacyTab;
+window.showAlliancePasswordTab    = showAlliancePasswordTab;
+window.doAllianceLogin            = doAllianceLogin;
+window.doAllianceLoginWithPassword = doAllianceLoginWithPassword;
+window.doAllianceLogout           = doAllianceLogout;
+window.showAllianceApp            = showAllianceApp;
+window.setupNav                   = setupNav;
+window.initAuthListener           = initAuthListener;

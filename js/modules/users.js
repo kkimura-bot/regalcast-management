@@ -655,12 +655,24 @@ export async function deleteUser(uid) {
 
 // ── Alliance add (single / bulk) ──────────────────────────
 
+function _generatePassword(length = 10) {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from(crypto.getRandomValues(new Uint8Array(length)))
+    .map(n => chars[n % chars.length]).join('');
+}
+
+async function _hashPassword(password) {
+  const data = new TextEncoder().encode(password);
+  const buf  = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function openAddAllianceModal() {
   document.getElementById('modal-title-text').textContent = '🤝 業務委託メンバーを追加';
   document.getElementById('modal-body').innerHTML = `
     <div style="background:rgba(58,125,90,.08);border:1px solid rgba(58,125,90,.25);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--accent2);margin-bottom:14px;line-height:1.7">
-      <strong>メール未入力</strong>：従来通り（業務委託として登録のみ・本人ログインなし）<br>
-      <strong>メール入力あり</strong>：Firebase Auth アカウント発行（研修管理アプリ等で本人ログイン可）
+      <strong>既存方式</strong>：プルダウン選択でログイン（5月以前の既存メンバー向け）<br>
+      <strong>新方式（6月以降）</strong>：名前＋パスワードでログイン。パスワードは自動生成されます。
     </div>
     <div class="form-row"><label class="form-label">名前 <span style="color:var(--accent)">*</span></label>
       <input class="form-input" id="al-name" placeholder="例：山田 花子"></div>
@@ -668,10 +680,15 @@ export function openAddAllianceModal() {
       <input class="form-input" id="al-company" placeholder="例：株式会社〇〇"></div>
     <div class="form-row"><label class="form-label">部門（任意）</label>
       <select class="form-input" id="al-dept"><option value="">── 未設定 ──</option>${depts_options.map(d=>`<option>${d}</option>`).join('')}</select></div>
-    <div class="form-row">
+    <div class="form-row"><label class="form-label">ログイン方式 <span style="color:var(--accent)">*</span></label>
+      <select class="form-input" id="al-login-type" onchange="alToggleEmailRow()">
+        <option value="legacy">既存方式（プルダウン選択）</option>
+        <option value="password">新方式・名前＋パスワード（6月以降）</option>
+      </select></div>
+    <div class="form-row" id="al-email-row">
       <label class="form-label">メールアドレス（任意）</label>
       <input type="email" class="form-input" id="al-email" placeholder="例：tanaka@example.com" oninput="document.getElementById('al-pass-row').style.display = this.value.trim() ? '' : 'none'">
-      <div style="font-size:10px;color:var(--ink3);margin-top:4px">入力すると Firebase Auth アカウントが発行され、本人ログインが可能になります</div>
+      <div style="font-size:10px;color:var(--ink3);margin-top:4px">入力すると Firebase Auth アカウントが発行され、研修管理アプリ等でも本人ログインが可能になります</div>
     </div>
     <div class="form-row" id="al-pass-row" style="display:none">
       <label class="form-label">初期パスワード <span style="color:var(--accent)">*</span></label>
@@ -685,25 +702,63 @@ export function openAddAllianceModal() {
   openModal();
 }
 
+export function alToggleEmailRow() {
+  const type = document.getElementById('al-login-type')?.value;
+  const emailRow = document.getElementById('al-email-row');
+  const passRow  = document.getElementById('al-pass-row');
+  if (type === 'password') {
+    // 新方式はメール不要・パスワードは自動生成なので非表示
+    if (emailRow) emailRow.style.display = 'none';
+    if (passRow)  passRow.style.display  = 'none';
+  } else {
+    if (emailRow) emailRow.style.display = '';
+    // メール入力状況に応じてパスワード行を切り替え
+    const email = document.getElementById('al-email')?.value.trim();
+    if (passRow) passRow.style.display = email ? '' : 'none';
+  }
+}
+
 export async function saveAllianceMember() {
-  const name    = document.getElementById('al-name').value.trim();
-  const company = document.getElementById('al-company').value.trim();
-  const dept    = document.getElementById('al-dept').value;
-  const email   = document.getElementById('al-email')?.value.trim() || '';
-  const pass    = document.getElementById('al-pass')?.value || '';
-  const errEl   = document.getElementById('al-error');
-  const btn     = document.getElementById('al-save-btn');
+  const name      = document.getElementById('al-name').value.trim();
+  const company   = document.getElementById('al-company').value.trim();
+  const dept      = document.getElementById('al-dept').value;
+  const loginType = document.getElementById('al-login-type')?.value || 'legacy';
+  const email     = document.getElementById('al-email')?.value.trim() || '';
+  const pass      = document.getElementById('al-pass')?.value || '';
+  const errEl     = document.getElementById('al-error');
+  const btn       = document.getElementById('al-save-btn');
+
   if (!name)    { errEl.textContent = '名前を入力してください'; return; }
   if (!company) { errEl.textContent = '所属会社名を入力してください'; return; }
-  if (email && pass.length < 8) {
+  if (loginType === 'legacy' && email && pass.length < 8) {
     errEl.textContent = 'メール入力時はパスワード（8文字以上）が必須です';
     return;
   }
 
   if (btn) { btn.disabled = true; btn.textContent = '追加中...'; }
   try {
-    if (email) {
-      // ── メール入力あり: Firebase Auth アカウント発行（セカンダリインスタンス経由・admin維持） ──
+    if (loginType === 'password') {
+      // ── 新方式: 名前+パスワードでログイン。パスワードを自動生成してハッシュ保存 ──
+      const generatedPass = _generatePassword(10);
+      const passwordHash  = await _hashPassword(generatedPass);
+      const ref = doc(collection(db, 'users'));
+      await setDoc(ref, {
+        name, company, dept,
+        role: 'member',
+        isAlliance: true,
+        hasSalaryInfo: true,
+        loginType: 'password',
+        passwordHash,
+        email: '',
+        createdAt: serverTimestamp()
+      });
+      closeModal();
+      loadUsers();
+      // パスワードを画面表示（管理者がコピーして本人に伝える）
+      _showGeneratedPassword(name, generatedPass);
+
+    } else if (email) {
+      // ── 既存方式・メールあり: Firebase Auth アカウント発行 ──
       const { initializeApp: initApp2, deleteApp: deleteApp2 } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
       const { getAuth: getAuth2, createUserWithEmailAndPassword: createUser2, signOut: signOut2 } = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
       const secondaryName = 'alliance-auth-' + Date.now();
@@ -713,24 +768,34 @@ export async function saveAllianceMember() {
         const cred = await createUser2(auth2, email, pass);
         const newUid = cred.user.uid;
         await signOut2(auth2);
-        // Firebase Auth UID で users に登録（isAlliance: true は維持・email セット）
         await setDoc(doc(db, 'users', newUid), {
           name, company, dept, email,
           role: 'member',
           isAlliance: true,
+          loginType: 'legacy',
           hasSalaryInfo: true,
           createdAt: serverTimestamp()
         });
       } finally {
         await deleteApp2(app2);
       }
+      closeModal();
+      loadUsers();
     } else {
-      // ── メール未入力: 従来通り（自動ID・email空文字） ──
-      const ref = doc(collection(db,'users'));
-      await setDoc(ref, { name, company, dept, role: 'member', isAlliance: true, hasSalaryInfo: true, email: '', createdAt: serverTimestamp() });
+      // ── 既存方式・メールなし: 従来通り ──
+      const ref = doc(collection(db, 'users'));
+      await setDoc(ref, {
+        name, company, dept,
+        role: 'member',
+        isAlliance: true,
+        loginType: 'legacy',
+        hasSalaryInfo: true,
+        email: '',
+        createdAt: serverTimestamp()
+      });
+      closeModal();
+      loadUsers();
     }
-    closeModal();
-    loadUsers();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = '追加'; }
     if (e.code === 'auth/email-already-in-use') {
@@ -743,6 +808,33 @@ export async function saveAllianceMember() {
       errEl.textContent = 'エラー：' + (e?.message || e);
     }
   }
+}
+
+function _showGeneratedPassword(name, password) {
+  document.getElementById('modal-title-text').textContent = '✅ メンバーを追加しました';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="text-align:center;padding:8px 0 16px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">${escHtml(name)}</div>
+      <div style="font-size:12px;color:var(--ink3)">の初期パスワードを発行しました</div>
+    </div>
+    <div style="background:var(--surface2);border:1.5px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px">
+      <div style="font-size:10px;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:8px">初期パスワード</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="al-generated-pw" style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;letter-spacing:3px;color:var(--ink)">${escHtml(password)}</div>
+        <button onclick="alCopyPassword('${escHtml(password)}')"
+          style="padding:6px 12px;background:var(--ink);color:#fff;border:none;border-radius:6px;font-size:12px;font-family:inherit;cursor:pointer;white-space:nowrap"
+          id="al-copy-btn">📋 コピー</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--ink3);line-height:1.7;margin-bottom:16px">
+      このパスワードは<strong>一度しか表示されません</strong>。<br>
+      コピーしてメンバー本人に伝えてください。<br>
+      ログイン画面の「新メンバー（6月以降）」タブから入室します。
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="closeModal()">閉じる</button>
+    </div>`;
+  openModal();
 }
 
 export function openAddAllianceBulkModal() {
@@ -1026,7 +1118,14 @@ window.confirmDeleteUser        = confirmDeleteUser;
 window.sendPasswordReset        = sendPasswordReset;
 window.deleteUser               = deleteUser;
 window.openAddAllianceModal     = openAddAllianceModal;
+window.alToggleEmailRow         = alToggleEmailRow;
 window.saveAllianceMember       = saveAllianceMember;
+window.alCopyPassword           = function(pw) {
+  navigator.clipboard.writeText(pw).then(() => {
+    const btn = document.getElementById('al-copy-btn');
+    if (btn) { const o = btn.textContent; btn.textContent = '✓ コピー済み'; setTimeout(() => btn.textContent = o, 2000); }
+  });
+};
 window.openAddAllianceBulkModal = openAddAllianceBulkModal;
 window.execAllianceBulkAdd      = execAllianceBulkAdd;
 window.filterUsersBySearch        = filterUsersBySearch;

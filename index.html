@@ -44,19 +44,63 @@
     <div class="login-logomark" style="background:var(--accent2)">AL</div>
     <div class="login-logo">RegalCast</div>
     <div class="login-sub">Alliance Portal</div>
-    <div style="background:rgba(58,125,90,.08);border:1px solid rgba(58,125,90,.25);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--accent2);margin-bottom:16px;line-height:1.7">
-      出退勤記録ページです。<br>お名前をプルダウンから選択してください。
+
+    <!-- タブ切替 -->
+    <div style="display:flex;gap:0;margin-bottom:16px;border:1.5px solid var(--border);border-radius:8px;overflow:hidden">
+      <button id="alliance-tab-legacy"
+        onclick="showAllianceLegacyTab()"
+        class="alliance-tab-active"
+        style="flex:1;padding:9px 8px;font-size:12px;font-weight:600;font-family:inherit;border:none;cursor:pointer;transition:all .15s;background:var(--ink);color:#fff">
+        既存メンバー
+      </button>
+      <button id="alliance-tab-password"
+        onclick="showAlliancePasswordTab()"
+        style="flex:1;padding:9px 8px;font-size:12px;font-weight:600;font-family:inherit;border:none;cursor:pointer;transition:all .15s;background:transparent;color:var(--ink3)">
+        新メンバー（6月以降）
+      </button>
     </div>
-    <div style="margin-bottom:14px">
-      <div style="font-size:10px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace">お名前</div>
-      <select id="alliance-name-select" class="login-input" style="cursor:pointer">
-        <option value="">── 選択してください ──</option>
-      </select>
+    <style>
+      .alliance-tab-active { background: var(--ink) !important; color: #fff !important; }
+      #alliance-tab-legacy:not(.alliance-tab-active),
+      #alliance-tab-password:not(.alliance-tab-active) { background: transparent !important; color: var(--ink3) !important; }
+    </style>
+
+    <!-- 既存メンバーフォーム（プルダウン） -->
+    <div id="alliance-form-legacy">
+      <div style="background:rgba(58,125,90,.08);border:1px solid rgba(58,125,90,.25);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--accent2);margin-bottom:16px;line-height:1.7">
+        出退勤記録ページです。<br>お名前をプルダウンから選択してください。
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace">お名前</div>
+        <select id="alliance-name-select" class="login-input" style="cursor:pointer">
+          <option value="">── 選択してください ──</option>
+        </select>
+      </div>
+      <button class="login-btn" onclick="doAllianceLogin()"
+        style="background:var(--accent2)" onmouseover="this.style.background='#2d6b4a'" onmouseout="this.style.background='var(--accent2)'">
+        入室する
+      </button>
     </div>
-    <button class="login-btn" onclick="doAllianceLogin()"
-      style="background:var(--accent2)" onmouseover="this.style.background='#2d6b4a'" onmouseout="this.style.background='var(--accent2)'">
-      入室する
-    </button>
+
+    <!-- 新メンバーフォーム（名前+パスワード） -->
+    <div id="alliance-form-password" style="display:none">
+      <div style="background:rgba(58,125,90,.08);border:1px solid rgba(58,125,90,.25);border-radius:6px;padding:10px 12px;font-size:11px;color:var(--accent2);margin-bottom:16px;line-height:1.7">
+        出退勤記録ページです。<br>名前と初期パスワードを入力してください。
+      </div>
+      <div style="margin-bottom:12px">
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace">お名前</div>
+        <input id="alliance-pw-name" class="login-input" type="text" placeholder="例：山田 花子" onkeydown="if(event.key==='Enter')document.getElementById('alliance-pw-pass').focus()">
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;color:var(--ink3);margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace">パスワード</div>
+        <input id="alliance-pw-pass" class="login-input" type="password" placeholder="初期パスワード" onkeydown="if(event.key==='Enter')doAllianceLoginWithPassword()">
+      </div>
+      <button id="alliance-pw-btn" class="login-btn" onclick="doAllianceLoginWithPassword()"
+        style="background:var(--accent2)" onmouseover="this.style.background='#2d6b4a'" onmouseout="this.style.background='var(--accent2)'">
+        入室する
+      </button>
+    </div>
+
     <div class="login-error" id="alliance-error"></div>
     <div class="login-reset" onclick="showNormalLogin()">← 通常ログインに戻る</div>
   </div>
