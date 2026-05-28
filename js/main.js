@@ -25,7 +25,7 @@ import './modules/profiles.js';
 import './modules/onboarding.js';
 import './modules/offboarding.js';
 import './modules/notifications.js';
-import './modules/member-tasks.js';
+// import './modules/member-tasks.js'; // タスク機能を一時非表示
 import './modules/form-submissions.js';
 import './modules/paid-leave.js';
 import './modules/overtime.js';
@@ -132,13 +132,13 @@ export function postLoginSetup() {
     window.loadMySalaryInfo?.();
   }
   loadGoalWidget();
-  window.loadMemberTaskWidget?.();
-  if (isLeaderOrAbove()) {
-    window.loadTaskSummaryWidget?.();
-  }
-  if (isAdmin()) {
-    window.loadUnlinkedTasksWidget?.();
-  }
+  // window.loadMemberTaskWidget?.(); // タスク機能を一時非表示
+  // if (isLeaderOrAbove()) {
+  //   window.loadTaskSummaryWidget?.();
+  // }
+  // if (isAdmin()) {
+  //   window.loadUnlinkedTasksWidget?.();
+  // }
 }
 
 window.postLoginSetup = postLoginSetup;
