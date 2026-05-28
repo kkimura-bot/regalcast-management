@@ -203,6 +203,8 @@
               <span class="m-accordion-chevron">▼</span>
             </summary>
             <div class="m-accordion-body">
+              <!-- テンプレ選択ボタン（JS が動的に描画） -->
+              <div id="m-fare-tmpl-btns-in"></div>
               <div style="font-size:12px;color:var(--accent2);background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.2);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:14px;line-height:1.6">
                 🎫 <strong>定期購入者の方へ</strong><br>
                 定期券購入時に<strong>金額を1回だけ</strong>入力。通常日は¥0のままでOK。
@@ -256,6 +258,8 @@
               <span class="m-accordion-chevron">▼</span>
             </summary>
             <div class="m-accordion-body">
+              <!-- テンプレ選択ボタン（退勤用） -->
+              <div id="m-fare-tmpl-btns-out"></div>
               <div style="margin-bottom:12px">
                 <label style="font-size:12px;color:var(--ink3);display:block;margin-bottom:5px">💴 退勤交通費（勤務先→自宅）</label>
                 <input type="number" class="form-input" id="att-fare-out" placeholder="例：380" min="0" inputmode="numeric">
@@ -590,9 +594,13 @@
         </div>
 
         <!-- 店舗別テンプレ -->
-        <div style="font-size:11px;color:var(--ink3);margin-bottom:8px">📍 店舗別テンプレ</div>
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:4px;font-weight:700">📍 よく使う経路（テンプレ）</div>
+        <div style="font-size:11px;color:var(--ink3);background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.2);border-radius:6px;padding:8px 10px;margin-bottom:10px;line-height:1.6">
+          🚃 ここに登録した経路は、<strong>出退勤打刻のときにワンタップで自動入力</strong>されます。<br>
+          店舗ごとに1つ登録しておくと便利です。
+        </div>
         <div id="mypage-fare-templates"></div>
-        <button class="mini-btn" onclick="addFareTemplate()" style="margin-top:8px;width:100%;padding:9px;font-size:12px">＋ 店舗を追加</button>
+        <button class="mini-btn" onclick="addFareTemplate()" style="margin-top:8px;width:100%;padding:9px;font-size:12px">＋ 経路を追加</button>
       </div>
 
       <button class="btn" onclick="saveMyPage()" style="width:100%;padding:12px;font-size:14px;font-weight:700">💾 保存する</button>
@@ -757,6 +765,8 @@
 
           <!-- 出勤フォーム -->
           <div style="font-size:11px;font-weight:700;color:var(--accent2);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🟢 出勤時の入力</div>
+          <!-- テンプレ選択ボタン（PC・出勤用） -->
+          <div id="pc-fare-tmpl-btns-in" style="margin-bottom:10px"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
             <div>
               <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">🚃 乗車駅</label>
@@ -806,6 +816,8 @@
 
           <!-- 退勤フォーム -->
           <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">🔵 退勤時の入力</div>
+          <!-- テンプレ選択ボタン（PC・退勤用） -->
+          <div id="pc-fare-tmpl-btns-out" style="margin-bottom:10px"></div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
             <div>
               <label style="font-size:11px;color:var(--ink3);display:block;margin-bottom:4px">💴 退勤交通費（勤務先→自宅）</label>

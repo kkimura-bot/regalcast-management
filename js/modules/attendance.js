@@ -238,24 +238,14 @@ export async function loadAttendanceToday() {
     });
   }
 
-  // Pre-fill fare template from user data
+  // テンプレボタン描画 + 自動入力
+  renderAllFareTemplateBtns();
   const fareTemplates = RC.currentUserData?.fareTemplates || [];
-  if (fareTemplates.length && !data?.clockIn) {
-    // Auto-fill commuter routes (isCommuter = true → ¥0)
-    // Just pre-fill station names from first template
-    const firstTemplate = fareTemplates[0];
-    if (firstTemplate?.items?.length) {
-      const commuterItem = firstTemplate.items.find(i => !i.isCommuter);
-      if (commuterItem) {
-        const stFrom = document.getElementById('att-station-from');
-        const stFromPc = document.getElementById('att-station-from-pc');
-        const stTo   = document.getElementById('att-station-to');
-        const stToPc = document.getElementById('att-station-to-pc');
-        if (stFrom && !stFrom.value) stFrom.value = commuterItem.from || '';
-        if (stFromPc && !stFromPc.value) stFromPc.value = commuterItem.from || '';
-        if (stTo && !stTo.value) stTo.value = commuterItem.to || '';
-        if (stToPc && !stToPc.value) stToPc.value = commuterItem.to || '';
-      }
+  if (fareTemplates.length) {
+    if (!data?.clockIn) {
+      applyFareTemplate(0, 'in');
+    } else if (data?.clockIn && !data?.clockOut) {
+      applyFareTemplate(0, 'out');
     }
   }
 
@@ -1790,6 +1780,7 @@ export async function renderAllianceAttendance() {
     ${!ci ? `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:var(--accent2);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">🟢 出勤を記録する</div>
+      <div id="al-fare-tmpl-btns-in"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
         <div>
           <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">🚃 乗車駅</label>
@@ -1831,6 +1822,7 @@ export async function renderAllianceAttendance() {
     ${ci && !co ? `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
       <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">🔵 退勤を記録する</div>
+      <div id="al-fare-tmpl-btns-out"></div>
       <div style="margin-bottom:10px">
         <label style="font-size:10px;color:var(--ink3);display:block;margin-bottom:4px">💴 交通費（勤務先→自宅）</label>
         <input type="number" class="form-input" id="al-fare-out" placeholder="例：380" min="0">
@@ -1860,6 +1852,11 @@ export async function renderAllianceAttendance() {
 
   // 希望休セクションを非同期で描画
   _renderAllianceHolidaySection(uid, name);
+
+  // テンプレボタンをアライアンスフォームに描画（innerHTML 確定後に実行）
+  const alMode = !ci ? 'in' : 'out';
+  _renderFareTemplateBtns(['al-fare-tmpl-btns-' + alMode], alMode);
+  if (_getMyFareTemplates().length) applyFareTemplate(0, alMode);
 }
 
 // ── アライアンス向け希望休セクション ─────────────────────────
@@ -2104,3 +2101,70 @@ window.allianceClockIn          = allianceClockIn;
 window.allianceClockOut         = allianceClockOut;
 window.allianceSubmitHoliday    = allianceSubmitHoliday;
 window.allianceCancelHoliday    = allianceCancelHoliday;
+
+// ── Fare template quick-select ────────────────────────────
+
+function _getMyFareTemplates() {
+  return RC.currentUserData?.fareTemplates
+    || RC._cachedMembers?.find(m => m.id === RC.currentUser?.uid)?.fareTemplates
+    || [];
+}
+
+function _renderFareTemplateBtns(containerIds, mode) {
+  const templates = _getMyFareTemplates();
+  const noTmplHtml = `<div style="font-size:11px;color:var(--ink3);margin-bottom:10px;padding:8px 10px;background:var(--surface2);border-radius:6px;line-height:1.5">
+    💡 <a href="#" onclick="switchMobile('mypage',document.querySelector('.mnav-item[onclick*=mypage]'));return false" style="color:var(--accent2);font-weight:600;text-decoration:none">マイページで経路登録</a>するとワンタップで入力できます
+  </div>`;
+
+  const btnsHtml = templates.length
+    ? `<div style="margin-bottom:12px">
+        <div style="font-size:11px;color:var(--ink3);margin-bottom:7px;font-weight:600">🚃 よく使う経路</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${templates.map((tmpl, ti) => {
+            const paid = tmpl.items.filter(i => !i.isCommuter);
+            const fare = paid.reduce((s, i) => s + (parseInt(i.amount) || 0), 0);
+            const name = escHtml(tmpl.shopName || `経路${ti + 1}`);
+            return `<button type="button" onclick="applyFareTemplate(${ti},'${mode}')"
+              style="padding:6px 14px;border-radius:20px;border:1.5px solid var(--accent2);background:transparent;color:var(--accent2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap">
+              🏠→${name} ¥${fare.toLocaleString()}
+            </button>`;
+          }).join('')}
+        </div>
+      </div>`
+    : noTmplHtml;
+
+  containerIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = btnsHtml;
+  });
+}
+
+export function renderAllFareTemplateBtns() {
+  _renderFareTemplateBtns(['m-fare-tmpl-btns-in',  'pc-fare-tmpl-btns-in'],  'in');
+  _renderFareTemplateBtns(['m-fare-tmpl-btns-out', 'pc-fare-tmpl-btns-out'], 'out');
+}
+
+export function applyFareTemplate(ti, mode) {
+  const templates = _getMyFareTemplates();
+  const tmpl = templates[ti];
+  if (!tmpl?.items?.length) return;
+
+  const paid      = tmpl.items.filter(i => !i.isCommuter);
+  const firstItem = paid[0] || tmpl.items[0];
+  const totalFare = paid.reduce((s, i) => s + (parseInt(i.amount) || 0), 0);
+
+  if (mode === 'in') {
+    ['att-station-from', 'att-station-from-pc'].forEach(id => { const el = document.getElementById(id); if (el) el.value = firstItem?.from || ''; });
+    ['att-station-to',   'att-station-to-pc'  ].forEach(id => { const el = document.getElementById(id); if (el) el.value = firstItem?.to   || ''; });
+    ['att-fare-in',      'att-fare-in-pc'      ].forEach(id => { const el = document.getElementById(id); if (el) el.value = totalFare > 0 ? totalFare : ''; });
+    const alFrom = document.getElementById('al-station-from'); if (alFrom) alFrom.value = firstItem?.from || '';
+    const alTo   = document.getElementById('al-station-to');   if (alTo)   alTo.value   = firstItem?.to   || '';
+    const alFare = document.getElementById('al-fare-in');      if (alFare) alFare.value = totalFare > 0 ? totalFare : '';
+  } else {
+    ['att-fare-out', 'att-fare-out-pc'].forEach(id => { const el = document.getElementById(id); if (el) el.value = totalFare > 0 ? totalFare : ''; });
+    const alFare = document.getElementById('al-fare-out'); if (alFare) alFare.value = totalFare > 0 ? totalFare : '';
+  }
+}
+
+window.renderAllFareTemplateBtns = renderAllFareTemplateBtns;
+window.applyFareTemplate         = applyFareTemplate;
