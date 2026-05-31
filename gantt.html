@@ -109,6 +109,21 @@
     .focus-archive-items { display:none; padding:12px 14px; background:var(--surface); }
     .focus-archive-items.open { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:8px; }
 
+    .mtg-archive-panel {
+      display:none; margin-top:12px;
+      border:1px solid var(--border); border-radius:var(--r); overflow:hidden;
+    }
+    .mtg-archive-panel.open { display:block; }
+    .mtg-archive-meeting {
+      padding:10px 14px; border-bottom:1px solid var(--border);
+      cursor:pointer; font-size:12px; font-weight:600; background:var(--surface2);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .mtg-archive-meeting:last-child { border-bottom:none; }
+    .mtg-archive-meeting:hover { background:var(--border); }
+    .mtg-archive-items { display:none; padding:12px 14px; background:var(--surface); }
+    .mtg-archive-items.open { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:8px; }
+
     /* ── 今月フォーカス ── */
     .focus-section { margin-bottom:32px; }
     .focus-section h2 { font-size:13px; font-weight:700; color:var(--ink3); text-transform:uppercase; letter-spacing:.08em; font-family:'DM Mono',monospace; margin-bottom:12px; }
@@ -305,8 +320,10 @@
       <div class="mtg-header">
         <h2>📋 MTGアクション</h2>
         <span class="mtg-date" id="mtg-date"></span>
+        <button class="focus-archive-btn" onclick="toggleMtgArchive()">📁 過去MTG</button>
       </div>
       <div class="mtg-grid" id="mtg-grid"></div>
+      <div class="mtg-archive-panel" id="mtg-archive-panel"></div>
     </section>
 
     <!-- 進捗ハイライト -->
@@ -406,14 +423,15 @@ let DECISIONS        = [];
 let FOCUS_MAY        = [];
 let FOCUS_ARCHIVE    = [];
 let MTG_ACTIONS      = null;
+let MTG_ARCHIVE      = [];
 let PROGRAM_PROGRESS = null;
 let GANTT_SECTIONS = [];
 let GANTT_PROGRESS = {};
-let loadedFlags   = { decisions: false, focus: false, archive: false, mtg: false, program: false, sections: false, progress: false };
+let loadedFlags   = { decisions: false, focus: false, archive: false, mtg: false, mtgArchive: false, program: false, sections: false, progress: false };
 let latestUpdatedAt = '';
 
 function checkAllLoaded() {
-  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.archive && loadedFlags.mtg && loadedFlags.program && loadedFlags.sections && loadedFlags.progress) {
+  if (loadedFlags.decisions && loadedFlags.focus && loadedFlags.archive && loadedFlags.mtg && loadedFlags.mtgArchive && loadedFlags.program && loadedFlags.sections && loadedFlags.progress) {
     // 更新日時表示（最新のupdatedAtを使用）
     document.getElementById('g-updated').textContent =
       latestUpdatedAt ? `更新：${latestUpdatedAt}` : '';
@@ -503,6 +521,17 @@ function subscribeGanttData() {
   }, (err) => {
     FOCUS_ARCHIVE = [];
     loadedFlags.archive = true;
+    checkAllLoaded();
+  });
+
+  // MTGアーカイブ
+  onSnapshot(doc(db, 'gantt_config', 'mtg_archive'), (snap) => {
+    MTG_ARCHIVE = snap.exists() ? (snap.data().meetings || []) : [];
+    loadedFlags.mtgArchive = true;
+    checkAllLoaded();
+  }, (err) => {
+    MTG_ARCHIVE = [];
+    loadedFlags.mtgArchive = true;
     checkAllLoaded();
   });
 
@@ -703,6 +732,40 @@ function renderProgramProgress() {
       </div>
     </div>`;
 }
+
+function toggleMtgArchive() {
+  const panel = document.getElementById('mtg-archive-panel');
+  if (!MTG_ARCHIVE.length) {
+    panel.innerHTML = '<div style="padding:12px 14px;font-size:12px;color:var(--ink3)">過去のMTGアクションはまだありません</div>';
+    panel.classList.toggle('open');
+    return;
+  }
+  if (panel.classList.contains('open')) { panel.classList.remove('open'); return; }
+  panel.innerHTML = MTG_ARCHIVE.slice().reverse().map((m, i) => `
+    <div class="mtg-archive-meeting" onclick="toggleMtgArchiveMeeting(${i})">
+      <span>📋 ${m.date}　${m.title || ''}</span><span style="font-size:10px;color:var(--ink3)">▼</span>
+    </div>
+    <div class="mtg-archive-items" id="mtg-arch-${i}">
+      ${(m.items || []).map(a => {
+        const isDone = a.status === 'done';
+        return `<div class="mtg-item ${isDone ? 'done-action' : ''}">
+          <div class="mtg-dot ${isDone ? 'done' : (a.priority || 'mid')}"></div>
+          <div class="mtg-body">
+            <div class="mtg-label">${a.label}</div>
+            <div class="mtg-meta">${a.owner}　${a.deadline}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+  panel.classList.add('open');
+}
+window.toggleMtgArchive = toggleMtgArchive;
+
+function toggleMtgArchiveMeeting(i) {
+  const el = document.getElementById(`mtg-arch-${i}`);
+  if (el) el.classList.toggle('open');
+}
+window.toggleMtgArchiveMeeting = toggleMtgArchiveMeeting;
 
 function renderMtgActions() {
   const sec = document.getElementById('mtg-section');
