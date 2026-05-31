@@ -290,7 +290,7 @@
     <!-- 今月フォーカス -->
     <section class="focus-section">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <h2 style="margin-bottom:0">📅 今月のフォーカス（2026年5月）</h2>
+        <h2 style="margin-bottom:0" id="focus-month-title">📅 今月のフォーカス</h2>
         <button class="focus-archive-btn" onclick="toggleArchive()">📁 過去月</button>
       </div>
       <div class="focus-grid" id="focus-grid"></div>
@@ -471,6 +471,11 @@ function subscribeGanttData() {
       const d = snap.data();
       FOCUS_MAY = d.items || [];
       if (d.updatedAt && d.updatedAt > latestUpdatedAt) latestUpdatedAt = d.updatedAt;
+      if (d.updatedAt) {
+        const [y, m] = d.updatedAt.split('-');
+        const el = document.getElementById('focus-month-title');
+        if (el) el.textContent = `📅 今月のフォーカス（${y}年${parseInt(m)}月）`;
+      }
     }
     loadedFlags.focus = true;
     checkAllLoaded();
