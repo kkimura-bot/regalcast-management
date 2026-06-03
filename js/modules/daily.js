@@ -47,7 +47,8 @@ export async function loadDailyCheck() {
   const shiftMap  = {};
   shiftSnap.docs.forEach(d => { const s=d.data(); shiftMap[s.uid] = { ...s, _id: d.id }; });
 
-  const members = RC._cachedMembers.filter(m => !m.isAlliance);
+  // アライアンスはシフトがある日だけ表示する
+  const members = RC._cachedMembers.filter(m => !m.isAlliance || shiftMap[m.id]);
 
   let rows = members.map(m => ({
     member: m,
@@ -129,7 +130,8 @@ export async function loadDailyCheckM(force = false) {
   const shiftMap  = {};
   shiftSnap.docs.forEach(d => { const s=d.data(); shiftMap[s.uid] = s; });
 
-  const members = RC._cachedMembers.filter(m => !m.isAlliance);
+  // アライアンスはシフトがある日だけ表示する
+  const members = RC._cachedMembers.filter(m => !m.isAlliance || shiftMap[m.id]);
   let rows = members.map(m => ({ member:m, att:attMap[m.id]||null, shift:shiftMap[m.id]||null }));
   if (!showAll) rows = rows.filter(r => r.att || r.shift);
 

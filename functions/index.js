@@ -1,5 +1,5 @@
 const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { onRequest, onCall } = require('firebase-functions/v2/https');
+const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp }  = require('firebase-admin/app');
 const { getFirestore }   = require('firebase-admin/firestore');
 const { getAuth }        = require('firebase-admin/auth');
@@ -30,43 +30,36 @@ exports.deleteAuthUser = onCall(
 // ── Gemini API プロキシ ────────────────────────────────────
 // GEMINI_API_KEY を安全にサーバーサイドで保持するためのプロキシ
 
-exports.geminiProxy = onRequest(
-  { cors: true, invoker: 'public' },
-  async (req, res) => {
-    if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Method Not Allowed' });
-      return;
+exports.geminiProxy = onCall(
+  {},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication required');
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      res.status(500).json({ error: 'GEMINI_API_KEY not set' });
-      return;
+      throw new HttpsError('internal', 'GEMINI_API_KEY not set');
     }
 
-    const { contents, systemInstruction } = req.body || {};
+    const { contents, systemInstruction } = request.data || {};
     if (!contents) {
-      res.status(400).json({ error: 'contents required' });
-      return;
+      throw new HttpsError('invalid-argument', 'contents required');
     }
 
     const payload = { contents };
     if (systemInstruction) payload.systemInstruction = systemInstruction;
 
-    try {
-      const upstream = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }
-      );
-      const data = await upstream.json();
-      res.status(upstream.status).json(data);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
+    const upstream = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
+    const data = await upstream.json();
+    return data;
   }
 );
 

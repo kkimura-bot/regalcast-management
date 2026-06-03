@@ -439,6 +439,7 @@ let currentRoadmap = null; // { 1month, 3months, 6months }
 let isSending = false;
 let canEdit = false;       // admin/leader only
 let isOwnPage = false;     // viewing own roadmap
+let geminiApiKey = '';     // loaded from Firestore config/app
 
 // ── Auth check ─────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
@@ -448,6 +449,10 @@ onAuthStateChanged(auth, async (user) => {
   }
   // uidなし → 自分のページ
   if (!targetUid) targetUid = user.uid;
+
+  // Gemini APIキーをFirestoreから取得
+  const configSnap = await getDoc(doc(db, 'config', 'app'));
+  geminiApiKey = configSnap.data()?.geminiApiKey || '';
 
   const myDoc = await getDoc(doc(db, 'users', user.uid));
   const myData = myDoc.data();
@@ -716,13 +721,21 @@ function handleInputKey(e) {
 
 async function callGemini(contents, systemInstruction) {
   try {
-    const res = await fetch('/api/geminiProxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents, systemInstruction }),
-    });
+    const apiKey = geminiApiKey;
+    const payload = { contents };
+    if (systemInstruction) payload.systemInstruction = systemInstruction;
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    );
     const data = await res.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    const textPart = parts.filter(p => !p.thought).pop();
+    return textPart?.text || null;
   } catch (err) {
     console.error('Gemini error:', err);
     addMessage('ai', '⚠️ エラーが発生しました。もう一度お試しください。');
