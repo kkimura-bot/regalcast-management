@@ -452,7 +452,7 @@ onAuthStateChanged(auth, async (user) => {
 
   // Gemini APIキーをFirestoreから取得
   const configSnap = await getDoc(doc(db, 'config', 'app'));
-  geminiApiKey = configSnap.data()?.geminiApiKey || '';
+  geminiApiKey = configSnap.data()?.geminiApikey || '';
 
   const myDoc = await getDoc(doc(db, 'users', user.uid));
   const myData = myDoc.data();

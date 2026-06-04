@@ -1417,17 +1417,19 @@
     if (msgs) { msgs.appendChild(loadingDiv); msgs.scrollTop = msgs.scrollHeight; }
 
     try {
-      const idToken = await window.RC?.currentUser?.getIdToken?.() || '';
-      const res = await fetch('/api/geminiProxy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(idToken ? { 'Authorization': `Bearer ${idToken}` } : {}),
-        },
-        body: JSON.stringify({ contents: reflectionHistory, systemInstruction })
-      });
+      const apiKey = window._geminiApiKey || '';
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: reflectionHistory, systemInstruction })
+        }
+      );
       const data = await res.json();
-      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'うまく返答できませんでした。';
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const textPart = parts.filter(p => !p.thought).pop();
+      const reply = textPart?.text || 'うまく返答できませんでした。';
       reflectionHistory.push({ role: 'model', parts: [{ text: reply }] });
       loadingDiv.remove();
       addReflectionMessage('ai', reply);

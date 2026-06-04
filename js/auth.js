@@ -71,6 +71,10 @@ export function initAuthListener() {
     RC.currentUserData = { id: user.uid, ...userSnap.data() };
     RC.currentRole     = RC.currentUserData.role || 'member';
 
+    // Gemini API キーを Firestore から取得してグローバルに保存
+    const configSnap = await getDoc(doc(db, 'config', 'app'));
+    window._geminiApiKey = configSnap.data()?.geminiApikey || '';
+
     // Load member cache
     const membersSnap = await getDocs(query(collection(db,'users'), orderBy('name')));
     RC._cachedMembers  = sortMembersByOrder(membersSnap.docs.map(d => ({ id: d.id, ...d.data() })));
