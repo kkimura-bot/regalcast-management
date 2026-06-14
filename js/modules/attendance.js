@@ -41,25 +41,17 @@ function invalidateMonthActiveUidsCache(month) {
   else _monthActiveUidsCache.clear();
 }
 
-// 指定selectIdsのプルダウンを「当該月に勤怠入力ありメンバー」に絞り込む
+// 指定selectIdsのプルダウンを全アクティブメンバー（退職者・アライアンス除く）で構築する
 export async function populateMonthMemberFilters(month, selectIds) {
   if (!month) return;
-  let uids;
-  try {
-    uids = await fetchMonthActiveUids(month);
-  } catch (e) {
-    console.warn('当該月メンバー絞込の取得に失敗（全員表示にフォールバック）:', e);
-    uids = null;
-  }
-  const source = RC._cachedMembers.filter(m => !m.isAlliance);
-  const activeMembers = uids ? source.filter(m => uids.has(m.id)) : source;
+  const source = RC._cachedMembers.filter(m => !m.isAlliance && !m.isRetired);
   selectIds.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const prev = sel.value;
     sel.innerHTML = '<option value="">全員</option>'
-      + activeMembers.map(u => `<option value="${u.id}">${escHtml(u.name||'')}</option>`).join('');
-    if (prev && activeMembers.find(m => m.id === prev)) sel.value = prev;
+      + source.map(u => `<option value="${u.id}">${escHtml(u.name||'')}</option>`).join('');
+    if (prev && source.find(m => m.id === prev)) sel.value = prev;
     else sel.value = '';
   });
 }
