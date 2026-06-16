@@ -887,7 +887,10 @@ export function filterAttBySearch(q) {
     renderAttendanceSummary(_cachedAttendance, month);
     return;
   }
-  const filtered = _cachedAttendance.filter(r => (r.name||'').includes(keyword));
+  const filtered = _cachedAttendance.filter(r => {
+    const name = r.name || RC._cachedMembers.find(m => m.id === r.uid)?.name || '';
+    return name.includes(keyword);
+  });
   renderAttendanceTable(filtered);
   renderAttendanceSummary(filtered, month);
 }
