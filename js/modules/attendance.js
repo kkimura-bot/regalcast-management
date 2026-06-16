@@ -42,9 +42,15 @@ function invalidateMonthActiveUidsCache(month) {
 }
 
 // 指定selectIdsのプルダウンを全アクティブメンバー（退職者・アライアンス除く）で構築する
+// ※ isRetired/isAlliance フラグが誤設定されていても当月の勤怠データにUIDが存在するメンバーは補完して追加する
 export async function populateMonthMemberFilters(month, selectIds) {
   if (!month) return;
-  const source = RC._cachedMembers.filter(m => !m.isAlliance && !m.isRetired);
+  const baseSource = RC._cachedMembers.filter(m => !m.isAlliance && !m.isRetired);
+  const cachedUids = new Set((_cachedAttendance || []).map(r => r.uid).filter(Boolean));
+  const extraMembers = RC._cachedMembers.filter(
+    m => cachedUids.has(m.id) && !baseSource.some(b => b.id === m.id)
+  );
+  const source = [...baseSource, ...extraMembers].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   selectIds.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
