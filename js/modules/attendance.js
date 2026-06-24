@@ -1808,10 +1808,9 @@ export async function renderAllianceAttendance() {
       <div style="margin-bottom:12px;padding:11px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
         <div style="font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:8px">🌤 今日のメンタル天気 <span style="background:var(--accent);color:#fff;font-size:9px;padding:1px 5px;border-radius:3px">必須</span></div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">
-          ${['快晴☀️','曇り☁️','雨🌧','豪雨🌧🌧','雷🌩','嵐🌀','天災🔥'].map(w=>{
-            const [val,...emoji]=w.split(/(?=[☀️☁️🌧🌩🌀🔥])/); const v=w.replace(/[☀️☁️🌧🌩🌀🔥]/g,'').trim();
+          ${[['快晴','☀️'],['曇り','☁️'],['雨','🌧'],['豪雨','🌧🌧'],['雷','🌩'],['嵐','🌀'],['天災','🔥']].map(([v,emoji])=>{
             return `<label style="display:flex;flex-direction:column;align-items:center;padding:6px 4px;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:11px;gap:2px;background:var(--surface)">
-              <input type="radio" name="al-mental" value="${v||w}" style="display:none">${w.replace(/\S+/,'').trim()||w}<div>${v||''}</div></label>`;
+              <input type="radio" name="al-mental" value="${v}" style="display:none">${emoji}<div>${v}</div></label>`;
           }).join('')}
         </div>
       </div>
