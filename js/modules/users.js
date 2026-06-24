@@ -568,6 +568,7 @@ export function openEditUserModal(uid) {
       <button class="btn" style="background:var(--blue);color:#fff;border:none;font-size:12px;padding:8px 10px" onclick="closeModal();openSendMeetingRequestModal('${uid}','${escHtml(u.name||'')}','${escHtml(u.dept||'')}')">🤝 面談依頼</button>
       <button class="btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-size:12px;padding:8px 10px" onclick="closeModal();openOffboardingModal('${uid}')">🚪 退職処理</button>
       <button class="btn" style="background:#fef9c3;color:#92400e;border:1px solid #fde68a;font-size:12px;padding:8px 10px" onclick="sendPasswordReset('${uid}')">🔑 PW再設定</button>
+      ${u.loginType === 'password' ? `<button class="btn" style="background:#fef9c3;color:#92400e;border:1px solid #fde68a;font-size:12px;padding:8px 10px" onclick="reissueAlliancePassword('${uid}')">🔑 初期パスワード再発行</button>` : ''}
       <button class="btn btn-secondary" style="font-size:12px;padding:8px 10px" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-primary" style="font-size:12px;padding:8px 12px" onclick="saveUser('${uid}')">保存</button>
     </div>`;
@@ -632,6 +633,24 @@ export async function sendPasswordReset(uid) {
     alert(`✅ ${u.email} にパスワード再設定メールを送信しました。`);
   } catch (e) {
     alert(`送信に失敗しました：${e.message}`);
+  }
+}
+
+export async function reissueAlliancePassword(uid) {
+  const u = RC._cachedMembers.find(m => m.id === uid);
+  if (!u || u.loginType !== 'password') return;
+  if (!confirm(`${u.name} の初期パスワードを再発行しますか？\n\n古いパスワードは無効になります。`)) return;
+  try {
+    const newPass    = _generatePassword(10);
+    const passwordHash = await _hashPassword(newPass);
+    await updateDoc(doc(db, 'users', uid), { passwordHash });
+    // キャッシュも更新
+    const idx = RC._cachedMembers.findIndex(m => m.id === uid);
+    if (idx >= 0) RC._cachedMembers[idx].passwordHash = passwordHash;
+    closeModal();
+    _showGeneratedPassword(u.name, newPass);
+  } catch (e) {
+    alert('再発行に失敗しました：' + (e?.message || e));
   }
 }
 
@@ -1116,6 +1135,7 @@ window.openEditUserModal        = openEditUserModal;
 window.saveUser                 = saveUser;
 window.confirmDeleteUser        = confirmDeleteUser;
 window.sendPasswordReset        = sendPasswordReset;
+window.reissueAlliancePassword  = reissueAlliancePassword;
 window.deleteUser               = deleteUser;
 window.openAddAllianceModal     = openAddAllianceModal;
 window.alToggleEmailRow         = alToggleEmailRow;

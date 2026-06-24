@@ -308,9 +308,11 @@ export async function doAllianceLoginWithPassword() {
   if (errEl) errEl.textContent = '';
 
   try {
-    // 名前でusersを検索（loginType: 'password'のメンバーのみ）
+    // 名前でusersを検索（isAlliance:true かつ loginType: 'password'のメンバーのみ）
+    // isAllianceフィルタを追加することで未認証ルール（isAlliance==true に read 許可）を満たす
     const snap = await getDocs(query(
       collection(db, 'users'),
+      where('isAlliance', '==', true),
       where('name', '==', name),
       where('loginType', '==', 'password')
     ));
