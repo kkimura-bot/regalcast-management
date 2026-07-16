@@ -1,0 +1,9 @@
+{
+  "name": "regalcast-management-scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "regalcast-management 管理スクリプト群（firebase-admin ADC方式）",
+  "dependencies": {
+    "firebase-admin": "^13.9.0"
+  }
+}

@@ -114,7 +114,8 @@ function renderSubmissionCard(s) {
       ${!hasAccount
         ? `<button class="mini-btn" style="color:var(--blue);border-color:var(--blue)" onclick="approveAndCreateAccount('${escHtml(s.id)}')">✅ アカウント作成</button>
            <button class="mini-btn" style="color:var(--accent2);border-color:var(--accent2)" onclick="linkSubmissionToExistingUser('${escHtml(s.id)}')">🔗 既存アカウントに紐づける</button>`
-        : `<button class="mini-btn" onclick="openMemberFromSubmission('${escHtml(s.uid)}')">👤 メンバー管理へ</button>`
+        : `<button class="mini-btn" onclick="openMemberFromSubmission('${escHtml(s.uid)}')">👤 メンバー管理へ</button>
+           <button class="mini-btn" style="color:var(--blue);border-color:var(--blue)" onclick="resendPasswordEmail('${escHtml(s.id)}')">📧 パスワード設定メール再送</button>`
       }
       ${!isRead
         ? `<button class="mini-btn" style="color:var(--accent2);border-color:var(--accent2)" onclick="markFormSubmissionRead2('${escHtml(s.id)}')">✅ 処理済みにする</button>`
@@ -234,7 +235,8 @@ export async function openFormSubmissionDetail(submissionId) {
       <button class="btn btn-secondary" onclick="closeModal()">閉じる</button>
       ${!s.uid || s.pending
         ? `<button class="btn btn-primary" onclick="closeModal();approveAndCreateAccount('${escHtml(submissionId)}')">✅ アカウント作成</button>`
-        : `<button class="btn btn-primary" onclick="closeModal();openMemberFromSubmission('${escHtml(s.uid)}')">👤 メンバー管理へ</button>`
+        : `<button class="btn btn-secondary" style="color:var(--blue);border-color:var(--blue)" onclick="closeModal();resendPasswordEmail('${escHtml(submissionId)}')">📧 パスワード設定メール再送</button>
+           <button class="btn btn-primary" onclick="closeModal();openMemberFromSubmission('${escHtml(s.uid)}')">👤 メンバー管理へ</button>`
       }
     </div>`;
   openModal();

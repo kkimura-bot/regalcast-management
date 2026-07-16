@@ -408,9 +408,17 @@ export function filterOnboarding(keyword) {
 // ── アカウント作成（ペンディングフォーム承認） ─────────────
 
 export async function approveAndCreateAccount(submissionId) {
+  // ── 最新データを取得 ──
   const subSnap = await getDoc(doc(db, 'form_submissions', submissionId));
   if (!subSnap.exists()) { alert('提出データが見つかりません'); return; }
   const sub = subSnap.data();
+
+  // ① 二重実行防止: すでにuidが設定＆pending解除済みなら作成済みとして弾く
+  if (sub.uid && !sub.pending) {
+    alert('このアカウントはすでに作成済みです。\nパスワード設定メールを再送したい場合は「📧 パスワード設定メール再送」ボタンを使ってください。');
+    return;
+  }
+
   const email = sub.formData?.email;
   const name  = sub.formData?.fullName || sub.name || '';
 
@@ -424,37 +432,78 @@ export async function approveAndCreateAccount(submissionId) {
   const btn = document.querySelector(`[onclick="approveAndCreateAccount('${submissionId}')"]`);
   if (btn) { btn.disabled = true; btn.textContent = '作成中...'; }
 
+  // ── Step1: Auth アカウント作成 ──
+  let newUid;
   try {
     // 第2 Firebase Appインスタンスで管理者をログアウトさせずにアカウント作成
     const secondaryApp = getApps().find(a => a.name === 'rc-secondary')
       || initializeApp(firebaseConfig, 'rc-secondary');
     const secondaryAuth = getAuth(secondaryApp);
-
     const tempPass = generateToken().slice(0, 16);
     const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPass);
-    const newUid = userCred.user.uid;
+    newUid = userCred.user.uid;
     await secondaryAuth.signOut();
+  } catch(e) {
+    if (e.code === 'auth/email-already-in-use') {
+      alert('❌ このメールアドレスはすでにAuthアカウントが存在します。\n\n【対処法】「🔗 既存アカウントに紐づける」でこのフォームを既存アカウントに紐づけてください。');
+    } else {
+      alert('❌ Step1失敗（Authアカウント作成）:\n' + e.message + '\n\n時間をおいて再試行してください。');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 承認 & アカウント作成'; }
+    return;
+  }
 
-    // Firestoreにメンバードキュメント作成
+  // ── Step2: Firestoreにメンバードキュメント作成 ──
+  try {
     await setDoc(doc(db, 'users', newUid), {
       name, email, role: 'member', uid: newUid, createdAt: serverTimestamp(),
     });
+  } catch(e) {
+    alert('⚠️ Step2失敗（メンバーデータ登録）:\nAuthアカウントは作成済みですが、メンバーデータの登録に失敗しました。\n\n【対処法】「🔗 既存アカウントに紐づける」でこのフォームを既存アカウントに手動紐づけしてください。\n\nエラー: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 承認 & アカウント作成'; }
+    return;
+  }
 
-    // form_submissions を更新
+  // ── Step3: form_submissions を更新 ──
+  try {
     await updateDoc(doc(db, 'form_submissions', submissionId), {
       uid: newUid, pending: false, approvedAt: new Date().toISOString(),
     });
+  } catch(e) {
+    alert('⚠️ Step3失敗（提出記録の更新）:\nアカウント・メンバーデータは作成済みですが、提出記録の更新に失敗しました。\n\n【対処法】「🔗 既存アカウントに紐づける」で ' + name + ' を手動で紐づけてください。\n\nエラー: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 承認 & アカウント作成'; }
+    return;
+  }
 
-    // パスワードリセットメール送信
+  // ── Step4: パスワードリセットメール送信 ──
+  try {
     await sendPasswordResetEmail(auth, email);
-
-    alert(`✅ アカウントを作成しました！\n${email} にパスワード設定メールを送りました。\n\n本人がメールを確認してパスワードを設定後、ログインできます。`);
-
+  } catch(e) {
+    alert('⚠️ Step4失敗（メール送信）:\nアカウント作成は完了しましたが、パスワード設定メールの送信に失敗しました。\n\n【対処法】「📧 パスワード設定メール再送」ボタンで再送してください。\n\nエラー: ' + e.message);
     window.loadReports?.();
     window.loadOnboarding?.();
+    return;
+  }
+
+  alert('✅ アカウントを作成しました！\n' + email + ' にパスワード設定メールを送りました。\n\n本人がメールを確認してパスワードを設定後、ログインできます。');
+  window.loadReports?.();
+  window.loadOnboarding?.();
+}
+
+// ── パスワード設定メール再送 ──────────────────────────────────
+
+export async function resendPasswordEmail(submissionId) {
+  const subSnap = await getDoc(doc(db, 'form_submissions', submissionId));
+  if (!subSnap.exists()) { alert('提出データが見つかりません'); return; }
+  const sub = subSnap.data();
+  const email = sub.formData?.email;
+  if (!email) { alert('メールアドレスが登録されていません'); return; }
+  if (!confirm(email + ' にパスワード設定メールを再送しますか？')) return;
+  try {
+    await sendPasswordResetEmail(auth, email);
+    alert('✅ ' + email + ' にパスワード設定メールを送りました。');
   } catch(e) {
-    alert('❌ アカウント作成に失敗しました:\n' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = '✅ 承認 & アカウント作成'; }
+    alert('❌ メール送信に失敗しました:\n' + e.message);
   }
 }
 
@@ -624,6 +673,7 @@ window.openPendingFormModal = openPendingFormModal;
 window.issuePendingFormUrl  = issuePendingFormUrl;
 window.copyPendingUrl       = copyPendingUrl;
 window.approveAndCreateAccount   = approveAndCreateAccount;
+window.resendPasswordEmail       = resendPasswordEmail;
 window.bulkIssueFormUrls         = bulkIssueFormUrls;
 window.copyBulkUrls              = copyBulkUrls;
 window.linkSubmissionToExistingUser = linkSubmissionToExistingUser;
