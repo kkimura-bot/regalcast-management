@@ -536,6 +536,9 @@
       <div id="profile-card-grid-m" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px"></div>
     </div>
 
+    <!-- M: ADMIN MANUAL (admin only) -->
+    <div class="mobile-view" id="m-view-admin-manual"></div>
+
     <!-- M: PAID LEAVE -->
     <div class="mobile-view" id="m-view-paid-leave">
       <div id="m-paid-leave-content"></div>
@@ -670,6 +673,9 @@
       <div class="mnav-item" onclick="switchMobile('mypage',this)" data-roles="admin,leader,member">
         <div class="mnav-icon"><i data-lucide="user-round"></i></div><div class="mnav-label">マイページ</div>
       </div>
+      <div class="mnav-item" onclick="switchMobile('admin-manual',this);loadAdminManual()" data-roles="admin">
+        <div class="mnav-icon"><i data-lucide="book-open"></i></div><div class="mnav-label">マニュアル</div>
+      </div>
     </div>
   </nav>
 
@@ -733,6 +739,7 @@
         <div class="tab tab-dropdown-item" data-tab="onboarding" data-roles="admin">📋 入社手続き</div>
         <div class="tab tab-dropdown-item" data-tab="offboarding" data-roles="admin">🚪 退職手続き</div>
         <div class="tab tab-dropdown-item" data-tab="notifications" data-roles="admin" onclick="loadNotificationSettings()">🔔 通知設定</div>
+        <div class="tab tab-dropdown-item" data-tab="admin-manual" data-roles="admin" onclick="loadAdminManual()">📖 管理者マニュアル</div>
       </div>
     </div>
   </div>
@@ -1284,6 +1291,9 @@
       <div id="overtime-content"></div>
     </div>
 
+    <!-- ADMIN MANUAL (admin only) -->
+    <div id="view-admin-manual" class="view"></div>
+
   </div><!-- /content -->
 </div><!-- /app-screen -->
 
@@ -1346,7 +1356,7 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=38"></script>
+<script type="module" src="js/main.js?v=39"></script>
 <script>
   // Initialize lucide icons after DOM is ready
   if (typeof lucide !== 'undefined') lucide.createIcons();

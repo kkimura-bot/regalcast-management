@@ -29,6 +29,7 @@ import './modules/notifications.js';
 import './modules/form-submissions.js';
 import './modules/paid-leave.js';
 import './modules/overtime.js';
+import './modules/admin-manual.js';
 
 // ── postLoginSetup ────────────────────────────────────────
 

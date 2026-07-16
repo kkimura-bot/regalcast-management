@@ -87,6 +87,7 @@ export function switchTab(name) {
   if (name === 'dashboard')    window.loadDashboard?.();
   if (name === 'membertasks')  window.loadAdminMemberTasks?.();
   if (name === 'paid-leave')   window.loadPaidLeave?.();
+  if (name === 'admin-manual') window.loadAdminManual?.();
 }
 
 // Event delegation: nav-tab clicks (pointer-event-safe, no onclick dependency)
