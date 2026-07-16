@@ -101,6 +101,37 @@ ${subHeading('📧 パスワード設定メールを再送する')}
 `;
 }
 
+// ── A-2. 業務委託メンバーの追加 ──────────────────────────────
+
+function buildSectionA2() {
+  return `
+<p style="font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:14px">
+  業務委託メンバー（外部スタッフ・アライアンス）の追加方法は、<strong>メールアドレスを持っているか否か</strong>で2パターンある。
+</p>
+
+${subHeading('パターン① メールアドレスあり')}
+${step(1, 'FORGE（開発チーム）に依頼する',
+  'FORGE/開発チームに <strong>「委託の○○さんを追加してください」</strong> と伝えて依頼する。<br>' +
+  '担当者が <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">provision-member.mjs --add</code> スクリプトで Auth・Firestore・voice_profiles を一括作成する。'
+)}
+${step(2, '本人にログイン案内を送る',
+  '発行後、FORGE からパスワード設定メールの送付または初期パスワードの通知を受け取り、本人に伝える。'
+)}
+
+${subHeading('パターン② メールアドレスなし（アライアンス画面のみ利用）')}
+${step(1, 'FORGE に「--add-noauth で登録」を依頼する',
+  'FORGE/開発チームに <strong>「○○さんをメールなしで追加してください」</strong> と依頼する。<br>' +
+  'スクリプトの <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">--add-noauth</code> モードで Firestore のみにプロフィールが作成され、本人はアライアンス画面（プルダウン選択）で勤怠が使えるようになる。'
+)}
+${step(2, '後からメールが取得できたら Auth 化する',
+  '本人のメールアドレスが決まった段階で FORGE に <strong>「--sync-all でAuth化してください」</strong> と依頼する。<br>' +
+  '<code style="background:var(--surface2);padding:1px 5px;border-radius:3px">--sync-all</code> は Firestore のデータを保持したまま Auth アカウントだけ発行するため、<strong>既存の勤怠・データは一切消えない。</strong>'
+)}
+
+${noteInfo('📌 「--add」「--add-noauth」「--sync-all」はいずれも FORGE/開発チームに依頼する運用。詳細なコマンドは <code style="font-size:10px">scripts/README.md</code> を参照。')}
+`;
+}
+
 // ── B. 退職処理 ───────────────────────────────────────────────
 
 function buildSectionB() {
@@ -137,26 +168,39 @@ function buildSectionC() {
   return `
 <p style="font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:14px">
   退職処理（B）の <strong>isRetired フラグはFirestoreのデータのみを変更</strong>する。Firebase Auth のログイン制御とは連動していないため、isRetired を立てただけでは退職者はアプリにログインし続けることができる。<br><br>
-  ログインを確実に止めるには Firebase Console で Auth アカウントを直接無効化する。<strong>社員の退職・業務委託の契約終了どちらも操作は同じ。</strong>
+  ログインを確実に止めるには <strong>「🔒 アカウント停止」ボタン</strong>（管理者のみ表示）を使う。<strong>社員の退職・業務委託の契約終了どちらも手順は同じ。</strong>
 </p>
 
-${subHeading('推奨フロー（3ステップ）')}
+${subHeading('正式手順（アプリ内ボタン）')}
 ${step(1, 'アプリで退職処理を行う（B の手順）',
   'isRetired を true にして各アプリのリストから除外する。'
 )}
-${step(2, 'Firebase Console で Auth アカウントを無効化する',
-  '<a href="https://console.firebase.google.com/project/regalcast-app/authentication/users" target="_blank" style="color:var(--blue);font-weight:600">Firebase Console → Authentication → Users</a>（上記URLをクリック） を開く。<br>' +
+${step(2, '「🔒 アカウント停止」ボタンをクリックする',
+  '「👥 メンバー管理」タブで対象者の行にある <strong>「🔒 アカウント停止」</strong> ボタンをクリック。<br>' +
+  'ダイアログで対象者の名前とメールアドレスを確認して「OK」を押すと、Firebase Auth アカウントが即時無効化される。<br>' +
+  '→ 処理完了後、一覧に <strong>「🔒停止中」</strong> バッジが表示される。<br>' +
+  '→ 停止後に誤りに気づいた場合は同じ行の <strong>「🔓 停止解除」</strong> ボタンで元に戻せる。'
+)}
+
+${noteOk('💡 業務委託（contractor）の契約終了も手順はまったく同じ。自分自身の行にはボタンが表示されないため誤操作も防げる。')}
+${noteWarn('⚠️ 管理者（admin）アカウントは停止できません。停止が必要な場合は先にロールを変更してください。')}
+
+${subHeading('予備手順（ボタンが使えない時）')}
+<p style="font-size:12px;color:var(--ink2);line-height:1.7;margin-bottom:10px">
+  ボタンで操作できない場合（メールなし業務委託・スクリプト登録ユーザー等）は Firebase Console を使う。
+</p>
+${step(1, 'Firebase Console を開く',
+  '<a href="https://console.firebase.google.com/project/regalcast-app/authentication/users" target="_blank" style="color:var(--blue);font-weight:600">Firebase Console → Authentication → Users</a>（リンクをクリック）を開く。'
+)}
+${step(2, '対象アカウントを無効化する',
   '① 検索ボックスに退職者のメールアドレスを入力<br>' +
   '② 該当ユーザーを見つけて行末の「…」メニューをクリック<br>' +
-  '③「アカウントを無効にする」を選択して確認<br>' +
-  '→ これで当該アカウントはログインできなくなる。'
+  '③「アカウントを無効にする」を選択して確認'
 )}
 ${step(3, '（任意）健康診断を依頼する',
   'Auth と退職者データの不整合が心配な場合は FORGE/開発チームに「<code style="background:var(--surface2);padding:1px 5px;border-radius:3px">--repair</code> で退職者の Auth 残りを確認してください」と依頼する。<br>' +
   'コマンドの詳細は <code style="background:var(--surface2);padding:1px 5px;border-radius:3px">scripts/README.md</code> を参照。'
 )}
-
-${noteOk('💡 業務委託（contractor）の契約終了も手順はまったく同じ。employmentType に関わらず Firebase Console での Auth 無効化がログイン遮断の唯一の確実な方法。')}
 `;
 }
 
@@ -230,9 +274,10 @@ function buildManualHtml() {
 <div style="max-width:760px;margin:0 auto;padding:0 0 48px">
   <div style="margin-bottom:20px">
     <div class="section-title" style="margin:0">📖 管理者マニュアル</div>
-    <div style="font-size:11px;color:var(--ink3);margin-top:4px">管理者（admin）専用 &mdash; 最終更新: 2026-07-16</div>
+    <div style="font-size:11px;color:var(--ink3);margin-top:4px">管理者（admin）専用 &mdash; 最終更新: 2026-07-16（アカウント停止ボタン追加・A-2業務委託追加手順新設）</div>
   </div>
   ${section('manual-a', '✅', 'A. 入社処理（アカウント発行）', buildSectionA(), true)}
+  ${section('manual-a2', '🤝', 'A-2. 業務委託メンバーの追加', buildSectionA2())}
   ${section('manual-b', '🚪', 'B. 退職処理', buildSectionB())}
   ${section('manual-c', '🔒', 'C. アカウントの停止（退職・業務委託終了時）', buildSectionC())}
   ${section('manual-d', '📍', 'D. 入店・退店（勤怠データ）の管理', buildSectionD())}

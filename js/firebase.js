@@ -36,6 +36,10 @@ import {
   serverTimestamp,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+import {
+  getFunctions,
+  httpsCallable
+} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-functions.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCzzyVqRLG_G9kU2qjQ3yx0aznQBKuK4Vg",
@@ -48,10 +52,11 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth    = getAuth(app);
-export const db      = getFirestore(app);
-export const storage = getStorage(app);
-export { firebaseConfig };
+export const auth      = getAuth(app);
+export const db        = getFirestore(app);
+export const storage   = getStorage(app);
+export const functions = getFunctions(app);
+export { firebaseConfig, httpsCallable };
 
 // Re-export Firebase functions so modules import from here, not CDN
 export {

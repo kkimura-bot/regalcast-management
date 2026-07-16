@@ -26,6 +26,11 @@
  *   node scripts/provision-member.mjs --add --email=foo@example.com --name="山田太郎" --type=employee
  *   node scripts/provision-member.mjs --add --email=foo@example.com --name="山田太郎" --type=contractor --role=member --execute
  *
+ *   # モード4: メールなし業務委託を users のみ登録（dry-run デフォルト）
+ *   node scripts/provision-member.mjs --add-noauth --name="山田花子"
+ *   node scripts/provision-member.mjs --add-noauth --name="山田花子" --role=member --execute
+ *   ※ Auth/voice_profiles は作らない。メール取得後に --sync-all で Auth 化する導線。
+ *
  * 事前準備（ADC方式）:
  *   gcloud auth application-default login
  *   gcloud auth application-default set-quota-project regalcast-app
@@ -42,11 +47,13 @@ import { randomBytes } from 'crypto'
 // ===== コマンドライン引数 =======================================================
 
 const args        = process.argv.slice(2)
-const IS_EXECUTE  = args.includes('--execute')
-const IS_DRY_RUN  = !IS_EXECUTE
-const MODE_SYNC   = args.includes('--sync-all')
-const MODE_REPAIR = args.includes('--repair')
-const MODE_ADD    = args.includes('--add')
+const IS_EXECUTE      = args.includes('--execute')
+const IS_DRY_RUN      = !IS_EXECUTE
+const IS_FORCE        = args.includes('--force')
+const MODE_SYNC       = args.includes('--sync-all')
+const MODE_REPAIR     = args.includes('--repair')
+const MODE_ADD        = args.includes('--add')
+const MODE_ADD_NOAUTH = args.includes('--add-noauth')
 
 /** "--key=value" 形式の引数を取得 */
 const getArg = (key) => {
@@ -62,13 +69,21 @@ const ADD_ROLE  = getArg('--role') || 'member'
 
 // ===== バリデーション ===========================================================
 
-const modeCount = [MODE_SYNC, MODE_REPAIR, MODE_ADD].filter(Boolean).length
+const modeCount = [MODE_SYNC, MODE_REPAIR, MODE_ADD, MODE_ADD_NOAUTH].filter(Boolean).length
 if (modeCount !== 1) {
   console.error('エラー: モードをひとつだけ指定してください。')
-  console.error('  --sync-all  全メンバーを一括整備')
-  console.error('  --repair    中途半端状態の検出レポート')
-  console.error('  --add       新規1名を一括作成')
+  console.error('  --sync-all   全メンバーを一括整備')
+  console.error('  --repair     中途半端状態の検出レポート')
+  console.error('  --add        新規1名を一括作成（メールあり）')
+  console.error('  --add-noauth メールなし業務委託を users のみ登録')
   process.exit(1)
+}
+
+if (MODE_ADD_NOAUTH) {
+  if (!ADD_NAME) {
+    console.error('エラー: --add-noauth には --name=X が必要です。')
+    process.exit(1)
+  }
 }
 
 if (MODE_ADD) {
@@ -645,14 +660,90 @@ async function runAdd() {
   console.log(`  3. Firebase コンソールで確認: https://console.firebase.google.com/project/${PROJECT_ID}/authentication/users`)
 }
 
+// ===== モード4: --add-noauth =====================================================
+
+async function runAddNoAuth() {
+  console.log('=== add-noauth: メールなし業務委託の users 登録 ===')
+  console.log(`モード: ${IS_DRY_RUN ? 'dry-run（書き込みなし）' : '⚠️  EXECUTE（実行）'}`)
+  console.log(`  name: ${ADD_NAME}`)
+  console.log(`  role: ${ADD_ROLE}`)
+  console.log()
+
+  // ── 同名ユーザーの重複チェック（name 完全一致） ────────
+  const dupSnap = await db.collection('users').where('name', '==', ADD_NAME).get()
+  if (!dupSnap.empty) {
+    const hits = dupSnap.docs.map(d => `uid=${d.id}  name="${d.data().name}"`)
+    console.error(`エラー: 同名ユーザーが存在します（${dupSnap.size}件）:`)
+    hits.forEach(h => console.error(`  ${h}`))
+    if (!IS_FORCE) {
+      console.error('\n同名でも別人の場合は --force を付けて再実行してください:')
+      console.error(`  node scripts/provision-member.mjs --add-noauth --name="${ADD_NAME}" [--role=...] [--execute] --force`)
+      process.exit(1)
+    }
+    console.log(`⚠️  --force 指定: 同名ユーザーが存在しますが続行します。`)
+    console.log()
+  }
+
+  if (IS_EXECUTE) {
+    console.log('3秒後に開始します...')
+    await new Promise(r => setTimeout(r, 3000))
+    console.log()
+  }
+
+  const now      = Timestamp.now()
+  // Firestore の .doc() で自動ID を取得（実際の書き込みは set() で行う）
+  const newDocRef = db.collection('users').doc()
+  const newDocId  = newDocRef.id
+
+  const userDoc = {
+    name:           ADD_NAME,
+    role:           ADD_ROLE,
+    employmentType: 'contractor',
+    isAlliance:     true,  // 後方互換フラグ
+    noAuth:         true,  // メール未収集・Auth 未発行であることを明示
+    createdAt:      now,
+  }
+
+  if (IS_DRY_RUN) {
+    console.log(`${dryTag}users/${newDocId}（自動生成ID）を set 予定:`)
+    // Timestamp はシリアライズ不可なので表示用に差し替え
+    const displayDoc = { ...userDoc, createdAt: '(Timestamp.now())' }
+    console.log(JSON.stringify(displayDoc, null, 2))
+    console.log()
+    console.log('[dry-run] 書き込みは行いませんでした。')
+    console.log('実行: node scripts/provision-member.mjs --add-noauth --name=... [--role=member] --execute')
+    console.log('\n⚠️  --execute は 🔴RED 操作。航也のGOサインを必ずもらうこと。')
+    console.log('\n--- メール取得後の Auth 化導線 ---')
+    console.log('  1. Firebase Console で users/{docId} に email フィールドを手動追加')
+    console.log('  2. node scripts/provision-member.mjs --sync-all')
+    console.log('     → Auth 発行・voice_profiles 作成・employmentType 付与を自動実行')
+    return
+  }
+
+  await newDocRef.set(userDoc)
+  console.log(`✓ users/${newDocId} 作成（noAuth 業務委託メンバー）`)
+  console.log()
+  console.log('✅ noAuth メンバー登録完了。')
+  console.log(`  docId: ${newDocId}`)
+  console.log(`  name:  ${ADD_NAME}`)
+  console.log()
+  console.log('--- メール取得後の Auth 化導線 ---')
+  console.log('  1. Firebase Console で users/{docId} に email フィールドを手動追加')
+  console.log(`     https://console.firebase.google.com/project/${PROJECT_ID}/firestore/data/users/${newDocId}`)
+  console.log('  2. node scripts/provision-member.mjs --sync-all')
+  console.log('     → Auth 発行（既存 uid を引き継いで過去データ無傷）・voice_profiles 作成まで自動実行')
+  console.log('  3. Auth 発行後は「パスワードを忘れた方」からPWリセットを本人に案内')
+}
+
 // ===== エントリーポイント ========================================================
 
 console.log('=== provision-member.mjs — regalcast-app アカウント基盤刷新 Phase 1 ===\n')
 
 try {
-  if (MODE_SYNC)   await runSyncAll()
-  if (MODE_REPAIR) await runRepair()
-  if (MODE_ADD)    await runAdd()
+  if (MODE_SYNC)      await runSyncAll()
+  if (MODE_REPAIR)    await runRepair()
+  if (MODE_ADD)       await runAdd()
+  if (MODE_ADD_NOAUTH) await runAddNoAuth()
 } catch (err) {
   console.error('\n❌ 予期しないエラーが発生しました:', err.message)
   if (err.stack) console.error(err.stack)

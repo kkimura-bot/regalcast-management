@@ -3,7 +3,7 @@
 // ============================================================
 import { RC, isAdmin, isLeaderOrAbove, roleLabel } from '../state.js';
 import {
-  auth, db, storage, firebaseConfig,
+  auth, db, storage, firebaseConfig, functions, httpsCallable,
   collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, serverTimestamp, writeBatch,
   ref, uploadBytes, getDownloadURL,
@@ -52,12 +52,19 @@ function _userRow(u, salNames) {
   const noSalary = !isContractor && !salNames?.has(u.name) && !u.hasSalaryInfo;
   const rowStyle = u.isRetired ? 'opacity:0.5;background:var(--surface2)' : '';
   const retiredBadge = u.isRetired ? `<span class="badge" style="background:rgba(100,100,100,.12);color:var(--ink3);margin-left:4px">退職</span>` : '';
+  const authDisabledBadge = u.authDisabled ? `<span class="badge" style="background:rgba(239,68,68,.12);color:#dc2626;margin-left:4px">🔒停止中</span>` : '';
+  const isSelf = u.id === RC.currentUser?.uid;
+  const disableBtn = isAdmin() && !isSelf
+    ? (u.authDisabled
+        ? `<button class="mini-btn" style="background:rgba(5,150,105,.08);color:var(--accent2);border-color:rgba(5,150,105,.25)" onclick="toggleUserDisabled('${u.id}',false)">🔓 停止解除</button>`
+        : `<button class="mini-btn" style="background:rgba(239,68,68,.08);color:#dc2626;border-color:rgba(239,68,68,.25)" onclick="toggleUserDisabled('${u.id}',true)">🔒 アカウント停止</button>`)
+    : '';
   return `<tr style="${rowStyle}">
     <td style="text-align:center">
       <input type="checkbox" class="user-check" value="${u.id}" style="width:15px;height:15px;cursor:pointer;accent-color:var(--accent)"
         onchange="updateBulkDeleteBar()">
     </td>
-    <td style="font-weight:600;cursor:pointer;color:var(--blue)" onclick="openRoadmapPreviewModal('${u.id}','${escHtml(u.name||'')}')">${escHtml(u.name||'—')}${retiredBadge}</td>
+    <td style="font-weight:600;cursor:pointer;color:var(--blue)" onclick="openRoadmapPreviewModal('${u.id}','${escHtml(u.name||'')}')">${escHtml(u.name||'—')}${retiredBadge}${authDisabledBadge}</td>
     <td style="font-size:11px;color:var(--ink3)">${escHtml(u.email||'—')}</td>
     <td>
       <span class="badge ${u.role==='admin'?'badge-doing':u.role==='leader'?'badge-leader':'badge-todo'}">${roleLabel(u.role)}</span>
@@ -65,9 +72,10 @@ function _userRow(u, salNames) {
     </td>
     <td style="font-size:11px;color:var(--ink3)">${escHtml(u.dept||'—')}</td>
     <td style="font-size:11px;color:var(--ink3)">${escHtml(u.company||'—')}</td>
-    <td style="display:flex;gap:6px;align-items:center">
+    <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       ${!isContractor && !u.isRetired ? `<button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2);position:relative" onclick="window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ${!_cachedRoadmapNames.has(u.name) ? `<span style="position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:6px;line-height:1.4">未設定</span>` : ''}</button>` : ''}
       <button class="mini-btn" onclick="openEditUserModal('${u.id}')">編集</button>
+      ${disableBtn}
     </td>
   </tr>`;
 }
@@ -77,12 +85,20 @@ function _userCard(u, salNames) {
   const noSalary = !isContractor && !salNames?.has(u.name) && !u.hasSalaryInfo;
   const cardStyle = u.isRetired ? 'opacity:0.5;background:var(--surface2)' : '';
   const retiredBadge = u.isRetired ? `<span class="badge" style="background:rgba(100,100,100,.12);color:var(--ink3)">退職</span>` : '';
+  const authDisabledBadge = u.authDisabled ? `<span class="badge" style="background:rgba(239,68,68,.12);color:#dc2626">🔒停止中</span>` : '';
+  const isSelf = u.id === RC.currentUser?.uid;
+  const disableBtn = isAdmin() && !isSelf
+    ? (u.authDisabled
+        ? `<button class="mini-btn" style="background:rgba(5,150,105,.08);color:var(--accent2);border-color:rgba(5,150,105,.25)" onclick="event.stopPropagation();toggleUserDisabled('${u.id}',false)">🔓 停止解除</button>`
+        : `<button class="mini-btn" style="background:rgba(239,68,68,.08);color:#dc2626;border-color:rgba(239,68,68,.25)" onclick="event.stopPropagation();toggleUserDisabled('${u.id}',true)">🔒 アカウント停止</button>`)
+    : '';
   return `<div class="m-card" style="${cardStyle}" onclick="openEditUserModal('${u.id}')">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div style="font-weight:700;color:var(--blue);cursor:pointer" onclick="event.stopPropagation();openRoadmapPreviewModal('${u.id}','${escHtml(u.name||'')}')">${escHtml(u.name||'—')}</div>
-      <div style="display:flex;gap:4px;align-items:center">
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
         <span class="badge ${u.role==='admin'?'badge-doing':u.role==='leader'?'badge-leader':'badge-todo'}">${roleLabel(u.role)}</span>
         ${retiredBadge}
+        ${authDisabledBadge}
         ${noSalary?`<span class="badge" style="background:rgba(200,71,42,.1);color:var(--accent);cursor:pointer" onclick="event.stopPropagation();openAddSalaryModal('${u.id}','${escHtml(u.name||'')}')">給与未設定</span>`:''}
       </div>
     </div>
@@ -90,6 +106,7 @@ function _userCard(u, salNames) {
     <div style="font-size:11px;color:var(--ink3)">${escHtml(u.dept||'—')}</div>
     ${u.company ? `<div style="font-size:11px;color:var(--ink3)">${escHtml(u.company)}</div>` : ''}
     ${!isContractor && !u.isRetired ? `<div style="margin-top:8px"><button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2);position:relative" onclick="event.stopPropagation();window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ${!_cachedRoadmapNames.has(u.name) ? `<span style="position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:6px;line-height:1.4">未設定</span>` : ''}</button></div>` : ''}
+    ${disableBtn ? `<div style="margin-top:8px">${disableBtn}</div>` : ''}
   </div>`;
 }
 
@@ -672,6 +689,28 @@ export async function deleteUser(uid) {
   loadUsers();
 }
 
+// ── Account disable / enable ──────────────────────────────
+
+export async function toggleUserDisabled(uid, disabled) {
+  const u = RC._cachedMembers.find(m => m.id === uid);
+  if (!u) return;
+  const action = disabled ? 'アカウントを停止' : 'アカウント停止を解除';
+  const nameDisplay = escHtml(u.name || uid);
+  const emailDisplay = u.email ? `（${escHtml(u.email)}）` : '（メールなし）';
+  if (!confirm(`${nameDisplay}${emailDisplay} の${action}を行いますか？`)) return;
+  try {
+    const callFn = httpsCallable(functions, 'adminSetUserDisabled');
+    await callFn({ targetUid: uid, disabled });
+    // キャッシュを更新して再描画
+    const idx = RC._cachedMembers.findIndex(m => m.id === uid);
+    if (idx >= 0) RC._cachedMembers[idx].authDisabled = disabled;
+    renderUsersTable(_getSortedFilteredMembers(), _cachedSalNames);
+    alert(`✅ ${nameDisplay} の${action}が完了しました`);
+  } catch (e) {
+    alert(`エラーが発生しました：${e.message}`);
+  }
+}
+
 // ── Alliance add (single / bulk) ──────────────────────────
 
 function _generatePassword(length = 10) {
@@ -1064,6 +1103,7 @@ window.loadUsers                = loadUsers;
 window.getMemberNames           = getMemberNames;
 window.renderUsersTable         = renderUsersTable;
 window.updateBulkDeleteBar      = updateBulkDeleteBar;
+window.toggleUserDisabled       = toggleUserDisabled;
 // ── Roadmap Preview Modal ──────────────────────────────────
 async function openRoadmapPreviewModal(uid, name) {
   const periods = [

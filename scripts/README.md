@@ -69,6 +69,41 @@ trainingProfiles は作成しない（研修対象は研修アプリで追加す
 
 ---
 
+### モード4: --add-noauth（メールなし業務委託の users 登録）
+
+メールアドレスが未収集の業務委託（外部アライアンス）を users のみに登録する。
+**Auth/voice_profiles は作らない。** メール取得後に `--sync-all` で Auth 化する導線。
+
+```bash
+# dry-run（デフォルト）
+node scripts/provision-member.mjs --add-noauth --name="山田花子"
+
+# role 指定あり
+node scripts/provision-member.mjs --add-noauth --name="山田花子" --role=member
+
+# 実行（🔴RED: 航也のGOサイン必須）
+node scripts/provision-member.mjs --add-noauth --name="山田花子" --execute
+```
+
+作成される users ドキュメント（docId は自動生成）:
+
+| フィールド | 値 |
+|---|---|
+| name | 指定した氏名 |
+| role | 指定（デフォルト: `member`） |
+| employmentType | `'contractor'` |
+| isAlliance | `true`（後方互換フラグ） |
+| noAuth | `true`（Auth 未発行を明示） |
+| createdAt | Timestamp |
+
+**Auth 化の導線（メール取得後）:**
+1. Firebase Console で `users/{docId}` に `email` フィールドを手動追加
+2. `node scripts/provision-member.mjs --sync-all` を実行
+   → Auth 発行（既存 docId を uid として引き継ぎ = 過去データ無傷）・voice_profiles 作成まで自動実行
+3. Auth 発行後は「パスワードを忘れた方」から本人にPWリセットを案内
+
+---
+
 ## その他のスクリプト
 
 | ファイル | 用途 |

@@ -14,8 +14,29 @@ const db = getFirestore();
 exports.deleteAuthUser = onCall(
   { invoker: 'public' },
   async (request) => {
-    const { uid } = request.data;
-    if (!uid) throw new Error('uid is required');
+    // ── 認証チェック ──────────────────────────────────────
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', '認証が必要です');
+    }
+
+    const callerUid = request.auth.uid;
+    const { uid } = request.data || {};
+
+    if (typeof uid !== 'string' || !uid) {
+      throw new HttpsError('invalid-argument', 'uid（string）が必要です');
+    }
+
+    // ── 安全弁: 自分自身の削除不可 ───────────────────────
+    if (uid === callerUid) {
+      throw new HttpsError('invalid-argument', '自分自身を削除することはできません');
+    }
+
+    // ── 権限チェック: 呼び出し元が admin か ──────────────
+    const callerSnap = await db.doc(`users/${callerUid}`).get();
+    if (!callerSnap.exists || callerSnap.data()?.role !== 'admin') {
+      throw new HttpsError('permission-denied', '管理者のみ実行できます');
+    }
+
     try {
       await getAuth().deleteUser(uid);
       return { success: true };
@@ -24,6 +45,74 @@ exports.deleteAuthUser = onCall(
       if (e.code === 'auth/user-not-found') return { success: true };
       throw e;
     }
+  }
+);
+
+// ── アカウント停止 / 再開 ──────────────────────────────────
+// 管理者がスタッフの Auth アカウントを一時停止・再開する
+// 入力: { targetUid: string, disabled: boolean }
+
+exports.adminSetUserDisabled = onCall(
+  { invoker: 'public' },
+  async (request) => {
+    // ── 認証チェック ──────────────────────────────────────
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', '認証が必要です');
+    }
+
+    const callerUid = request.auth.uid;
+    const { targetUid, disabled } = request.data || {};
+
+    // ── 入力バリデーション ────────────────────────────────
+    if (typeof targetUid !== 'string' || !targetUid) {
+      throw new HttpsError('invalid-argument', 'targetUid（string）が必要です');
+    }
+    if (typeof disabled !== 'boolean') {
+      throw new HttpsError('invalid-argument', 'disabled（boolean）が必要です');
+    }
+
+    // ── 安全弁: 自分自身を停止不可 ───────────────────────
+    if (targetUid === callerUid) {
+      throw new HttpsError('invalid-argument', '自分自身を停止/再開することはできません');
+    }
+
+    // ── 権限チェック: 呼び出し元が admin か ──────────────
+    const callerSnap = await db.doc(`users/${callerUid}`).get();
+    if (!callerSnap.exists || callerSnap.data()?.role !== 'admin') {
+      throw new HttpsError('permission-denied', '管理者のみ実行できます');
+    }
+
+    // ── 対象ユーザー存在チェック ──────────────────────────
+    const targetSnap = await db.doc(`users/${targetUid}`).get();
+    if (!targetSnap.exists) {
+      throw new HttpsError('not-found', '対象ユーザーが見つかりません');
+    }
+
+    // ── 対象が admin なら操作不可 ─────────────────────────
+    if (targetSnap.data()?.role === 'admin') {
+      throw new HttpsError('permission-denied', '管理者アカウントは停止できません。先にロールを変更してください');
+    }
+
+    // ── Auth 更新 ─────────────────────────────────────────
+    await getAuth().updateUser(targetUid, { disabled });
+
+    // ── Firestore 更新（アプリ表示用）────────────────────
+    await db.doc(`users/${targetUid}`).update({
+      authDisabled:   disabled,
+      authDisabledAt: new Date(),
+      authDisabledBy: callerUid,
+    });
+
+    // ── 監査ログ（構造化）────────────────────────────────
+    // 新コレクションは作らない（共有PJのwildcardルール下での改ざんリスク回避）
+    console.log(JSON.stringify({
+      who:    callerUid,
+      target: targetUid,
+      action: disabled ? 'disable_auth' : 'enable_auth',
+      at:     new Date().toISOString(),
+    }));
+
+    return { success: true };
   }
 );
 
