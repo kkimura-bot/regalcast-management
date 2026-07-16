@@ -94,7 +94,15 @@ exports.adminSetUserDisabled = onCall(
     }
 
     // ── Auth 更新 ─────────────────────────────────────────
-    await getAuth().updateUser(targetUid, { disabled });
+    try {
+      await getAuth().updateUser(targetUid, { disabled });
+    } catch (e) {
+      // noAuth/アライアンスメンバーはAuth未発行のためupdateUser自体が不要
+      if (e.code === 'auth/user-not-found') {
+        throw new HttpsError('failed-precondition', 'このメンバーはログインアカウント未発行のため、停止操作は不要です（ログイン自体ができません）');
+      }
+      throw e;
+    }
 
     // ── Firestore 更新（アプリ表示用）────────────────────
     await db.doc(`users/${targetUid}`).update({
