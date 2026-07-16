@@ -164,7 +164,8 @@ export function openOffboardingModal(uid) {
       ${ob.formSubmittedAt
         ? `<div style="font-size:12px;color:var(--accent2);font-weight:700">✅ 提出済み</div>`
         : ob.formToken
-          ? `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          ? `<div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:8px;padding:6px 10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px">⚠️ ${escHtml(m.name)}さん専用URL — 他の人に送らないでください</div>
+             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <input type="text" value="${escHtml(resignUrl)}" readonly class="form-input" style="flex:1;font-size:11px;background:#fff" id="of-resign-url">
               <button class="mini-btn" onclick="copyResignUrl('${uid}')">コピー</button>
               <button class="mini-btn" style="color:var(--accent);border-color:var(--accent)" onclick="revokeResignUrl('${uid}')">無効化</button>
@@ -255,6 +256,14 @@ export async function revokeResignUrl(uid) {
 export function copyResignUrl(uid) {
   const ob = _cachedOffboarding[uid];
   if (!ob?.formToken) return;
+  const m = RC._cachedMembers.find(x => x.id === uid);
+  const name = m?.name || ob.name || '';
+  const confirmed = confirm(
+    `【${name}さん専用】の退職URLをコピーします。\n` +
+    `このURLを他の人に送らないでください。\n\n` +
+    `よろしいですか？`
+  );
+  if (!confirmed) return;
   const url = `${getResignBaseUrl()}?token=${ob.formToken}`;
   navigator.clipboard.writeText(url).then(() => {
     const btn = document.querySelector(`[onclick="copyResignUrl('${uid}')"]`);

@@ -85,6 +85,44 @@
     #screen-complete .complete-icon { font-size: 56px; margin-bottom: 16px; }
     #screen-complete .complete-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
     #screen-complete .complete-sub { font-size: 14px; color: #8a93a6; line-height: 1.7; }
+    .identity-banner {
+      background: #fef2f2;
+      border: 2px solid #dc2626;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin: 16px 0 4px;
+      font-size: 15px;
+      line-height: 1.8;
+      color: #991b1b;
+      font-weight: 600;
+      text-align: left;
+    }
+    .identity-banner .identity-name {
+      font-size: 20px;
+      color: #dc2626;
+      font-weight: 800;
+    }
+    .identity-banner .identity-note {
+      display: block;
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #b91c1c;
+      border-top: 1px solid #fca5a5;
+      padding-top: 8px;
+    }
+    .submit-confirm {
+      text-align: center;
+      font-size: 13px;
+      color: #4b5563;
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .submit-confirm .submit-confirm-name { color: #dc2626; }
   </style>
 </head>
 <body>
@@ -126,7 +164,11 @@
     <div class="card greeting">
       <div class="greeting-avatar">🚪</div>
       <div class="greeting-name" id="greeting-name">—</div>
-      <div class="greeting-sub">退職届を入力して提出してください。<br>内容は担当者が確認します。</div>
+      <div class="identity-banner">
+        これは <span class="identity-name" id="identity-name-banner">—</span> さんの退職手続きフォームです。
+        <span class="identity-note">ご本人でない場合は入力せず、会社の担当者にご連絡ください。</span>
+      </div>
+      <div class="greeting-sub" style="margin-top:12px">内容を入力して提出してください。<br>入力内容は担当者が確認します。</div>
     </div>
 
     <div class="notice-box">
@@ -147,6 +189,7 @@
       </div>
 
       <div class="error-msg" id="submit-error"></div>
+      <div class="submit-confirm"><span class="submit-confirm-name" id="submit-confirm-name">—</span>さんとして送信します</div>
       <button class="submit-btn" id="submit-btn" onclick="submitResign()">📨 退職届を提出する</button>
     </div>
   </div>
@@ -202,7 +245,10 @@ async function loadForm() {
     // すでに提出済み
     if (data.resignDate) { showScreen('submitted'); return; }
 
-    document.getElementById('greeting-name').textContent = data.name || '';
+    const personName = data.name || '';
+    document.getElementById('greeting-name').textContent = personName;
+    document.getElementById('identity-name-banner').textContent = personName;
+    document.getElementById('submit-confirm-name').textContent = personName;
     showScreen('form');
   } catch(e) {
     console.error(e);
