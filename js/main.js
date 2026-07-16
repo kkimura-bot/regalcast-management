@@ -21,7 +21,6 @@ import './modules/users.js';
 import './modules/salary.js';
 import './modules/mental.js';
 import './modules/mypage.js';
-import './modules/profiles.js';
 import './modules/onboarding.js';
 import './modules/offboarding.js';
 import './modules/notifications.js';

@@ -527,15 +527,6 @@
       <div id="m-offboarding-list"></div>
     </div>
 
-    <div class="mobile-view" id="m-view-profiles">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <div style="font-weight:700;font-size:14px">👥 社員紹介</div>
-        <input class="form-input" id="profile-search-m" placeholder="🔍 検索" style="width:140px;font-size:12px" oninput="filterProfiles(this.value)">
-      </div>
-      <div id="profile-skill-filter-m" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:12px;align-items:center"></div>
-      <div id="profile-card-grid-m" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px"></div>
-    </div>
-
     <!-- M: ADMIN MANUAL (admin only) -->
     <div class="mobile-view" id="m-view-admin-manual"></div>
 
@@ -659,9 +650,6 @@
       <div class="mnav-item" onclick="switchMobile('notifications',this);loadNotificationSettings()" data-roles="" style="display:none">
         <div class="mnav-icon"><i data-lucide="bell"></i></div><div class="mnav-label">通知設定</div>
       </div>
-      <div class="mnav-item" onclick="switchMobile('profiles',this);loadProfiles()" data-roles="admin,leader,member">
-        <div class="mnav-icon"><i data-lucide="id-card"></i></div><div class="mnav-label">社員紹介</div>
-      </div>
       <div class="mnav-item" onclick="switchMobile('paid-leave',this)" data-roles="admin,leader,member">
         <div class="mnav-icon" style="position:relative"><i data-lucide="palmtree"></i><span id="m-paid-leave-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
         <div class="mnav-label">有給申請</div>
@@ -718,9 +706,6 @@
         <div class="tab tab-dropdown-item" data-tab="salary" data-roles="admin">💰 給与管理</div>
       </div>
     </div>
-
-    <!-- 社員紹介 -->
-    <div class="tab" data-tab="profiles" data-roles="admin,leader,member" onclick="loadProfiles()">👥 社員紹介</div>
 
     <!-- 有給申請 -->
     <div class="tab" data-tab="paid-leave" data-roles="admin,leader,member" onclick="loadPaidLeave()">🌴 有給申請 <span id="paid-leave-nav-badge" class="notif-badge" style="display:none;background:var(--accent2)"></span></div>
@@ -1272,16 +1257,6 @@
       </div>
     </div>
 
-    <!-- PROFILES -->
-    <div id="view-profiles" class="view">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div class="section-title" style="margin:0">👥 社員紹介</div>
-        <input class="form-input" id="profile-search" placeholder="🔍 名前・部署で検索" style="width:220px;font-size:12px" oninput="filterProfiles(this.value)">
-      </div>
-      <div id="profile-skill-filter" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:16px;align-items:center"></div>
-      <div id="profile-card-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px"></div>
-    </div>
-
     <!-- PAID LEAVE -->
     <div id="view-paid-leave" class="view">
       <div id="paid-leave-content"></div>
@@ -1356,7 +1331,7 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=41"></script>
+<script type="module" src="js/main.js?v=42"></script>
 <script>
   // Initialize lucide icons after DOM is ready
   if (typeof lucide !== 'undefined') lucide.createIcons();
