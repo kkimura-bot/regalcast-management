@@ -387,6 +387,8 @@ export async function loadMonthlyAttendance(force = false, explicitMonth = null)
   const end   = getMonthEnd(month);
 
   let attQuery;
+  // 部門フィルタ（30件超）のみ使用: getDocs後にクライアント側で uid を絞り込む
+  let deptFilterIds = null;
   if (isAdmin()) {
     const memberFilter = document.getElementById('att-member-filter')?.value;
     if (memberFilter) {
@@ -408,10 +410,30 @@ export async function loadMonthlyAttendance(force = false, explicitMonth = null)
     } else if (filter === 'dept') {
       const myDept = RC.currentUserData?.dept || '';
       const deptIds = RC._cachedMembers.filter(m => m.dept === myDept).map(m => m.id);
-      attQuery = query(collection(db,'attendance'),
-        where('date','>=',start), where('date','<=',end), orderBy('date'));
+      if (deptIds.length === 0) {
+        // 自分の部門が未設定 or 部門メンバーがゼロ → self と同じ扱い
+        attQuery = query(collection(db,'attendance'),
+          where('uid','==',RC.currentUser.uid),
+          where('date','>=',start), where('date','<=',end), orderBy('date'));
+      } else if (deptIds.length <= 30) {
+        // Firebase JS SDK v9 の in クエリ上限は30件。範囲内なら in クエリを使う
+        attQuery = query(collection(db,'attendance'),
+          where('uid','in',deptIds),
+          where('date','>=',start), where('date','<=',end), orderBy('date'));
+      } else {
+        // 30件超: 全件取得 → getDocs 後にクライアント側で uid を絞り込む
+        // in クエリを30件チャンクに分割するより変更量が少ない。
+        // Firestore ルールが全開放なので通信レベルの差異はない（黙って切り捨てない）
+        attQuery = query(collection(db,'attendance'),
+          where('date','>=',start), where('date','<=',end), orderBy('date'));
+        deptFilterIds = new Set(deptIds);
+      }
     } else {
+      // att-leader-filter の選択肢は現時点で self/dept の2択のみ。このブランチは dead code。
+      // att-leader-filter-m 要素が HTML に存在しないため mLeaderFilter は常に 'self'。
+      // 安全のため self 相当（自分のみ）にしておく。
       attQuery = query(collection(db,'attendance'),
+        where('uid','==',RC.currentUser.uid),
         where('date','>=',start), where('date','<=',end), orderBy('date'));
     }
   } else {
@@ -423,6 +445,10 @@ export async function loadMonthlyAttendance(force = false, explicitMonth = null)
   try {
     const snap = await getDocs(attQuery);
     _cachedAttendance = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // 部門フィルタが30件超の場合はクライアント側で uid を絞り込む（黙って切り捨てない）
+    if (deptFilterIds) {
+      _cachedAttendance = _cachedAttendance.filter(r => deptFilterIds.has(r.uid));
+    }
   } catch(e) {
     console.error('勤怠データの取得に失敗しました:', e);
     const tbody = document.getElementById('attendance-table-body');
@@ -441,14 +467,25 @@ export async function loadMonthlyAttendance(force = false, explicitMonth = null)
       return t ? { ...r, paidLeaveType: t } : r;
     });
     // 該当月のレコードに無い日付の承認済み有給は「合成行」として追加
-    // 管理者の「全員表示」時 or 本人ビューでは、対象uidの有給日を追加する
     const existingSet = new Set(_cachedAttendance.map(r => `${r.uid}_${r.date}`));
     const addExtras = [];
-    // 自分のuidまたは、取得済みレコードに含まれるuidのみ対象（未ロードuidの全員分は挿入しない）
+    // scopeUids = 「今この画面に表示しようとしている対象」のみに限定する。
+    // ❌ 旧: 無条件に currentUser.uid を追加 → 管理者が他メンバーを表示中でも
+    //       自分（管理者）の有給が混入する原因になっていた。
     const scopeUids = new Set(_cachedAttendance.map(r => r.uid).filter(Boolean));
-    if (!isLeaderOrAbove() || !isAdmin()) { /* noop */ }
-    // member/leader「自分のみ」表示時は scopeUids に自分も入れる
-    if (RC.currentUser?.uid) scopeUids.add(RC.currentUser.uid);
+    if (isAdmin()) {
+      const memberFilter = document.getElementById('att-member-filter')?.value;
+      if (memberFilter) {
+        // 管理者が特定メンバーに絞り込み中 → そのメンバーのみ。自分（管理者）を足さない
+        scopeUids.clear();
+        scopeUids.add(memberFilter);
+      }
+      // 管理者・全員表示 → _cachedAttendance の uid そのまま（自分を追加しない）
+    } else {
+      // 一般・リーダーは自分専用ビュー。有給のみの月は _cachedAttendance が空になるため
+      // 自分の uid を必ず追加して合成行が消えないようにする（rescue case）
+      if (RC.currentUser?.uid) scopeUids.add(RC.currentUser.uid);
+    }
     Object.entries(plMap || {}).forEach(([uid, dateMap]) => {
       if (!scopeUids.has(uid)) return;
       // 名前取得
