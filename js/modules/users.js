@@ -551,7 +551,14 @@ export async function execBulkAddMembers() {
 export function openEditUserModal(uid) {
   const u = RC._cachedMembers.find(m => m.id === uid);
   if (!u) return;
-  const deptOpts = ['', ...depts_options].map(d => `<option ${u.dept===d?'selected':''}>${d}</option>`).join('');
+  // 現在値が選択肢に無い場合（業務委託の会社名・再編前の旧部門名など）は選択肢に足して温存する。
+  // これが無いと「どれも selected にならない → 先頭の空欄が選ばれる → 保存で値が消える」事故になる。
+  const curDept = u.dept || '';
+  const deptList = ['', ...depts_options];
+  if (curDept && !deptList.includes(curDept)) deptList.push(curDept);
+  const deptOpts = deptList.map(d =>
+    `<option value="${escHtml(d)}" ${curDept===d?'selected':''}>${d ? escHtml(d) : '── 未設定 ──'}</option>`
+  ).join('');
 
   document.getElementById('modal-title-text').textContent = 'メンバーを編集';
   document.getElementById('modal-body').innerHTML = `
