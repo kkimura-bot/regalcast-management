@@ -36,7 +36,8 @@
       "node_modules/**",
       "functions/**",
       "netlify/**",
-      ".git/**"
+      ".git/**",
+      "**/.*"
     ],
     "headers": [
       {
