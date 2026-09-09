@@ -71,7 +71,7 @@ function _userRow(u, salNames) {
       ${noSalary?`<span class="badge" style="background:rgba(200,71,42,.1);color:var(--accent);margin-left:4px;cursor:pointer" onclick="openAddSalaryModal('${u.id}','${escHtml(u.name||'')}')">給与未設定</span>`:''}
     </td>
     <td style="font-size:11px;color:var(--ink3)">${escHtml(u.dept||'—')}</td>
-    <td style="font-size:11px;color:var(--ink3)">${escHtml(u.company||'—')}</td>
+    <td style="font-size:11px;color:var(--ink3)">${escHtml(u.company||'—')}${u.nearestStation ? `<div style="font-size:10px;color:var(--ink3)">🚉 ${escHtml(u.nearestStation)}</div>` : ''}</td>
     <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       ${!isContractor && !u.isRetired ? `<button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2);position:relative" onclick="window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ${!_cachedRoadmapNames.has(u.name) ? `<span style="position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:6px;line-height:1.4">未設定</span>` : ''}</button>` : ''}
       <button class="mini-btn" onclick="openEditUserModal('${u.id}')">編集</button>
@@ -105,6 +105,7 @@ function _userCard(u, salNames) {
     <div style="font-size:11px;color:var(--ink3);margin-top:4px">${escHtml(u.email||'—')}</div>
     <div style="font-size:11px;color:var(--ink3)">${escHtml(u.dept||'—')}</div>
     ${u.company ? `<div style="font-size:11px;color:var(--ink3)">${escHtml(u.company)}</div>` : ''}
+    ${u.nearestStation ? `<div style="font-size:11px;color:var(--ink3)">🚉 ${escHtml(u.nearestStation)}</div>` : ''}
     ${!isContractor && !u.isRetired ? `<div style="margin-top:8px"><button class="mini-btn" style="background:rgba(37,99,235,.08);color:var(--blue);border-color:rgba(37,99,235,.2);position:relative" onclick="event.stopPropagation();window.open('roadmap.html?uid=${u.id}','_blank')">📋 ロードマップ${!_cachedRoadmapNames.has(u.name) ? `<span style="position:absolute;top:-5px;right:-5px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:6px;line-height:1.4">未設定</span>` : ''}</button></div>` : ''}
     ${disableBtn ? `<div style="margin-top:8px">${disableBtn}</div>` : ''}
   </div>`;
@@ -568,6 +569,8 @@ export function openEditUserModal(uid) {
       <input class="form-input" id="eu-email" type="email" value="${escHtml(u.email||'')}"></div>
     <div class="form-row"><label class="form-label">所属会社名</label>
       <input class="form-input" id="eu-company" value="${escHtml(u.company||'')}" placeholder="例：株式会社リーガルキャスト"></div>
+    <div class="form-row"><label class="form-label">最寄駅 <span style="font-size:10px;color:var(--ink3);font-weight:400">（任意・オーダー管理のシフト表に出ます）</span></label>
+      <input class="form-input" id="eu-nearest-station" value="${escHtml(u.nearestStation||'')}" placeholder="例：住吉東駅"></div>
     <div class="form-row-2">
       <div class="form-row"><label class="form-label">権限</label>
         <select class="form-input" id="eu-role">
@@ -607,6 +610,7 @@ export async function saveUser(uid) {
   const name            = document.getElementById('eu-name').value.trim();
   const email           = document.getElementById('eu-email').value.trim();
   const company         = document.getElementById('eu-company').value.trim();
+  const nearestStation  = document.getElementById('eu-nearest-station')?.value.trim() || '';
   const role            = document.getElementById('eu-role').value;
   const dept            = document.getElementById('eu-dept').value;
   const fareTemplates   = window._euFareTemplates || [];
@@ -622,7 +626,7 @@ export async function saveUser(uid) {
   const prevMember = RC._cachedMembers.find(m => m.id === uid);
   const prevLineUserId = prevMember?.lineUserId || null;
 
-  await updateDoc(doc(db,'users',uid), { name, email, company, role, dept, fareTemplates, lineUserId });
+  await updateDoc(doc(db,'users',uid), { name, email, company, nearestStation, role, dept, fareTemplates, lineUserId });
 
   // allowed_dm_users の同期
   if (lineUserId) {
